@@ -21,11 +21,13 @@ import { OverlayLayer } from '../components/canvas/OverlayLayer';
 import { ChoosePhotoButton, OpenAnotherButton } from '../components/ImagePicker';
 import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
 import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
-import { useModelFocus } from '../features/inspect/model/useModelFocus';
+import { emptyMapCaption, useModelFocus } from '../features/inspect/model/useModelFocus';
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
 import { CleanFlow } from './clean/CleanPanel';
+import { ProtectPanel } from './protect/ProtectPanel';
+import { useProtect } from './protect/useProtect';
 import { FaceWarpCard } from './inspect/FaceWarpCard';
 import { widenToTrainingCrop } from './inspect/faceBox';
 import { ProvenanceCard } from './inspect/ProvenanceCard';
@@ -39,7 +41,8 @@ import { useClean, type FillMethod } from './clean/useClean';
 import { EvidenceRow } from './results/EvidenceRow';
 import { EvidenceSheet } from './results/EvidenceSheet';
 import { toEvidence } from './results/evidence';
-import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
+import { aiSignalFinding, forensicsFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
+import { useForensics } from '../features/inspect/forensics';
 import { ReportSheet } from '../components/report/ReportSheet';
 import { buildReport } from '../features/report/report';
 import type { CheckResult } from '../contracts';
@@ -75,6 +78,7 @@ export function AppWorkspace() {
   );
   const docAnalysis = useDocumentAnalysis(doc?.sha256 ?? null, doc?.bytes ?? null);
   const warp = useWarpDetector(ready?.asset.id ?? null, ready?.bitmap ?? null);
+  const forensics = useForensics(ready?.asset.id ?? null, ready?.bitmap ?? null, ready?.bytes ?? null, ready?.asset.mimeType ?? null);
   const [faceMarking, setFaceMarking] = useState(false);
   const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
   const [showWarp, setShowWarp] = useState(true);
@@ -127,7 +131,28 @@ export function AppWorkspace() {
         : null,
     [tab, cleanCandidates],
   );
-  const displayBitmap = tab === 'clean' && cs.status === 'done' && showAfter ? cs.preview : null;
+  const protectHook = useProtect(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
+  const ps = protectHook.state;
+  const [showProtected, setShowProtected] = useState(true);
+  const displayBitmap =
+    tab === 'clean' && cs.status === 'done' && showAfter
+      ? cs.preview
+      : tab === 'protect' && ps.status === 'done' && showProtected
+        ? ps.preview
+        : null;
+  // Protect: the model downloads by itself as soon as the tab opens.
+  useEffect(() => {
+    if (tab === 'protect' && ready && ps.status === 'idle') void protectHook.load().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ready?.asset.id, ps.status]);
+  // Clean: opening the tab finds private text and removes the confidently found high-risk items straight away.
+  useEffect(() => {
+    if (tab === 'clean' && ready && cs.status === 'idle') {
+      setShowAfter(true);
+      void clean.scan({ auto: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ready?.asset.id]);
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
@@ -156,6 +181,7 @@ export function AppWorkspace() {
   useEffect(() => setShowReport(false), [ready?.asset.id, doc?.sha256]);
   // Step 2: the automatic checks start as soon as a photo opens for checking.
   useEffect(() => {
+    if (mode === 'photo' && ready && forensics.ela.status === 'idle') void forensics.run();
     if (mode === 'photo' && ready && focus.state.status === 'idle') {
       setShowOverlay(true);
       void focus.run();
@@ -165,27 +191,40 @@ export function AppWorkspace() {
 
   const shadowFinding: Finding = (() => {
     const r = shadow.result;
-    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const };
+    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const, group: 'physical' as const };
     if (!r) return { ...base, tone: 'idle', headline: 'Optional: mark objects and their shadows.' };
     if (r.execution !== 'complete' || r.finding === 'inconclusive' || r.finding === 'not_applicable')
       return { ...base, tone: 'idle', headline: r.reason ? `Needs more: ${r.reason}` : 'Not enough marks yet.' };
     return r.finding === 'inconsistent'
-      ? { ...base, tone: 'notice', headline: 'Some marked shadows disagree with one light source.' }
-      : { ...base, tone: 'clear', headline: 'The marked shadows fit one light source.' };
+      ? { ...base, tone: 'notice', short: 'Shadows disagree with one light', headline: 'Some marked shadows disagree with one light source.', why: [SHADOW_WHY, 'Some of your marked lines miss the place where the others meet.'], limits: SHADOW_LIMITS }
+      : { ...base, tone: 'clear', short: 'Shadows fit one light', headline: 'The marked shadows fit one light source.', why: [SHADOW_WHY, 'Your marked lines meet in one place, within the 5 degree limit.'], limits: SHADOW_LIMITS };
   })();
   // When a map is switched on but has nothing above its threshold, say so on the photo.
   const aiMapEmpty =
     showOverlay && focus.state.status === 'done' && !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
   const warpMapEmpty =
     showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
-  const findings: Finding[] = [provenanceFinding(provenance), aiSignalFinding(focus.state), warpFinding(warp.state), shadowFinding];
-  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
+  const findings: Finding[] = [
+    provenanceFinding(provenance),
+    forensicsFinding('thumbnail', forensics.thumbnail),
+    aiSignalFinding(focus.state),
+    forensicsFinding('ela', forensics.ela),
+    forensicsFinding('noise', forensics.noise),
+    warpFinding(warp.state),
+    shadowFinding,
+  ];
+  const checking =
+    provenance.status !== 'done' ||
+    focus.state.status === 'loading' ||
+    focus.state.status === 'running' ||
+    [forensics.thumbnail, forensics.ela, forensics.noise].some((f) => f.status === 'running');
   const report = useMemo(() => {
     if (!showReport || !ready) return null;
     const checks: CheckResult[] = [];
     if (provenance.status === 'done') checks.push(provenance.checkResult);
     if (focus.state.status === 'done') checks.push(focus.state.checkResult);
     if (warp.state.status === 'done') checks.push(warp.state.checkResult);
+    for (const f of [forensics.thumbnail, forensics.ela, forensics.noise]) if (f.checkResult) checks.push({ ...f.checkResult, overlays: [] });
     if (shadow.result) checks.push({ ...(shadow.result as unknown as CheckResult), overlays: [] });
     return buildReport({
       appVersion: '0.1.0',
@@ -196,7 +235,7 @@ export function AppWorkspace() {
       candidates: [],
       transforms: [],
     });
-  }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
+  }, [showReport, ready, provenance, focus.state, warp.state, forensics.thumbnail, forensics.ela, forensics.noise, shadow.result]);
   const startOver = () => {
     setShowReport(false);
     closeImage();
@@ -225,16 +264,22 @@ export function AppWorkspace() {
         : null;
     return {
       provenance: { x: 0, y: 0, w: 1, h: 1 },
+      'exif-thumbnail': forensics.thumbnail.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
+      ela: forensics.ela.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
+      noise: forensics.noise.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
       'ai-signal': crop ? { x: crop.x / W, y: crop.y / H, w: crop.width / W, h: crop.height / H } : null,
       'face-warp': faceBox,
       shadows: shadowBox,
     };
-  }, [ready, focus.state, shadow.drawing, faceBox]);
+  }, [ready, focus.state, shadow.drawing, faceBox, forensics.thumbnail.status, forensics.ela.status, forensics.noise.status]);
   const checksById = {
     provenance: provenance.status === 'done' ? provenance.checkResult : undefined,
     'ai-signal': focus.state.status === 'done' ? focus.state.checkResult : undefined,
     'face-warp': warp.state.status === 'done' ? warp.state.checkResult : undefined,
     shadows: shadow.result ? (shadow.result as unknown as CheckResult) : undefined,
+    'exif-thumbnail': forensics.thumbnail.checkResult ?? undefined,
+    ela: forensics.ela.checkResult ?? undefined,
+    noise: forensics.noise.checkResult ?? undefined,
   };
   const items = toEvidence(findings, checksById, regions, {
     ai: { visible: showOverlay, available: focus.state.status === 'done', toggle: () => setShowOverlay((v) => !v) },
@@ -366,25 +411,22 @@ export function AppWorkspace() {
     </div>
   );
 
-  const protectPanel = (
-    <div data-testid="protect-panel" className="flex flex-col gap-4">
-      <header className="px-1">
-        <h2 className="text-xl font-semibold tracking-[-0.015em]">Protect from AI edits</h2>
-        <p className="mt-1 text-sm text-muted text-pretty">
-          Adds a pattern you can’t see that makes AI photo editors produce broken results when someone tries to change your photo.
-        </p>
-      </header>
-      <div className="card p-5">
-        <p className="inline-flex rounded-full bg-idle-bg px-2.5 py-0.5 text-xs font-semibold text-idle-ink">Not in this build yet</p>
-        <p className="mt-3 text-sm text-pretty">
-          The protection model runs on this device and is being connected now. Until it is, nothing on this tab changes your photo.
-        </p>
-        <ul className="mt-4 grid gap-2 text-sm text-muted">
-          <li>Works on the photo you have open, on this device.</li>
-          <li>Downloads the model only after you agree, with its size shown first.</li>
-          <li>Keeps your original; the protected copy is a new file.</li>
-        </ul>
-      </div>
+  const protectPanel = ready ? (
+    <ProtectPanel
+      state={ps}
+      fileName={ready.fileName}
+      onProtect={() => {
+        setShowProtected(true);
+        void protectHook.protect();
+      }}
+      onReset={protectHook.reset}
+      showAfter={showProtected}
+      onShowAfter={setShowProtected}
+    />
+  ) : (
+    <div data-testid="protect-panel" className="card p-5">
+      <h2 className="text-lg font-semibold">Protect works on photos</h2>
+      <p className="mt-1 text-sm text-muted">Open a JPEG or PNG to protect it from AI edits.</p>
     </div>
   );
 
@@ -404,7 +446,7 @@ export function AppWorkspace() {
             <X size={22} aria-hidden />
           </button>
           <div className="hidden items-center gap-2.5 pr-4 lg:flex lg:w-[88px] lg:justify-center lg:pr-0">
-            <img src="/icon.svg" alt="" className="size-8" />
+            <img src="/brand/veil-64.png" alt="" width={32} height={32} className="size-8" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="hidden text-xs font-medium text-faint lg:block">Veil</p>
@@ -457,7 +499,7 @@ export function AppWorkspace() {
               {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
                 <div role="status" className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-4">
                   <p className="max-w-md rounded-full bg-panel/95 px-4 py-2 text-center text-sm text-muted shadow-[var(--shadow-card)]">
-                    {aiMapEmpty ? 'AI signal map: no area raised the signal, so nothing is coloured.' : 'Face warp map: no notable warp in the marked face.'}
+                    {aiMapEmpty && focus.state.status === 'done' ? emptyMapCaption(focus.state.result) : 'Face warp map: no notable warp in the marked face.'}
                   </p>
                 </div>
               )}

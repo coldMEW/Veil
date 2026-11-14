@@ -22,14 +22,20 @@ export function OverlayLayer({ items, photo, selected, onSelect }: Props) {
   const placed = items.filter((i) => i.region);
   return (
     <div className="pointer-events-none absolute inset-0 z-10" aria-label="Areas each check looked at">
-      {placed.map((item) => (
-        <Mark key={item.id} item={item} photo={photo} active={selected === item.id} dim={selected !== null && selected !== item.id} onSelect={onSelect} />
-      ))}
+      {placed.map((item) => {
+        // Checks that looked at the whole photo share one frame; their number badges sit side by side.
+        const wholeIndex = placed.filter((p) => isWhole(p)).indexOf(item);
+        return (
+          <Mark key={item.id} item={item} photo={photo} badgeOffset={Math.max(0, wholeIndex) * 30} active={selected === item.id} dim={selected !== null && selected !== item.id} onSelect={onSelect} />
+        );
+      })}
     </div>
   );
 }
 
-function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; photo: Rect; active: boolean; dim: boolean; onSelect: (id: string) => void }) {
+const isWhole = (i: EvidenceItem) => !!i.region && i.region.w > 0.98 && i.region.h > 0.98;
+
+function Mark({ item, photo, active, dim, onSelect, badgeOffset }: { item: EvidenceItem; photo: Rect; active: boolean; dim: boolean; onSelect: (id: string) => void; badgeOffset: number }) {
   const ref = useRef<HTMLButtonElement>(null);
   const r = item.region!;
   // A whole-image region sits just inside the photo edge so its outline stays visible.
@@ -59,7 +65,7 @@ function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; phot
       aria-label={`${item.number}. ${item.title}: ${item.regionLabel.toLowerCase()}`}
       onClick={() => onSelect(item.id)}
       className={[
-        'pointer-events-auto absolute rounded-[10px] transition-[opacity,box-shadow,background-color] duration-200',
+        `${badgeOffset > 0 ? 'pointer-events-none' : 'pointer-events-auto'} absolute rounded-[10px] transition-[opacity,box-shadow,background-color] duration-200`,
         active
           ? 'bg-[rgb(43_68_214/0.08)] shadow-[0_0_0_2.5px_var(--overlay),0_0_0_6px_rgb(255_255_255/0.55)]'
           : 'shadow-[0_0_0_1.5px_rgb(255_255_255/0.9),0_0_0_3px_rgb(43_68_214/0.55)] hover:bg-[rgb(43_68_214/0.06)]',
@@ -70,9 +76,10 @@ function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; phot
       <span
         aria-hidden
         className={[
-          'tabular absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
-          active ? 'bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
+          'pointer-events-auto cursor-pointer tabular absolute top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
+          active ? 'z-10 bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
         ].join(' ')}
+        style={{ left: 8 + badgeOffset }}
       >
         {item.number}
         {active && <span className="pr-1 font-semibold">{item.regionLabel}</span>}

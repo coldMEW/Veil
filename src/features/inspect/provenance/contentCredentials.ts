@@ -6,6 +6,7 @@
 import { createC2pa, Context, Reader, type C2pa } from '@contentauth/c2pa-web';
 import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
 import type { CheckResult } from '../../../contracts';
+import { readCameraHints, type CameraHints } from './cameraHints';
 
 export const AI_SOURCE_TYPES: Record<string, string> = {
   trainedAlgorithmicMedia: 'Created by a generative AI model',
@@ -52,6 +53,8 @@ export interface MetadataHints {
 export interface ProvenanceResult {
   credentials: CredentialSummary;
   hints: MetadataHints;
+  /** Camera details from EXIF, if any. Information only: anyone can edit them. */
+  camera?: CameraHints | null;
   error: string | null;
   ms: number;
 }
@@ -179,7 +182,7 @@ export async function readProvenance(bytes: Uint8Array, mimeType: string): Promi
     // "No manifest" is the normal case for most photos, not an error.
     if (!/no.?manifest|ManifestNotFound|JumbfNotFound|not found/i.test(msg)) error = msg;
   }
-  return { credentials, hints, error, ms: performance.now() - t0 };
+  return { credentials, hints, camera: readCameraHints(bytes), error, ms: performance.now() - t0 };
 }
 
 const AI_TYPES = new Set(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgorithmicMedia', 'algorithmicMedia', 'compositeSynthetic']);

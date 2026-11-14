@@ -8,6 +8,7 @@ const PILL: Record<FindingTone, string> = {
   alert: 'bg-alert-bg text-alert-ink',
   notice: 'bg-notice-bg text-notice-ink',
   clear: 'bg-clear-bg text-clear-ink',
+  neutral: 'bg-idle-bg text-idle-ink',
   pending: 'bg-idle-bg text-idle-ink',
   idle: 'bg-idle-bg text-idle-ink',
 };
@@ -99,6 +100,7 @@ export function EvidenceRow({ item, open, onToggle }: { item: EvidenceItem; open
       <div ref={body} id={panelId} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
         {(open || shown) && (
           <div data-testid="evidence-details" className="grid gap-4 px-4 pb-4 pl-[3.25rem] text-sm">
+            {item.why.length > 0 && <Section label="Why">{item.why.join(' ')}</Section>}
             <Section label="Method">{item.method}</Section>
             {item.assumptions.length > 0 && <Section label="Assumptions">{item.assumptions.join(' ')}</Section>}
             <Section label="Limitations">{item.limitations.join(' ')}</Section>

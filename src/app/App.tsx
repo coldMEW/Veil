@@ -16,7 +16,7 @@ export function App() {
     <div className="flex h-full flex-col">
       <header className="flex h-14 shrink-0 items-center justify-between px-4 sm:h-16 sm:px-6" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <span className="flex items-center gap-2.5">
-          <img src="/icon.svg" alt="" className="size-8" />
+          <img src="/brand/veil-64.png" alt="" width={32} height={32} className="size-8" />
           <span className="text-lg font-bold tracking-[-0.02em]">Veil</span>
         </span>
         <span className="inline-flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5 text-sm font-medium text-muted">

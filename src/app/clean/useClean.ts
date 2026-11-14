@@ -58,6 +58,7 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
   const inpainterRef = useRef<MiganInpainter | null>(null);
   const pixelsRef = useRef<Pixels | null>(null);
   const runRef = useRef(0);
+  const cleanWithRef = useRef<((c: PrivacyCandidate[], m: FillMethod) => Promise<void>) | null>(null);
 
   useEffect(() => {
     runRef.current++;
@@ -89,7 +90,8 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
     return e;
   }, []);
 
-  const scan = useCallback(async () => {
+  /** With `auto`, the confidently found high-risk text (house numbers, plates, street names…) is removed straight away. */
+  const scan = useCallback(async (opts: { auto?: boolean } = {}) => {
     if (!assetId || !sha256) return;
     const run = ++runRef.current;
     setState({ status: 'scanning', progress: null });
@@ -99,7 +101,9 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
         onProgress: (p) => run === runRef.current && setState({ status: 'scanning', progress: p }),
       });
       if (run !== runRef.current) return;
-      setState({ status: 'review', candidates: candidatesFromOcr(sha256, boxes) });
+      const candidates = candidatesFromOcr(sha256, boxes);
+      setState({ status: 'review', candidates });
+      if (opts.auto && candidates.some((c) => c.selected)) await cleanWithRef.current?.(candidates, 'migan_inpaint');
     } catch (err) {
       if (run !== runRef.current) return;
       setState(isAbort(err) ? { status: 'idle' } : { status: 'failed', message: message(err), candidates: null });
@@ -126,10 +130,9 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
     );
   }, []);
 
-  const clean = useCallback(
-    async (method: FillMethod) => {
-      if (state.status !== 'review' || !sha256) return;
-      const candidates = state.candidates;
+  const cleanWith = useCallback(
+    async (candidates: PrivacyCandidate[], method: FillMethod) => {
+      if (!sha256) return;
       const selected = candidates.filter((c) => c.selected);
       if (!selected.length) return;
       const run = ++runRef.current;
@@ -194,7 +197,17 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
         setState({ status: 'failed', message: message(err), candidates });
       }
     },
-    [state, sha256, pixels, engine],
+    [sha256, pixels, engine],
+  );
+
+  cleanWithRef.current = cleanWith;
+
+  const clean = useCallback(
+    async (method: FillMethod) => {
+      if (state.status !== 'review') return;
+      await cleanWith(state.candidates, method);
+    },
+    [state, cleanWith],
   );
 
   const backToReview = useCallback(() => {
