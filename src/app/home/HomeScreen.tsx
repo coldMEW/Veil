@@ -8,7 +8,7 @@ type Mode = 'photo' | 'document' | 'clean';
 const CHOICES = [
   {
     mode: 'photo', title: 'Check a photo', icon: ImageSquare, accept: 'image/jpeg,image/png',
-    description: 'See if it was AI-made or edited. Content Credentials, an AI heatmap, face warps.',
+    description: 'See the evidence in a photo: Content Credentials, model focus, face warps and shadows.',
   },
   {
     mode: 'document', title: 'Check a document', icon: FilePdf, accept: 'application/pdf',

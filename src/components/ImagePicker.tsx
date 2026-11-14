@@ -1,14 +1,12 @@
 import { useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { UploadSimple } from '@phosphor-icons/react';
-import { MAX_INPUT_BYTES, MAX_INPUT_PIXELS } from '../lib/runtime/imageIntake';
-
-const LIMITS = `JPEG or PNG photos up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB and ${MAX_INPUT_PIXELS / 1e6} megapixels, or PDF documents up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB.`;
 
 function useFilePicker(onFile: (file: File) => void) {
   const inputRef = useRef<HTMLInputElement>(null);
   const input: ReactNode = (
     <input
+      data-testid="file-input"
       ref={inputRef}
       type="file"
       accept="image/jpeg,image/png,application/pdf"
@@ -25,8 +23,7 @@ function useFilePicker(onFile: (file: File) => void) {
   return { open: () => inputRef.current?.click(), input };
 }
 
-export const primaryButton =
-  'lift inline-flex h-12 items-center gap-2.5 rounded-full bg-gold px-7 text-[15px] font-semibold text-gold-ink transition-[filter,transform,box-shadow] duration-200 hover:brightness-105 active:scale-[0.97]';
+export const primaryButton = 'primary-action';
 
 /** Secondary action used beside an open photo. */
 export function OpenAnotherButton({ onFile }: { onFile: (file: File) => void }) {
@@ -47,7 +44,13 @@ export function OpenAnotherButton({ onFile }: { onFile: (file: File) => void }) 
 }
 
 /** Primary button for error states. */
-export function ChoosePhotoButton({ onFile, label = 'Choose photo' }: { onFile: (file: File) => void; label?: string }) {
+export function ChoosePhotoButton({
+  onFile,
+  label = 'Choose photo',
+}: {
+  onFile: (file: File) => void;
+  label?: string;
+}) {
   const { open, input } = useFilePicker(onFile);
   return (
     <>
@@ -66,7 +69,13 @@ const rise = {
 } as const;
 
 /** The empty stage: the whole area is a drop target with one clear action. */
-export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => void; onDragChange: (dragging: boolean) => void }) {
+export function DropStage({
+  onFile,
+  onDragChange,
+}: {
+  onFile: (file: File) => void;
+  onDragChange: (dragging: boolean) => void;
+}) {
   const { open, input } = useFilePicker(onFile);
   const [dragging, setDragging] = useState(false);
   const setDrag = (value: boolean) => {
@@ -89,7 +98,8 @@ export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => vo
       }}
       onDragLeave={() => setDrag(false)}
       onDrop={onDrop}
-      className="absolute inset-0 flex items-center justify-center px-6 py-10"
+      data-testid="drop-zone"
+      className="empty-drop-zone"
     >
       <motion.div
         className="flex max-w-md flex-col items-center text-center"
@@ -97,23 +107,21 @@ export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => vo
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } } }}
       >
-        <motion.h1
-          variants={rise}
-          className="text-[2rem] font-semibold leading-[1.08] tracking-[-0.03em] text-balance sm:text-5xl"
-        >
-          {dragging ? 'Drop to open' : 'Open a photo'}
+        <motion.h1 variants={rise} className="empty-heading">
+          {dragging ? 'Drop a photo here' : 'Open a photo.'}
         </motion.h1>
-        <motion.p variants={rise} className="mt-4 max-w-sm text-base text-muted text-pretty sm:text-lg">
-          See what can be observed about it, then choose what to remove before you share it.
+        <motion.p variants={rise} className="empty-description">
+          Inspect the evidence. Remove private details. Everything stays on this device.
         </motion.p>
         <motion.div variants={rise} className="mt-8">
           <button type="button" onClick={open} className={primaryButton}>
             <UploadSimple size={18} weight="bold" aria-hidden />
-            Choose photo
+            Choose file
           </button>
         </motion.div>
         <motion.p variants={rise} className="mt-5 text-sm text-faint">
-          {LIMITS} <span className="hidden sm:inline">Or drop it anywhere here.</span>
+          <span className="hidden sm:inline">Drop a photo or a PDF here. </span>JPEG, PNG or PDF ? up to 10
+          MiB
         </motion.p>
       </motion.div>
       {input}

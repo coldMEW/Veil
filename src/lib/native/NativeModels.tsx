@@ -1,12 +1,24 @@
-import { useImageSession } from '../runtime/imageSession';
 import { useEffect, useRef, useState } from 'react';
-import { isAndroid, takePhoto } from './platform';
+import { isAndroid } from './environment';
 import { downloadModel, optionalModels, type OptionalModel } from './modelStore';
 import { ensureOptionalModel, type ConsentRequest } from './modelConsent';
 
 /** Android-only, explicit consent and cancellable progress; no photo data enters this flow. */
 export function NativeModels() {
-  const session = useImageSession();
+  const [toast, setToast] = useState('');
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const show = (e: Event) => {
+      setToast(String((e as CustomEvent).detail));
+      clearTimeout(timer);
+      timer = setTimeout(() => setToast(''), 4000);
+    };
+    window.addEventListener('veil-toast', show);
+    return () => {
+      window.removeEventListener('veil-toast', show);
+      clearTimeout(timer);
+    };
+  }, []);
   const [request, setRequest] = useState<ConsentRequest | null>(null);
   const [model, setModel] = useState<OptionalModel | null>(null);
   const [loaded, setLoaded] = useState<number | null>(null);
@@ -28,12 +40,52 @@ export function NativeModels() {
       setError('');
       setOpen(true);
     };
+    const openModels = () => setOpen(true);
+    window.addEventListener('veil-models-open', openModels);
     window.addEventListener('veil-model-consent', receive);
     return () => {
+      window.removeEventListener('veil-models-open', openModels);
       window.removeEventListener('veil-model-consent', receive);
       controller.current?.abort();
     };
   }, []);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = document.querySelector<HTMLElement>('[aria-label="Offline models"][role="dialog"]');
+    dialog?.querySelector<HTMLButtonElement>('button')?.focus();
+    const dismiss = (event: Event) => {
+      const key = event as KeyboardEvent;
+      if (event.type === 'veil-back' || key.key === 'Escape') {
+        event.preventDefault();
+        controller.current?.abort();
+        active.current?.reject(new DOMException('Download cancelled', 'AbortError'));
+        active.current = null;
+        setRequest(null);
+        setModel(null);
+        setOpen(false);
+        setLoaded(null);
+      } else if (key.key === 'Tab' && dialog) {
+        const buttons = Array.from(dialog.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'));
+        const first = buttons[0],
+          last = buttons.at(-1);
+        if (key.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!key.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    window.addEventListener('veil-back', dismiss, true);
+    window.addEventListener('keydown', dismiss);
+    return () => {
+      window.removeEventListener('veil-back', dismiss, true);
+      window.removeEventListener('keydown', dismiss);
+      previous?.focus();
+    };
+  }, [open]);
   if (!isAndroid()) return null;
   const cancel = () => {
     controller.current?.abort();
@@ -66,29 +118,11 @@ export function NativeModels() {
   };
   return (
     <>
-      {session.status === 'ready' && <button
-        className="fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border bg-white px-3 py-2 text-xs"
-        style={{ bottom: 'calc(12px + var(--safe-area-inset-bottom, 0px))' }}
-        onClick={() => window.dispatchEvent(new Event('veil-clean'))}>Clean photo</button>}
-
-      <button
-        className="fixed bottom-3 left-3 z-40 rounded-full border bg-white px-3 py-2 text-xs"
-        style={{ bottom: 'calc(12px + var(--safe-area-inset-bottom, 0px))' }}
-        onClick={() =>
-          void takePhoto().catch((e) => {
-            if (!/cancel/i.test(String(e))) alert(String(e));
-          })
-        }
-      >
-        Take photo
-      </button>
-      <button
-        className="fixed bottom-3 right-3 z-40 rounded-full border bg-white px-3 py-2 text-xs"
-        style={{ bottom: 'calc(12px + var(--safe-area-inset-bottom, 0px))' }}
-        onClick={() => setOpen(true)}
-      >
-        Offline models
-      </button>
+      {toast && (
+        <div className="native-toast" role="status">
+          {toast}
+        </div>
+      )}
       {open && (
         <div
           role="dialog"
@@ -120,12 +154,12 @@ export function NativeModels() {
                   </p>
                 )}
                 <div className="mt-4 flex gap-3">
-                  <button className="rounded-full border px-4 py-2" onClick={cancel}>
+                  <button className="rounded-md border min-h-11 px-4 py-2" onClick={cancel}>
                     Cancel
                   </button>
                   {loaded === null && (
                     <button
-                      className="rounded-full bg-neutral-900 px-4 py-2 text-white"
+                      className="rounded-md bg-neutral-900 min-h-11 px-4 py-2 text-white"
                       onClick={() => void start()}
                     >
                       Download
@@ -148,7 +182,7 @@ export function NativeModels() {
                   Face-warp download is unavailable until its exported model has a pinned URL. Experimental
                   protection processing is not connected in this shell.
                 </p>
-                <button className="rounded-full border px-4 py-2" onClick={cancel}>
+                <button className="rounded-md border min-h-11 px-4 py-2" onClick={cancel}>
                   Close
                 </button>
               </>
