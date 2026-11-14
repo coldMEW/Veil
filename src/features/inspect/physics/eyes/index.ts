@@ -159,7 +159,8 @@ export function eyeObservation(
   overlays.push({ type: 'points', label: 'Bright spot centroids', points });
   const applicable = !!usable && lh.length + rh.length > 0;
   const describe = (name: string, hs: Highlight[]) =>
-    `${hs.length} bright spot${hs.length === 1 ? '' : 's'} in the ${name} eye crop${hs.length ? ` (${hs.map((h) => position(h.centroid)).join(', ')})` : ''}`;
+    `${hs.length} bright spot${hs.length === 1 ? '' : 's'} in the ${name} eye crop` +
+    (hs.length ? ` (${hs.map((h) => position(h.centroid)).join(', ')})` : '');
   return {
     id: 'eyes',
     assetId,
@@ -169,7 +170,8 @@ export function eyeObservation(
     title: 'Eye highlights',
     source: 'live',
     method:
-      'Manual eye crops; luma threshold max(220, crop 99th percentile); eight-connected bright components, size filtering and pixel-center centroids.',
+      'Manual eye crops; luma threshold max(220, crop 99th percentile); ' +
+      'eight-connected bright components, size filtering and pixel-center centroids.',
     observation: `${describe('left', lh)}; ${describe('right', rh)}.`,
     reason: applicable
       ? 'No validated comparison model; this is an observation for a person to inspect.'
