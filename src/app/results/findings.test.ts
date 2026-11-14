@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aiSignalFinding, evidenceLevel, LEVEL_TEXT, provenanceFinding, type Finding } from './findings';
+import { aiSignalFinding, evidenceLevel, forensicsFinding, LEVEL_TEXT, provenanceFinding, type Finding } from './findings';
 import type { FocusState } from '../../features/inspect/model/useModelFocus';
 import type { FocusResult } from '../../features/inspect/model/focusTypes';
 import type { ProvenanceState } from '../inspect/useProvenance';
@@ -117,5 +117,24 @@ describe('evidenceLevel', () => {
   it('never claims a photo came from a camera', () => {
     expect(LEVEL_TEXT.none.body).toBe('Not proof it came from a camera.');
     for (const t of Object.values(LEVEL_TEXT)) expect(`${t.title} ${t.body}`).not.toMatch(VERDICT);
+  });
+});
+
+describe('forensicsFinding', () => {
+  const result = (finding: 'inconsistent' | 'consistent' | 'inconclusive' | 'not_applicable', observation: string) =>
+    ({ status: 'done', checkResult: { finding, observation, execution: 'complete' } }) as never;
+  it('caps a standing-out region at an amber flag and explains the basis', () => {
+    const f = forensicsFinding('ela', result('inconsistent', 'Highlighted regions have higher recompression error than the surrounding image.'));
+    expect(f).toMatchObject({ tone: 'notice', short: 'Some areas recompress differently', group: 'signal' });
+    expect(f.why?.[0]).toMatch(/^Re-saves the JPEG once and compares/);
+  });
+  it('maps an even map to no flag and a missing input to no signal', () => {
+    expect(forensicsFinding('noise', result('inconclusive', 'No region stands out in the noise map.'))).toMatchObject({ tone: 'clear', short: 'Noise is even' });
+    expect(forensicsFinding('thumbnail', result('not_applicable', 'No thumbnail.'))).toMatchObject({ tone: 'neutral', short: 'No camera preview in the file', group: 'provenance' });
+    expect(forensicsFinding('thumbnail', result('consistent', 'The embedded thumbnail matches the main image.'))).toMatchObject({ tone: 'clear' });
+  });
+  it('reports running and failed states without a flag', () => {
+    expect(forensicsFinding('ela', { status: 'running' })).toMatchObject({ tone: 'pending' });
+    expect(forensicsFinding('ela', { status: 'failed', message: 'Timed out.', checkResult: {} as never })).toMatchObject({ tone: 'neutral', short: 'Did not finish', headline: 'Did not finish: Timed out.' });
   });
 });

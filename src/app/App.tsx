@@ -36,7 +36,8 @@ import { useClean, type FillMethod } from './clean/useClean';
 import { HomeScreen } from './home/HomeScreen';
 import { StepBar } from '../components/StepBar';
 import { ResultsPanel } from './results/ResultsPanel';
-import { aiSignalFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
+import { aiSignalFinding, forensicsFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
+import { useForensics } from '../features/inspect/forensics';
 import { ReportView } from '../components/report/ReportView';
 import { buildReport } from '../features/report/report';
 import type { CheckResult } from '../contracts';
@@ -71,6 +72,7 @@ export function App() {
   );
   const docAnalysis = useDocumentAnalysis(doc?.sha256 ?? null, doc?.bytes ?? null);
   const warp = useWarpDetector(ready?.asset.id ?? null, ready?.bitmap ?? null);
+  const forensics = useForensics(ready?.asset.id ?? null, ready?.bitmap ?? null, ready?.bytes ?? null, ready?.asset.mimeType ?? null);
   const [faceMarking, setFaceMarking] = useState(false);
   const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
   const [showWarp, setShowWarp] = useState(true);
@@ -156,6 +158,7 @@ export function App() {
       setShowOverlay(true);
       void focus.run();
     }
+    if (mode === 'photo' && ready && forensics.ela.status === 'idle') void forensics.run();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, ready?.asset.id]);
 
@@ -174,8 +177,14 @@ export function App() {
     showOverlay && focus.state.status === 'done' && !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
   const warpMapEmpty =
     showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
-  const findings: Finding[] = [provenanceFinding(provenance), aiSignalFinding(focus.state), warpFinding(warp.state), shadowFinding];
-  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
+  const findings: Finding[] = [
+    provenanceFinding(provenance), forensicsFinding('thumbnail', forensics.thumbnail),
+    aiSignalFinding(focus.state), warpFinding(warp.state),
+    forensicsFinding('ela', forensics.ela), forensicsFinding('noise', forensics.noise),
+    shadowFinding,
+  ];
+  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running'
+    || [forensics.thumbnail, forensics.ela, forensics.noise].some((f) => f.status === 'running');
   const hasFile = session.status === 'ready' || session.status === 'document';
   const step: 1 | 2 | 3 | 4 = !hasFile ? 1 : showReport ? 4 : mode === 'photo' && checking ? 2 : 3;
   const report = useMemo(() => {
@@ -184,6 +193,7 @@ export function App() {
     if (provenance.status === 'done') checks.push(provenance.checkResult);
     if (focus.state.status === 'done') checks.push(focus.state.checkResult);
     if (warp.state.status === 'done') checks.push(warp.state.checkResult);
+    for (const f of [forensics.thumbnail, forensics.ela, forensics.noise]) if (f.checkResult) checks.push({ ...f.checkResult, overlays: [] });
     if (shadow.result) checks.push({ ...(shadow.result as unknown as CheckResult), overlays: [] });
     return buildReport({
       appVersion: '0.1.0',
@@ -194,7 +204,7 @@ export function App() {
       candidates: [],
       transforms: [],
     });
-  }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
+  }, [showReport, ready, provenance, focus.state, warp.state, forensics.thumbnail, forensics.ela, forensics.noise, shadow.result]);
   const pickFile = (m: Mode, file: File) => {
     setMode(m);
     setShowReport(false);
