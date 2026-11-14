@@ -27,6 +27,8 @@ interface ImageCanvasProps {
   onFit?: (rect: Rect) => void;
   overlay?: HeatOverlay | null;
   marks?: MarkOverlay | null;
+  /** Normalized boxes, e.g. text found by Clean. Selected boxes are drawn in gold. */
+  boxes?: ReadonlyArray<{ id: string; x: number; y: number; w: number; h: number; selected: boolean }> | null;
   /** When set, a tap or click on the photo reports a normalized image point. */
   onImagePoint?: ((p: { x: number; y: number }) => void) | null;
 }
@@ -165,8 +167,25 @@ function drawMarks(ctx: CanvasRenderingContext2D, marks: MarkOverlay, photo: Rec
   ctx.restore();
 }
 
+function drawBoxes(ctx: CanvasRenderingContext2D, boxes: NonNullable<ImageCanvasProps['boxes']>, photo: Rect) {
+  ctx.save();
+  for (const b of boxes) {
+    const x = photo.x + b.x * photo.w;
+    const y = photo.y + b.y * photo.h;
+    const w = b.w * photo.w;
+    const h = b.h * photo.h;
+    ctx.fillStyle = b.selected ? 'rgba(255, 199, 44, 0.22)' : 'rgba(232, 237, 245, 0.06)';
+    ctx.fillRect(x - 2, y - 2, w + 4, h + 4);
+    ctx.strokeStyle = b.selected ? 'rgba(255, 199, 44, 0.95)' : 'rgba(232, 237, 245, 0.55)';
+    ctx.lineWidth = b.selected ? 2 : 1;
+    ctx.setLineDash(b.selected ? [] : [4, 4]);
+    ctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
+  }
+  ctx.restore();
+}
+
 /** Draws the orientation-corrected image, contained and centered, sharp on high-DPI screens. */
-export function ImageCanvas({ bitmap, label, onFit, overlay = null, marks = null, onImagePoint = null }: ImageCanvasProps) {
+export function ImageCanvas({ bitmap, label, onFit, overlay = null, marks = null, boxes = null, onImagePoint = null }: ImageCanvasProps) {
   const photoRef = useRef<Rect | null>(null);
   const downRef = useRef<{ x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -210,6 +229,7 @@ export function ImageCanvas({ bitmap, label, onFit, overlay = null, marks = null
       ctx.drawImage(bitmap, photo.x, photo.y, photo.w, photo.h);
       if (overlay) drawHeat(ctx, overlay, photo, fit.scale);
       if (marks) drawMarks(ctx, marks, photo, { w: viewW, h: viewH });
+      if (boxes) drawBoxes(ctx, boxes, photo);
       photoRef.current = photo;
       onFitRef.current?.(photo);
     };
@@ -218,7 +238,7 @@ export function ImageCanvas({ bitmap, label, onFit, overlay = null, marks = null
     const observer = new ResizeObserver(draw);
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [bitmap, overlay, marks]);
+  }, [bitmap, overlay, marks, boxes]);
 
   return (
     <motion.div

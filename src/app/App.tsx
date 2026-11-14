@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react';
 import { MotionConfig, motion } from 'motion/react';
 import {
   Broom,
@@ -30,6 +30,8 @@ import { useModelFocus, type FocusState } from '../features/inspect/model/useMod
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation, type ShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
+import { CleanFlow } from './clean/CleanPanel';
+import { useClean, type FillMethod } from './clean/useClean';
 
 type TabId = 'inspect' | 'clean' | 'protect';
 type Ready = Extract<ImageSessionState, { status: 'ready' }>;
@@ -55,6 +57,20 @@ export function App() {
   );
   const shadow = useShadowAnnotation(ready?.asset.id ?? null, imageSize);
   const onImagePoint = shadow.marking && tab === 'inspect' ? shadow.addPoint : null;
+  const clean = useClean(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
+  const [fillMethod, setFillMethod] = useState<FillMethod>('migan_inpaint');
+  const [showAfter, setShowAfter] = useState(true);
+  const cs = clean.state;
+  const cleanCandidates =
+    cs.status === 'review' || cs.status === 'cleaning' || (cs.status === 'done' && !showAfter) ? cs.candidates : null;
+  const boxes = useMemo(
+    () =>
+      tab === 'clean' && cleanCandidates
+        ? cleanCandidates.map((c) => ({ id: c.id, x: c.region.x, y: c.region.y, w: c.region.w, h: c.region.h, selected: c.selected }))
+        : null,
+    [tab, cleanCandidates],
+  );
+  const displayBitmap = tab === 'clean' && cs.status === 'done' && showAfter ? cs.preview : null;
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
@@ -100,7 +116,14 @@ export function App() {
           className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden"
         >
           <section aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
-            <PhotoStage session={session} overlay={overlay} marks={shadow.drawing} onImagePoint={onImagePoint} />
+            <PhotoStage
+              session={session}
+              overlay={tab === 'inspect' ? overlay : null}
+              marks={tab === 'inspect' ? shadow.drawing : null}
+              boxes={boxes}
+              displayBitmap={displayBitmap}
+              onImagePoint={onImagePoint}
+            />
           </section>
           <aside
             aria-label="Evidence"
@@ -113,7 +136,31 @@ export function App() {
               animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
             >
               {tab === 'inspect' && <InspectPanel session={session} modelCard={modelCard} focus={focus.state} shadow={shadow} />}
-              {tab === 'clean' && <CleanPanel session={session} />}
+              {tab === 'clean' &&
+                (ready ? (
+                  <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+                    <PhotoSummary session={ready} />
+                    <CleanFlow
+                      state={cs}
+                      fileName={ready.fileName}
+                      method={fillMethod}
+                      onMethod={setFillMethod}
+                      onScan={() => void clean.scan()}
+                      onCancel={clean.cancel}
+                      onToggle={clean.toggle}
+                      onAll={clean.setAll}
+                      onClean={() => {
+                        setShowAfter(true);
+                        void clean.clean(fillMethod);
+                      }}
+                      onBack={clean.backToReview}
+                      showAfter={showAfter}
+                      onShowAfter={setShowAfter}
+                    />
+                  </motion.div>
+                ) : (
+                  <CleanPanel session={session} />
+                ))}
               {tab === 'protect' && <ProtectPanel session={session} />}
             </motion.div>
           </aside>
@@ -154,11 +201,15 @@ function PhotoStage({
   session,
   overlay,
   marks,
+  boxes,
+  displayBitmap,
   onImagePoint,
 }: {
   session: ImageSessionState;
   overlay: HeatOverlay | null;
   marks: MarkOverlay | null;
+  boxes: ComponentProps<typeof ImageCanvas>['boxes'];
+  displayBitmap: ImageBitmap | null;
   onImagePoint: ((p: { x: number; y: number }) => void) | null;
 }) {
   const [ref, size] = useElementSize<HTMLDivElement>();
@@ -230,11 +281,12 @@ function PhotoStage({
         {session.status === 'ready' && (
           <motion.div key={session.asset.id} className="absolute inset-0">
             <ImageCanvas
-              bitmap={session.bitmap}
+              bitmap={displayBitmap ?? session.bitmap}
               label={`Photo: ${session.fileName}`}
               onFit={setPhotoRect}
               overlay={overlay}
               marks={marks}
+              boxes={boxes}
               onImagePoint={onImagePoint}
             />
           </motion.div>
