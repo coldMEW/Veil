@@ -103,17 +103,17 @@ export function DropStage({
     >
       <motion.div
         className="flex max-w-md flex-col items-center text-center"
-        initial="hidden"
+        initial={false}
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } } }}
       >
         <motion.h1 variants={rise} className="empty-heading">
           {dragging ? 'Drop a photo here' : 'Open a photo.'}
         </motion.h1>
-        <motion.p variants={rise} className="empty-description">
+        <motion.p data-enter variants={rise} className="empty-description">
           Inspect the evidence. Remove private details. Everything stays on this device.
         </motion.p>
-        <motion.div variants={rise} className="mt-8">
+        <motion.div data-enter variants={rise} className="mt-8">
           <button type="button" onClick={open} className={primaryButton}>
             <UploadSimple size={18} weight="bold" aria-hidden />
             Choose file

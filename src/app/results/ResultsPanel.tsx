@@ -56,24 +56,19 @@ export function ResultsPanel({
   checks,
 }: Props) {
   const [open, setOpen] = useState(false);
-  const flagged = findings.filter((f) => f.tone === 'alert').length;
   return (
     <motion.div
-      initial="hidden"
+      initial={false}
       animate="show"
       variants={{ show: { transition: { staggerChildren: 0.05 } } }}
     >
       <motion.header variants={rowReveal}>
         <p className="text-xs text-faint">{checking ? 'Working on this device' : 'Inspection'}</p>
         <h2 className="mt-1 truncate text-2xl font-semibold tracking-[-0.03em]" title={fileName}>
-          {checking
-            ? 'Running the checks…'
-            : flagged
-              ? `${flagged} thing${flagged === 1 ? '' : 's'} worth a closer look`
-              : 'What we found'}
+          {checking ? 'Checking this file' : 'Evidence'}
         </h2>
         <p className="mt-1 text-sm text-muted text-pretty">
-          Each line is evidence from one check, with its own limits. Veil does not give a single verdict.
+          Observations from this file, with their methods and limits.
         </p>
       </motion.header>
 

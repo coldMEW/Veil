@@ -61,7 +61,7 @@ await evaluate(
 );
 const click = async (text) =>
   evaluate(
-    `(()=>{const b=Array.from(document.querySelectorAll('button')).find(b=>b.textContent.trim()===${JSON.stringify(text)});if(!b)throw Error('Button missing: '+${JSON.stringify(text)});b.click();return true})()`,
+    `(()=>{const b=Array.from(document.querySelectorAll('button')).find(b=>b.getClientRects().length && b.textContent.trim()===${JSON.stringify(text)});if(!b)throw Error('Button missing: '+${JSON.stringify(text)});b.click();return true})()`,
   );
 const body = () => evaluate('document.body.innerText');
 const wait = async (test, label) => {
@@ -94,10 +94,9 @@ try {
     uri,
     '--grant-read-uri-permission',
   );
-  await wait((t) => t.includes('Download from Hugging Face'), 'share intake');
-  await click('Cancel');
+  await wait((t) => t.includes('veil-android01-synthetic.png'), 'share intake');
   screenshot('02-shared');
-  await click('Clean photo');
+  await click('Clean');
   await wait((t) => t.includes('Find private text'), 'Clean ready');
   const scanStart = await evaluate('performance.now()');
   await click('Find private text');
@@ -116,20 +115,20 @@ try {
   if (!done.includes('Fresh copy ready')) throw Error('Clean failed: ' + done);
   if (!done.includes('no longer detects') || !done.includes('filled in by a model'))
     throw Error('Clean did not pass rescan/inpaint');
-  await evaluate("document.querySelector('aside[aria-label=Evidence]').scrollIntoView();true");
+  await evaluate("document.querySelector('[data-testid=evidence-sheet]').lastElementChild.scrollIntoView({block:'end'});true");
   screenshot('04-clean-ready');
   const workers = await evaluate('window.__workers');
+  const exportQuery = `content query --uri content://media/external/images/media --projection _id:_display_name:relative_path --where "relative_path='Pictures/Veil/' AND _display_name LIKE 'veil-android01-synthetic-clean%'"`;
+  const beforeExports = command('shell', exportQuery);
+  const previousIds = new Set(Array.from(beforeExports.matchAll(/_id=(\d+)/g), (m) => m[1]));
   await click('Save clean copy');
   let saved = '';
   for (let i = 0; i < 30; i++) {
-    saved = command(
-      'shell',
-      `content query --uri content://media/external/images/media --projection _id:_display_name:relative_path --where "_display_name='veil-android01-synthetic-clean.png'"`,
-    );
-    if (saved.includes('veil-android01-synthetic-clean.png')) break;
+    saved = command('shell', exportQuery);
+    if (Array.from(saved.matchAll(/_id=(\d+)/g), (m) => m[1]).some((id) => !previousIds.has(id))) break;
     await new Promise((r) => setTimeout(r, 500));
   }
-  if (!saved.includes('veil-android01-synthetic-clean.png')) throw Error('No clean export saved');
+  if (!Array.from(saved.matchAll(/_id=(\d+)/g), (m) => m[1]).some((id) => !previousIds.has(id))) throw Error('No new clean export saved');
   screenshot('05-export-saved');
   console.log(
     JSON.stringify({

@@ -291,9 +291,9 @@ export function ImageCanvas({
     <motion.div
       ref={wrapRef}
       className="absolute inset-0 overflow-hidden"
-      initial={{ opacity: 0, filter: 'blur(18px)', clipPath: 'inset(46% 0% 46% 0%)', scale: 1.02 }}
-      animate={{ opacity: 1, filter: 'blur(0px)', clipPath: 'inset(0% 0% 0% 0%)', scale: 1 }}
-      transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+      initial={false}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
     >
       <canvas
         ref={canvasRef}
