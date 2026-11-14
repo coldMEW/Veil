@@ -61,10 +61,17 @@ describe('checkIntake', () => {
     expect(result).toEqual({ ok: true, mimeType: 'image/png', width: 4000, height: 3000 });
   });
 
-  it('rejects images over 12 megapixels with the measured size', () => {
-    const result = checkIntake(jpegHeader(4032, 3024));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toContain('4032 × 3024');
+  it('accepts a full-size "12 MP" phone photo in either orientation', () => {
+    expect(checkIntake(jpegHeader(4032, 3024))).toEqual({ ok: true, mimeType: 'image/jpeg', width: 4032, height: 3024 });
+    expect(checkIntake(jpegHeader(3024, 4032))).toEqual({ ok: true, mimeType: 'image/jpeg', width: 3024, height: 4032 });
+  });
+
+  it('rejects anything larger than 4032 × 3024 with the measured size', () => {
+    for (const [w, h] of [[4033, 3024], [4032, 3025], [4000, 3100]] as const) {
+      const result = checkIntake(jpegHeader(w, h));
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe(`This image is ${w} × ${h} (${((w * h) / 1e6).toFixed(1)} megapixels). Veil opens images up to 12 megapixels (4032 × 3024).`);
+    }
   });
 
   it('rejects files over 10 MiB before reading them', () => {

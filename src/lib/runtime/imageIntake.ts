@@ -2,7 +2,14 @@
 // Pure functions only, so the rules are unit-tested without a browser.
 
 export const MAX_INPUT_BYTES = 10 * 1024 * 1024; // 10 MiB compressed
-export const MAX_INPUT_PIXELS = 12_000_000; // 12 megapixels decoded
+/** The advertised limit, "12 megapixels", as the UI shows it. */
+export const MAX_INPUT_PIXELS = 12_000_000;
+/**
+ * What intake actually accepts. Phones call their 4032 × 3024 sensor "12 MP", but it is 12,192,768
+ * pixels, so a hard 12,000,000 cap rejected every full-size photo from those phones. Allow exactly
+ * that size (either orientation); anything larger is still rejected.
+ */
+export const MAX_DECODED_PIXELS = 4032 * 3024;
 
 export type SupportedMime = 'image/jpeg' | 'image/png';
 
@@ -94,10 +101,10 @@ export function checkIntake(bytes: Uint8Array): IntakeResult {
     return { ok: false, reason: 'The image header could not be read, so the file may be damaged.' };
   }
   const pixels = size.width * size.height;
-  if (pixels > MAX_INPUT_PIXELS) {
+  if (pixels > MAX_DECODED_PIXELS) {
     return {
       ok: false,
-      reason: `This image is ${size.width} × ${size.height} (${(pixels / 1e6).toFixed(1)} megapixels). Veil opens images up to ${MAX_INPUT_PIXELS / 1e6} megapixels.`,
+      reason: `This image is ${size.width} × ${size.height} (${(pixels / 1e6).toFixed(1)} megapixels). Veil opens images up to ${MAX_INPUT_PIXELS / 1e6} megapixels (4032 × 3024).`,
     };
   }
   return { ok: true, mimeType, width: size.width, height: size.height };
