@@ -29,7 +29,7 @@ async function run() {
     timeoutMs: 600_000,
     onProgress: p => { out.textContent = `${p.stage} ${p.completed}/${p.total}`; },
   });
-  publish({ detVariant: 'v3', backend: 'wasm', threads: 1, loadMs: Math.round(loadMs),
+  publish({ detVariant: 'v3', backend: 'wasm', threads: globalThis.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1, loadMs: Math.round(loadMs),
     ms: Math.round(performance.now() - scanStart), totalMs: Math.round(performance.now() - start),
     found: Object.fromEntries(planted.map(p => [p.text, boxes.some(b => b.text === p.text)])),
     boxCount: boxes.length, userAgent: navigator.userAgent });

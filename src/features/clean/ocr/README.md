@@ -21,3 +21,9 @@ Use `node scripts/export/ocr/fetch.mjs --det v3` (default) or `--det v5`; then `
 The pinned `detection/v3/config.json` describes the model but contains no normalization, side-limit or postprocessing thresholds. The manifest therefore identifies our explicit BGR/ImageNet, 960px, 0.3/0.6/1.5 DB settings as application defaults, not config-supplied values.
 
 Browser gate: run Vite on port5175 and open `/tests/e2e/ocr-gate.html`. It uses a dedicated WASM worker, explicit Vite `?url` WASM asset wiring and reports to `#out`/`window.__G6`. A served page is not browser acceptance until Chrome returns its result.
+
+## OCR-04 integration
+
+This port uses the shell's onnxruntime-web1.20.1 through ../ortEnv.getOrt('wasm'); it does not maintain another WASM setup. The helper chooses up to4threads when cross-origin isolated. The pinned recognizer dimensions48/438 are validated by output decoding;1.20.1 lacks the newer session metadata APIs. Public engine.scan accepts RGBA pixel objects (including ImageData and Clean Pixels). candidatesFromOcr preserves quads and uses glyph removal; rescanExport forwards decoded export pixels and propagates scanner failures. Strict indexed-access assertions in the kernels refer to image-length, crop-bound and loop-bound invariants; no compiler strictness settings were disabled.
+
+Node smoke requires exact dev dependencies: onnxruntime-node1.20.1, sharp0.35.5, @napi-rs/canvas1.1.1 and esbuild0.28.2. Production browser runtime remains1.20.1. Browser gate for this port is http://localhost:5176/tests/e2e/ocr-gate.html.
