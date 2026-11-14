@@ -15,7 +15,8 @@
     "prebuild": "node scripts/fetch-models.mjs && node scripts/export/fetch-models.mjs",
     "build": "vite build",
     "postbuild": "node scripts/sw-manifest.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@contentauth/c2pa-web": "0.15.5",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@napi-rs/canvas": "1.1.1",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/vite": "4.3.3",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
