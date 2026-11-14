@@ -65,7 +65,7 @@ function Mark({ item, photo, active, dim, onSelect, badgeOffset }: { item: Evide
       aria-label={`${item.number}. ${item.title}: ${item.regionLabel.toLowerCase()}`}
       onClick={() => onSelect(item.id)}
       className={[
-        'pointer-events-auto absolute rounded-[10px] transition-[opacity,box-shadow,background-color] duration-200',
+        `${badgeOffset > 0 ? 'pointer-events-none' : 'pointer-events-auto'} absolute rounded-[10px] transition-[opacity,box-shadow,background-color] duration-200`,
         active
           ? 'bg-[rgb(43_68_214/0.08)] shadow-[0_0_0_2.5px_var(--overlay),0_0_0_6px_rgb(255_255_255/0.55)]'
           : 'shadow-[0_0_0_1.5px_rgb(255_255_255/0.9),0_0_0_3px_rgb(43_68_214/0.55)] hover:bg-[rgb(43_68_214/0.06)]',
@@ -76,7 +76,7 @@ function Mark({ item, photo, active, dim, onSelect, badgeOffset }: { item: Evide
       <span
         aria-hidden
         className={[
-          'tabular absolute top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
+          'pointer-events-auto cursor-pointer tabular absolute top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
           active ? 'z-10 bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
         ].join(' ')}
         style={{ left: 8 + badgeOffset }}
