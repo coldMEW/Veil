@@ -282,7 +282,7 @@ export function AppWorkspace() {
               </div>
             )}
           </section>
-          <aside data-testid="evidence-rail"
+          <aside
             aria-label="Evidence"
             className="panel-light bg-panel px-5 pb-28 pt-6 lg:overflow-y-auto lg:border-l lg:border-line lg:px-7 lg:pb-8"
           >
@@ -291,7 +291,7 @@ export function AppWorkspace() {
               <button data-testid="evidence-row" data-check-id="provenance" aria-expanded={selectedCheck === 'provenance'} onClick={() => setSelectedCheck(selectedCheck === 'provenance' ? null : 'provenance')} className="w-full text-left text-sm font-medium">Content Credentials</button>
             </div>
             {/* New content appears at once and settles in; nothing waits on an exit. */}
-            <motion.div
+            <motion.div data-testid="evidence-rail"
               key={tab}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}

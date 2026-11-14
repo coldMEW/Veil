@@ -55,7 +55,7 @@ test.describe('desktop 1440', () => {
 
   test('evidence rows expand in place and select their overlay', async ({ page }) => {
     await openPhoto(page);
-    const row = page.getByTestId('evidence-row').first();
+    const row = page.getByTestId('evidence-rail').getByTestId('evidence-row').first();
     await expect(row).toBeVisible({ timeout: 60000 });
     await expect(row).toHaveAttribute('aria-expanded', 'false');
     await row.click();
@@ -71,7 +71,7 @@ test.describe('desktop 1440', () => {
     expect(ob && ob.width > 8 && ob.height > 8).toBeTruthy();
     expect(await ov.evaluate((e) => getComputedStyle(e).clip === 'rect(0px, 0px, 0px, 0px)' || e.classList.contains('sr-only'))).toBeFalsy();
     // Details show the check's real method and limitations, not a placeholder.
-    const det = page.getByTestId('evidence-details').first();
+    const det = page.getByTestId('evidence-rail').getByTestId('evidence-details').first();
     await expect(det).toContainText(/method/i);
     await expect(det).toContainText(/limitation/i);
     await expect(det).not.toContainText(/available in the evidence details below/i);
