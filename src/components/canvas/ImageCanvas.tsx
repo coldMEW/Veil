@@ -11,12 +11,24 @@ export interface HeatOverlay {
   values: Float32Array;
 }
 
+/** Object-to-shadow marks, normalized (0..1) to the oriented image. */
+export interface MarkOverlay {
+  pairs: ReadonlyArray<{ id: string; object: { x: number; y: number }; shadow: { x: number; y: number } }>;
+  pending: { x: number; y: number } | null;
+  offending: readonly string[];
+  /** [x, y, 1] finite light, [dx, dy, 0] direction at infinity, or null. */
+  light: readonly [number, number, number] | null;
+}
+
 interface ImageCanvasProps {
   bitmap: ImageBitmap;
   label: string;
   /** Reports where the photo is drawn, in CSS pixels relative to this component. */
   onFit?: (rect: Rect) => void;
   overlay?: HeatOverlay | null;
+  marks?: MarkOverlay | null;
+  /** When set, a tap or click on the photo reports a normalized image point. */
+  onImagePoint?: ((p: { x: number; y: number }) => void) | null;
 }
 
 const INSET = 28; // room for the viewfinder brackets and the photo's shadow
@@ -80,8 +92,83 @@ function drawHeat(ctx: CanvasRenderingContext2D, overlay: HeatOverlay, photo: Re
   ctx.restore();
 }
 
+const GOLD = 'rgba(255, 199, 44, 0.95)';
+const SHADOW_DOT = 'rgba(160, 196, 255, 0.95)';
+const MISFIT = 'rgba(255, 178, 122, 0.95)';
+
+function dot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, fill: string) {
+  ctx.beginPath();
+  ctx.arc(x, y, r + 1.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(5, 14, 31, 0.85)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function drawMarks(ctx: CanvasRenderingContext2D, marks: MarkOverlay, photo: Rect, view: { w: number; h: number }) {
+  const px = (p: { x: number; y: number }) => ({ x: photo.x + p.x * photo.w, y: photo.y + p.y * photo.h });
+  const far = Math.hypot(view.w, view.h) * 2;
+  const off = new Set(marks.offending);
+  ctx.save();
+  ctx.lineCap = 'round';
+  for (const pair of marks.pairs) {
+    const o = px(pair.object);
+    const s = px(pair.shadow);
+    const color = off.has(pair.id) ? MISFIT : GOLD;
+    const len = Math.hypot(o.x - s.x, o.y - s.y) || 1;
+    const ux = (o.x - s.x) / len;
+    const uy = (o.y - s.y) / len;
+    // Extend the shadow-to-object line both ways, faint, so the meeting point can be seen.
+    ctx.strokeStyle = color.replace('0.95', '0.35');
+    ctx.lineWidth = 1;
+    ctx.setLineDash([5, 6]);
+    ctx.beginPath();
+    ctx.moveTo(s.x - ux * far, s.y - uy * far);
+    ctx.lineTo(o.x + ux * far, o.y + uy * far);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(s.x, s.y);
+    ctx.lineTo(o.x, o.y);
+    ctx.stroke();
+    dot(ctx, o.x, o.y, 5, color);
+    dot(ctx, s.x, s.y, 4, SHADOW_DOT);
+    ctx.font = '600 12px "Outfit Variable", system-ui, sans-serif';
+    ctx.fillStyle = color;
+    ctx.fillText(pair.id, o.x + 8, o.y - 8);
+  }
+  if (marks.pending) {
+    const p = px(marks.pending);
+    dot(ctx, p.x, p.y, 6, GOLD);
+    ctx.strokeStyle = GOLD;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  if (marks.light && marks.light[2] !== 0) {
+    const l = px({ x: marks.light[0], y: marks.light[1] });
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(l.x, l.y, 9, 0, Math.PI * 2);
+    ctx.moveTo(l.x - 15, l.y);
+    ctx.lineTo(l.x + 15, l.y);
+    ctx.moveTo(l.x, l.y - 15);
+    ctx.lineTo(l.x, l.y + 15);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /** Draws the orientation-corrected image, contained and centered, sharp on high-DPI screens. */
-export function ImageCanvas({ bitmap, label, onFit, overlay = null }: ImageCanvasProps) {
+export function ImageCanvas({ bitmap, label, onFit, overlay = null, marks = null, onImagePoint = null }: ImageCanvasProps) {
+  const photoRef = useRef<Rect | null>(null);
+  const downRef = useRef<{ x: number; y: number } | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const onFitRef = useRef(onFit);
@@ -122,6 +209,8 @@ export function ImageCanvas({ bitmap, label, onFit, overlay = null }: ImageCanva
       ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(bitmap, photo.x, photo.y, photo.w, photo.h);
       if (overlay) drawHeat(ctx, overlay, photo, fit.scale);
+      if (marks) drawMarks(ctx, marks, photo, { w: viewW, h: viewH });
+      photoRef.current = photo;
       onFitRef.current?.(photo);
     };
 
@@ -129,7 +218,7 @@ export function ImageCanvas({ bitmap, label, onFit, overlay = null }: ImageCanva
     const observer = new ResizeObserver(draw);
     observer.observe(wrap);
     return () => observer.disconnect();
-  }, [bitmap, overlay]);
+  }, [bitmap, overlay, marks]);
 
   return (
     <motion.div
@@ -139,7 +228,27 @@ export function ImageCanvas({ bitmap, label, onFit, overlay = null }: ImageCanva
       animate={{ opacity: 1, filter: 'blur(0px)', clipPath: 'inset(0% 0% 0% 0%)', scale: 1 }}
       transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
     >
-      <canvas ref={canvasRef} role="img" aria-label={label} className="absolute inset-0" />
+      <canvas
+        ref={canvasRef}
+        role="img"
+        aria-label={label}
+        className={`absolute inset-0 ${onImagePoint ? 'cursor-crosshair touch-none' : ''}`}
+        onPointerDown={(e) => {
+          downRef.current = { x: e.clientX, y: e.clientY };
+        }}
+        onPointerUp={(e) => {
+          const down = downRef.current;
+          downRef.current = null;
+          const photo = photoRef.current;
+          if (!onImagePoint || !down || !photo) return;
+          if (Math.hypot(e.clientX - down.x, e.clientY - down.y) > 8) return; // a drag, not a tap
+          const box = e.currentTarget.getBoundingClientRect();
+          const x = (e.clientX - box.left - photo.x) / photo.w;
+          const y = (e.clientY - box.top - photo.y) / photo.h;
+          if (x < 0 || x > 1 || y < 0 || y > 1) return;
+          onImagePoint({ x, y });
+        }}
+      />
     </motion.div>
   );
 }

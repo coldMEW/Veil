@@ -27,7 +27,9 @@ import { closeImage, openImageFile, useImageSession, type ImageSessionState } fr
 import { plannedInspectChecks } from './plannedChecks';
 import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
 import { useModelFocus, type FocusState } from '../features/inspect/model/useModelFocus';
-import type { HeatOverlay } from '../components/canvas/ImageCanvas';
+import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
+import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
+import { useShadowAnnotation, type ShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
 
 type TabId = 'inspect' | 'clean' | 'protect';
 type Ready = Extract<ImageSessionState, { status: 'ready' }>;
@@ -47,6 +49,12 @@ export function App() {
   const ready = session.status === 'ready' ? session : null;
   const focus = useModelFocus(ready?.asset.id ?? null, ready?.bitmap ?? null);
   const [showOverlay, setShowOverlay] = useState(true);
+  const imageSize = useMemo(
+    () => (ready ? { width: ready.asset.width, height: ready.asset.height } : null),
+    [ready?.asset.id],
+  );
+  const shadow = useShadowAnnotation(ready?.asset.id ?? null, imageSize);
+  const onImagePoint = shadow.marking && tab === 'inspect' ? shadow.addPoint : null;
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
@@ -92,7 +100,7 @@ export function App() {
           className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden"
         >
           <section aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
-            <PhotoStage session={session} overlay={overlay} />
+            <PhotoStage session={session} overlay={overlay} marks={shadow.drawing} onImagePoint={onImagePoint} />
           </section>
           <aside
             aria-label="Evidence"
@@ -104,7 +112,7 @@ export function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
             >
-              {tab === 'inspect' && <InspectPanel session={session} modelCard={modelCard} focus={focus.state} />}
+              {tab === 'inspect' && <InspectPanel session={session} modelCard={modelCard} focus={focus.state} shadow={shadow} />}
               {tab === 'clean' && <CleanPanel session={session} />}
               {tab === 'protect' && <ProtectPanel session={session} />}
             </motion.div>
@@ -142,7 +150,17 @@ function insetRect(size: { w: number; h: number }, pad: number): Rect {
   return { x: pad, y: pad, w: size.w - pad * 2, h: size.h - pad * 2 };
 }
 
-function PhotoStage({ session, overlay }: { session: ImageSessionState; overlay: HeatOverlay | null }) {
+function PhotoStage({
+  session,
+  overlay,
+  marks,
+  onImagePoint,
+}: {
+  session: ImageSessionState;
+  overlay: HeatOverlay | null;
+  marks: MarkOverlay | null;
+  onImagePoint: ((p: { x: number; y: number }) => void) | null;
+}) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const [dragging, setDragging] = useState(false);
   const [photoRect, setPhotoRect] = useState<Rect | null>(null);
@@ -211,7 +229,14 @@ function PhotoStage({ session, overlay }: { session: ImageSessionState; overlay:
         )}
         {session.status === 'ready' && (
           <motion.div key={session.asset.id} className="absolute inset-0">
-            <ImageCanvas bitmap={session.bitmap} label={`Photo: ${session.fileName}`} onFit={setPhotoRect} overlay={overlay} />
+            <ImageCanvas
+              bitmap={session.bitmap}
+              label={`Photo: ${session.fileName}`}
+              onFit={setPhotoRect}
+              overlay={overlay}
+              marks={marks}
+              onImagePoint={onImagePoint}
+            />
           </motion.div>
         )}
       <Viewfinder rect={frame} tone={tone} gap={gap} breathing={session.status === 'empty' && !dragging} />
@@ -335,7 +360,17 @@ const PROTECT_FEATURES: Feature[] = [
   { icon: ChartLineUp, title: 'Measured results', body: 'Every test outcome is shown, including the ones where nothing changed.' },
 ];
 
-function InspectPanel({ session, modelCard, focus }: { session: ImageSessionState; modelCard: ReactNode; focus: FocusState }) {
+function InspectPanel({
+  session,
+  modelCard,
+  focus,
+  shadow,
+}: {
+  session: ImageSessionState;
+  modelCard: ReactNode;
+  focus: FocusState;
+  shadow: ShadowAnnotation;
+}) {
   const assetId = session.status === 'ready' ? session.asset.id : null;
   const checks = useMemo(() => (assetId ? plannedInspectChecks(assetId) : []), [assetId]);
   if (session.status !== 'ready') {
@@ -364,6 +399,8 @@ function InspectPanel({ session, modelCard, focus }: { session: ImageSessionStat
             <div key={check.id} data-state={focus.status}>
               {modelCard}
             </div>
+          ) : check.id === 'shadow-geometry' ? (
+            <ShadowCard key={check.id} a={shadow} />
           ) : (
             <ResultCard key={check.id} result={check} />
           ),
