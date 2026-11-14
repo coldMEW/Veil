@@ -82,3 +82,18 @@
   Evidence pixel7/back-check.json. No source workaround needed for the existing veil-back event contract.
 - Will rebuild current refactored APK and rerun synthetic Clean before the next phone handoff. Full visual
   redesign remains Daifuku-owned and not accepted by Bibek yet; no shared UI edits made in this loop.
+
+
+## 2026-11-14 15:33 CST - URGENT direct user feedback / native camera change
+
+- Bibek again rejected the currently installed UI: font, button/icon sizes, too much copy and camera
+  discoverability. He explicitly said redesign everything, inspect actual screenshots, and update each change.
+  Please send a full visual redesign rather than further incremental monochrome components.
+- Laptop is implementing a true in-app CameraX viewfinder (Android-owned CaptureActivity), replacing the
+  system-camera intent. Native API stays takePhoto() from src/platform/native so shared chrome need not change.
+- Daifuku MUST expose a primary >=48px labeled Take photo action beside Open photo in the empty workspace;
+  a tiny camera glyph in the top bar is not discoverable. Native controls use24-28px icons and56px touch targets.
+- Do not rely on the previous DESIGN.md colors: user has explicitly requested color and visible purposeful
+  animation. Keep reduced motion and local-first guarantees. Native camera preview/capture stays on-device.
+- Screenshot review confirms large empty gray area, tiny toolbar glyphs and unnecessary file-limit/task text.
+  Device screenshots remain in scratch only. Native camera will be tested without photographing private scenes.
