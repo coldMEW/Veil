@@ -1,0 +1,143 @@
+{
+  "version": "PP-OCRv3 detector (default) or v5 detector + PP-OCRv5 English recognition",
+  "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+  "licenseSource": "https://huggingface.co/monkt/paddleocr-onnx/blob/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/README.md",
+  "files": [
+    {
+      "name": "det-v3.onnx",
+      "upstreamUrl": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/detection/v3/det.onnx",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "ee40e80071ba3a320d4efda75f3e22047a7d049e9bf7bcaaf9daea23fc21b935",
+      "bytes": 2429873,
+      "license": "Apache-2.0",
+      "io": {
+        "inputs": [
+          {
+            "name": "x",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.0",
+              3,
+              "DynamicDimension.1",
+              "DynamicDimension.2"
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "fetch_name_0",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.3",
+              1,
+              "DynamicDimension.4",
+              "DynamicDimension.5"
+            ]
+          }
+        ]
+      },
+      "variant": "v3"
+    },
+    {
+      "name": "det-v5.onnx",
+      "upstreamUrl": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/detection/v5/det.onnx",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "61824840edf6e74581898930b8091b1b2318f4b2705a2e8a40ad3de7ac480133",
+      "bytes": 88030804,
+      "license": "Apache-2.0",
+      "io": {
+        "inputs": [
+          {
+            "name": "x",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.0",
+              3,
+              "DynamicDimension.1",
+              "DynamicDimension.2"
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "fetch_name_0",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.3",
+              1,
+              "DynamicDimension.4",
+              "DynamicDimension.5"
+            ]
+          }
+        ]
+      },
+      "variant": "v5"
+    },
+    {
+      "name": "rec.onnx",
+      "upstreamUrl": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/languages/english/rec.onnx",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "4e16deb22c4da6468bdca539b2cd3c8687825538b67109177c47d359ab994cd7",
+      "bytes": 7830888,
+      "license": "Apache-2.0",
+      "io": {
+        "inputs": [
+          {
+            "name": "x",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.0",
+              3,
+              48,
+              "DynamicDimension.1"
+            ]
+          }
+        ],
+        "outputs": [
+          {
+            "name": "fetch_name_0",
+            "isTensor": true,
+            "type": "float32",
+            "shape": [
+              "DynamicDimension.2",
+              "DynamicDimension.3",
+              438
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "dict.txt",
+      "upstreamUrl": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/languages/english/dict.txt",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "e025a66d31f327ba0c232e03f407ae8d105e1e709e7ccb3f408aa778c24e70d6",
+      "bytes": 1416,
+      "license": "Apache-2.0",
+      "io": null
+    }
+  ],
+  "pairing": "Deliberate independent detection and recognition stages; v3 config recommends v3 recognition but this pairing is evaluated explicitly.",
+  "detectorPreprocessing": {
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ],
+    "limitSideLen": 960,
+    "threshold": 0.3,
+    "boxThreshold": 0.6,
+    "unclipRatio": 1.5,
+    "note": "Pinned v3 config does not specify normalization or thresholds; these are explicit application DB defaults, not values supplied by config.json."
+  }
+}
