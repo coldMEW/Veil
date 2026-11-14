@@ -181,7 +181,7 @@ export function runShadowCheck(
           fitSubsetPairIds: fit.usedPairIds, fitSubsetMaxResidual: fit.maxResidual };
         const excluded = perPairResidual.filter((pair) => !subsetIds.has(pair.pairId)).map((pair) =>
           pair.residualDeg === null ? `${pair.pairId} has no measurable direction to it`
-            : `${pair.pairId} is ${Number(pair.residualDeg.toFixed(2))} degrees off it`);
+            : `${pair.pairId} is ${Math.round(pair.residualDeg)} degrees off it`);
         subsetObservation = `${fit.usedPairIds.join(', ')} share one projected light; ${excluded.join('; ')}.`;
         result.limitations.push('The largest uniquely agreeing group defines the reference light. Excluded pairs identify disagreement with that group, not its cause.');
       } else {

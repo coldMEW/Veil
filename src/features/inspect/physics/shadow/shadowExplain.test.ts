@@ -54,9 +54,9 @@ describe('explainShadowResult', () => {
   it('names every disagreeing pair and its angle', () => {
     const explanation = explainShadowResult(inconsistent);
     expect(explanation.observation).toContain('middle');
-    expect(explanation.observation).toContain('12.4 degrees');
+    expect(explanation.observation).toContain('12 degrees');
     expect(explanation.observation).toContain('right');
-    expect(explanation.observation).toContain('8.2 degrees');
+    expect(explanation.observation).toContain('8 degrees');
     expect(explanation.observation).not.toContain('left');
     expect(explanation.perPair[0]!.text).toContain('within');
     const unknowns = explanation.unknowns.join(' ');
@@ -145,7 +145,26 @@ describe('explainShadowResult', () => {
     const result = { ...inconsistent, evidence: { ...inconsistent.evidence,
       perPairResidual: [{ pairId: 'middle', residualDeg: 5.000001 }], offendingPairIds: ['middle'],
     } };
-    expect(explainShadowResult(result).observation).toContain('just over 5 degrees');
+    const observation = explainShadowResult(result).observation;
+    expect(observation).toContain('5 degrees');
+    expect(observation).toContain('above the 5 degree limit');
+    expect(result.evidence.perPairResidual[0]!.residualDeg).toBe(5.000001);
+  });
+
+  it('rounds displayed angles while preserving the written tolerance and evidence', () => {
+    for (const residualDeg of [12.49, 12.5, 61.6]) {
+      const result = { ...inconsistent, evidence: { ...inconsistent.evidence, toleranceDeg: 5.25,
+        perPairResidual: [{ pairId: 'middle', residualDeg }], offendingPairIds: ['middle'],
+      } };
+      const explanation = explainShadowResult(result);
+      expect(explanation.observation).toContain(`${Math.round(residualDeg)} degrees`);
+      expect(explanation.perPair.find((pair) => pair.id === 'middle')!.text).toContain(`${Math.round(residualDeg)} degrees`);
+      expect(explanation.observation).toContain('5.25 degree limit');
+      expect(result.evidence.perPairResidual[0]!.residualDeg).toBe(residualDeg);
+      expect(result.evidence.toleranceDeg).toBe(5.25);
+    }
+    expect(explainShadowResult({ ...complete, evidence: { ...complete.evidence, toleranceDeg: 5.25 } })
+      .observation).toContain('5.25 degree limit');
   });
 
   it('does not mutate its input and always produces the same explanation', () => {

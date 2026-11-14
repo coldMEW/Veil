@@ -24,7 +24,7 @@ function angle(value: unknown): number | null {
 }
 
 function degrees(value: number): string {
-  return Number(value.toFixed(2)).toString();
+  return Math.round(value).toString();
 }
 
 function incompleteObservation(result: CheckResult): string {
@@ -128,11 +128,9 @@ export function explainShadowResult(result: CheckResult): ShadowExplanation {
     const value = measurements.get(id);
     if (value === null || value === undefined) return `Pair ${id}: its angle is not available. Check the marks and run the check again.`;
     const aboveLimit = tolerance !== null && value > tolerance;
-    // Preserve the meaning when a small exceedance would otherwise round down to the limit.
-    const amount = aboveLimit && Number(degrees(value)) <= tolerance
-      ? `just over ${degrees(tolerance)} degrees` : `${degrees(value)} degrees`;
+    const amount = `${degrees(value)} degrees`;
     const limit = tolerance === null ? ''
-      : `, ${aboveLimit ? 'above' : 'within'} the ${degrees(tolerance)} degree limit`;
+      : `, ${aboveLimit ? 'above' : 'within'} the ${tolerance} degree limit`;
     return `Pair ${id} is ${amount} off the direction to the shared light${limit}.`;
   }
   explanation.perPair = [...allIds].map((id) => ({ id, text: pairText(id) }));
@@ -175,7 +173,7 @@ export function explainShadowResult(result: CheckResult): ShadowExplanation {
     explanation.headline = 'These shadows fit one light source in this check.';
     explanation.observation = tolerance === null
       ? 'The marked pairs fit the chosen angle limit in this check.'
-      : `The marked pairs are within the ${degrees(tolerance)} degree limit.`;
+      : `The marked pairs are within the ${tolerance} degree limit.`;
     const light = evidence.lightPoint;
     if (Array.isArray(light) && light.length === 3 && light.every((value) => typeof value === 'number' && Number.isFinite(value))) {
       if (light[2] === 0) {

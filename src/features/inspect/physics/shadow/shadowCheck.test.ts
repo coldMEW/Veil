@@ -110,6 +110,7 @@ describe('runShadowCheck', () => {
     const strict = runShadowCheck(pairs, 'asset', { toleranceDeg: 0.1 });
     const loose = runShadowCheck(pairs, 'asset', { toleranceDeg: 10 });
     expect(strict.finding).toBe('inconsistent');
+    expect(strict.observation).toContain('0.1 degree tolerance');
     expect(loose.finding).toBe('consistent');
     for (const toleranceDeg of [-1, NaN, Infinity, 91]) {
       const result = runShadowCheck(pairs, 'asset', { toleranceDeg });
@@ -160,7 +161,10 @@ describe('runShadowCheck', () => {
       const angles = result.evidence.perPairResidual as { pairId: string; residualDeg: number }[];
       expect(angles).toHaveLength(goodCount + 1);
       expect(angles.filter((pair) => pair.pairId !== 'bad').every((pair) => pair.residualDeg < 1e-8)).toBe(true);
-      expect(angles.find((pair) => pair.pairId === 'bad')!.residualDeg).toBeGreaterThan(5);
+      const badAngle = angles.find((pair) => pair.pairId === 'bad')!.residualDeg;
+      expect(badAngle).toBeCloseTo(Math.atan2(0.7, 0.35) * 180 / Math.PI, 10);
+      expect(badAngle).not.toBe(Math.round(badAngle));
+      expect(result.observation).toContain(`bad is ${Math.round(badAngle)} degrees`);
       expect(result.observation).toContain('share one projected light');
       const point = result.overlays.find((overlay) => overlay.type === 'points');
       expect(point?.points[0]?.x).toBeCloseTo(subsetLight.x, 10);
