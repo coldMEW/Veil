@@ -1,157 +1,75 @@
 ---
 name: Veil
-description: Evidence-first, local photo workspace
+description: Warm everyday app for checking, cleaning and protecting a photo on the device
 colors:
-  ground: "#f2f4f7"
-  surface: "#ffffff"
-  raised: "#eceff3"
-  well: "#e9ecf1"
-  border: "#e3e6eb"
-  text: "#0a0a0a"
-  muted: "#5f6670"
-  accent: "#141414"
-  signal: "#1d5fbf"
-  positive: "#2e7d32"
-  negative: "#c4242a"
+  ground: "#f5f1eb"
+  card: "#ffffff"
+  tonal: "#efe9e1"
+  well: "#1f2340"
+  line: "#e8e1d6"
+  ink: "#1f1c17"
+  muted: "#5e574c"
+  faint: "#6f685c"
+  action: "#2b44d6"
+  action-soft: "#e7eafc"
+  tool-inspect: "#2b44d6"
+  tool-clean: "#0b8a77"
+  tool-protect: "#7a3fe0"
+  clear: { bg: "#e2f1e5", ink: "#1d5a31" }
+  notice: { bg: "#fcefd2", ink: "#7a4705" }
+  alert: { bg: "#fde5e0", ink: "#9a2516" }
+  idle: { bg: "#efe9e1", ink: "#5e574c" }
 typography:
-  display: { fontFamily: "Geist, sans-serif", fontSize: "30px", fontWeight: 500, lineHeight: 1.1 }
-  body: { fontFamily: "Geist, sans-serif", fontSize: "14px", fontWeight: 400, lineHeight: 1.5 }
-rounded: { panel: "16px", card: "8px", control: "6px" }
-spacing: { gap: "12px", pad: "24px", row: "44px" }
-components:
-  button-primary: { backgroundColor: "{colors.accent}", textColor: "{colors.surface}", rounded: "{rounded.control}", height: "36px" }
+  family: "Figtree Variable (self-hosted), system-ui fallback"
+  display: { size: "2.25rem phone / 3.25rem desktop", weight: 700, tracking: "-0.03em", lineHeight: 1.05 }
+  title: { size: "1.25rem", weight: 600, tracking: "-0.015em" }
+  body: { size: "0.9375rem", weight: 400, lineHeight: 1.55 }
+  label: { size: "0.75rem", weight: 600 }
+  mono: "system monospace, hashes only"
+rounded: { card: "16px", control: "12px", sheet: "24px", dock: "24px", nav-button: "18px", pill: "999px" }
+spacing: { gutter-phone: "12-16px", gutter-desktop: "12px between regions", card-padding: "16-20px" }
+motion: { library: "Anime.js 4", ease: "outExpo", expand: "260ms", collapse: "200ms", sheet-snap: "320ms", entrance: "520ms, 70ms stagger" }
 ---
 
-# Design System: Veil
+# Veil design system
 
-## Overview
+## Idea
 
-**Creative North Star: "Achromatic ledger"**
+Veil is a friendly tool for everyday people who are about to share a photo. It looks like a warm consumer app, not a forensic console. Each card holds one idea. Labels are plain sentences. The bright colours sit only on things you can press or on the tool you are in. Results are evidence with their method and limits, never a verdict.
 
-Veil is a local evidence workspace, not a dashboard or a verdict machine. Chrome is quiet and achromatic; photographs and their evidence overlays are the only visual colour.
+## Colour
 
-## Colors
+- **Ground** is a warm tint (`#f5f1eb`). **Cards** are white with one soft shadow (`--shadow-card`). Elevation is declared once: shadow or border, never both.
+- **Photo well** is deep ink-blue (`#1f2340`) so photos read true and overlays stay visible.
+- **Action** (`#2b44d6`) appears only on pressable things: primary buttons, the active tab, focus rings, overlay outlines.
+- **Tool colours**: Inspect blue, Clean teal, Protect violet. They fill the active nav button, the sheet's title dot and the empty-screen feature icons.
+- **Finding pills** use tinted backgrounds with dark ink: clear green, notice amber, alert red, idle neutral. "Checking" shows a pulsing dot. A finished check that found nothing says "Nothing found"; a failed check says "Didn't finish". Nothing that did not run may look like a result.
 
-Use neutral surfaces for structure. `signal` is reserved for focus, selection and overlay outlines. Positive, negative and warning colours occur only in evidence pills.
+## Type
 
-**The One Hue Rule.** No decorative colour, gradients, tinted icon tiles or glass effects.
-
-## Typography
-
-Geist is used at 400/500/700. Geist Mono is limited to hashes, identifiers and measurements. Use sentence case and tabular numerals for figures.
+Figtree throughout, self-hosted. Sizes are rem so text follows the Android and browser font-size setting. Sentence case. Tabular numerals for sizes and measurements. Monospace only for hashes.
 
 ## Layout
 
-Desktop is a 44px top bar plus a 232px tools rail, canvas well and 360px evidence rail. At under 1024px the canvas is full width and evidence becomes a bottom sheet. Controls are at least 36px high; touch actions are at least 44px.
-
-## Elevation & Depth
-
-Surfaces are flat at rest with borders and tonal separation. Shadows are allowed only for a menu, dialog or raised bottom sheet.
-
-## Shapes
-
-Panels use 16px corners, cards use 8px, controls use 6px. Primary actions are near-black; secondary actions are grey.
+- **Desktop (≥1024px)**: a 64px top bar (logo, file name, "On this device", Report, Open another), an 88px tools rail of glass buttons, the photo well (rounded 16px), and a 400px results column.
+- **Phone**: a 56px top app bar (close, file name, report), the photo well, a bottom sheet (peek about 176px, half, full; drag with velocity snap; tap or arrow keys on the handle), and a floating glass dock with Inspect, Clean and Protect. Edge-to-edge with `env(safe-area-inset-*)`. Touch targets are at least 48px.
+- **Empty screen**: headline, one sentence, a dashed drop card with one primary button, three tool lines with tinted icons, and the 3D hero (desktop: right column; phone: on top).
 
 ## Components
 
-Top bar shows file state and local-processing status. Tools are plain text rows with a grey active pill. Canvas overlays must be interactive, visible and outline selected evidence with a 2px signal border. Evidence rows show a finding pill and expand to Method, Assumptions, Limitations and Evidence. The report is an A4-proportioned white printable sheet. Buttons show hover tone, 2px signal focus and .98 press scale. Progress is a determinate 2px ink rule with cancel.
+- **EvidenceRow**: number badge, title, finding pill, one-line headline, chevron. It expands in place (Anime.js height and opacity) to show Method, Assumptions, Limitations, measured numbers, and where it is outlined on the photo. An optional eye button toggles the check's map.
+- **OverlayLayer**: one outlined, numbered, focusable button per check, covering the area that check looked at (whole file, classifier crop, marked face, marked points). Selecting an outline opens its row and selecting a row highlights its outline; the others dim to 35%.
+- **EvidenceSheet**: phone results surface with its tool colour dot. The same panel content renders in the desktop column.
+- **ReportSheet**: a modal A4 paper over a dimmed ink-blue backdrop. Escape and Close dismiss it, focus returns to where it was, and Print or save PDF is offered. Printing shows only the paper.
+- **Buttons**: `.btn-primary` (filled action), `.btn-tonal` (secondary), `.btn-text`, `.icon-btn` (48px). Press scale 0.97, 160ms.
+- **Glass**: `.glass-dock` (translucent white, 22px blur, inner highlight) and `.glass-btn` (raised white glass; the active one fills with its tool colour, with an inner highlight and a coloured shadow). Glass is used for navigation only.
+- **HeroStage**: public-domain photos floating in perspective on an action-blue field with three soft colour lights. Each photo carries a Veil mark that is true of it (both faces are StyleGAN images). Gentle Anime.js float, pointer parallax on fine pointers, static under reduced motion. Credits are in `public/hero/credits.json` and shown in the corner.
 
-Motion uses Anime.js: 180ms `cubic-bezier(.2,.8,.2,1)` for entry and expansion, 40ms sibling stagger, opacity/transform only. Reduced motion removes spatial movement while retaining state changes.
+## Motion
 
-## Do's and Don'ts
+One entrance on the empty screen (rise and fade, 520ms outExpo, 70ms stagger). The row expands, the sheet snaps, and outlines pulse on selection. Reduced motion removes movement and keeps every state change. Content is visible by default; motion never gates it.
 
-### Do:
-- **Do** make observations, limits and evidence visible before actions.
-- **Do** keep model and WASM downloads tool-triggered.
-- **Do** provide visible keyboard focus and reduced-motion behavior.
+## Do and don't
 
-### Don't:
-- **Don't** use authenticity verdicts, overall scores, gradients, glass or decorative shadows.
-- **Don't** hide an overlay or bottom sheet behind a test hook.
-- **Don't** use coloured chrome outside semantic evidence states.
-
-## Component Reference
-
-### Top bar
-
-**Anatomy:** wordmark, current file name, status pill, local-processing statement, secondary open action and primary export action. Height is 44px desktop and 48px phone. It has no decorative divider.
-
-**States:** idle shows the file and last completed check count; loading shows a 2px determinate progress rule and an always-visible cancel action; disabled export is muted but remains labelled; error names the failed check and recovery. Hover changes tone only. Focus is a 2px signal outline offset by 2px. Press scales the button to .98 for 90ms.
-
-### Tools rail
-
-**Anatomy:** a 232px white panel, grouped labels and 40px plain-text tool rows. There are no icon tiles. The selected row uses the raised neutral pill.
-
-**States:** inactive is plain text; hover uses raised surface; active has raised background; focus has signal outline; unavailable remains readable and explains why in its adjacent evidence row. On phone, the same actions become horizontal text chips.
-
-### Canvas well and overlays
-
-**Anatomy:** 16px inset, square-corner photo fit inside a #e9ecf1 well. Controls sit in the corners as white controls. The overlay layer shares the exact displayed-image rectangle; it never uses document coordinates alone.
-
-**States:** overlays are transparent at rest, use a 1px neutral stroke on hover and a 2px signal outline when selected. Keyboard focus follows the selected outline. Raster overlays use the evidence colour map and a hatched mask outside the analysed rect. Clicks select the matching evidence row; selecting a row selects its overlay.
-
-### Evidence row and details
-
-**Anatomy:** 44px minimum row with 14px/500 title, semantic pill, one-line observation and chevron. Expanded content uses four named sections: Method, Assumptions, Limitations and Evidence. Evidence values use Geist Mono/tabular numerals on 32px pitch.
-
-**States:** neutral pills are used for inconclusive and not-applicable; green only means compatible with that check; red only means a reported inconsistency. Expansion is 180ms with the standard ease. Reduced motion opens instantly. Hover is tonal only; focus is signal outlined.
-
-### Evidence sheet
-
-**Anatomy:** under 1024px the desktop rail is replaced by a fixed bottom sheet. It shows a 35vh peek containing the finding count and rows, a visible drag handle, and scrollable details.
-
-**States:** pointer drag snaps to peek, half and 90vh/full. Scroll locks while the handle has pointer capture. The sheet has a soft menu-only shadow and never causes horizontal page overflow. Keyboard users receive the same rows in document order.
-
-### Buttons and inputs
-
-**Anatomy:** 36px control height on desktop; touch targets expand to 44px. Primary is near-black on white, secondary is #e5e5e5, and destructive controls use semantic red only when destructive.
-
-**States:** hover changes tone in 120ms; pressed scales .98 in 90ms; focus is signal; disabled is lower contrast with an explanatory label; loading preserves button dimensions and supplies status text; error is adjacent plain language, never colour alone.
-
-### Progress
-
-Long OCR, inpainting and model work uses a determinate two-pixel ink rule in the top bar. A spinner may supplement but never replace progress and cancel. Progress is announced with a live status region.
-
-### Report sheet
-
-**Anatomy:** white A4 proportion (794 × 1123 CSS px before responsive scale), title/file facts, SHA-256 in Geist Mono, each check's finding/reason/limitations, transforms and verification. It is centred on ground with no coloured decoration except finding pills.
-
-**States:** screen view scales to fit; print view removes workspace chrome, keeps the full sheet, has black text and preserves evidence headings. Missing data is explicitly marked unavailable.
-
-## Spacing and type scale
-
-| Token | Value | Use |
-|---|---:|---|
-| `space-1` | 4px | icon/text correction |
-| `space-2` | 8px | compact pairs |
-| `gap` | 12px | default related controls |
-| `space-4` | 16px | canvas inset / section start |
-| `pad` | 24px | panel interior |
-| `space-8` | 32px | major separation |
-| `figure` | 30px | empty workspace instruction |
-| `title` | 24px | report and panel title |
-| `section` | 16px | panel heading |
-| `body` | 14px | default reading text |
-| `small` | 12px | metadata and pills |
-
-## Motion reference
-
-| Interaction | Duration | Ease | Reduced motion |
-|---|---:|---|---|
-| panel/row entrance | 180ms | cubic-bezier(.2,.8,.2,1) | opacity only |
-| sibling entrance | 40ms stagger | standard | no stagger |
-| evidence expansion | 180ms | standard | immediate |
-| overlay toggle | 150ms | standard | immediate |
-| button press | 90ms | ease-out | tone only |
-| sheet snap | spring | stiff/damped | immediate snap |
-| progress | 120ms updates | linear | unchanged |
-
-## Accessibility requirements
-
-- Every operation is a native button or labelled form control; no clickable divs.
-- Focus order follows tool rail, canvas controls and evidence rail; no positive tabindex.
-- Focus contrast meets 3:1 and body text meets 4.5:1.
-- Pills duplicate their colour with textual finding labels.
-- Drag interactions have a click/keyboard equivalent and use pointer capture with cancel handling.
-- `prefers-reduced-motion` removes distance and spring movement but does not hide content or state.
-- Canvas overlays expose an accessible label naming the associated check and selected state.
+- Do: say what each check can't tell you; keep one obvious next step; use a tool's colour for the tool you are in.
+- Don't: show a single real or fake verdict; blur or pixelate people; use the action colour on something that can't be pressed; put glass on content cards; say "AI detector".
