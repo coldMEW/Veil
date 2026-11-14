@@ -44,6 +44,17 @@
       "bytes": 1416,
       "license": "Apache-2.0",
       "feature": "clean"
+    },
+    {
+      "id": "diffvax-immunizer",
+      "dir": "diffvax",
+      "file": "diffvax_immunizer.onnx",
+      "url": "https://huggingface.co/coldmew/veil-diffvax-immunizer/resolve/7f45aabc2d6b9cf71452fdb49bf1acbe9957fb8e/diffvax_immunizer.onnx",
+      "revision": "7f45aabc2d6b9cf71452fdb49bf1acbe9957fb8e",
+      "sha256": "44aa61ea8d6fbdc485bc897376cff41027e9885d5f68c3dd2e4bae8092cf3cd4",
+      "bytes": 36640862,
+      "license": "MIT (upstream ozdentarikcan/DiffVax @77fe66a; ONNX export by Veil)",
+      "feature": "protect"
     }
   ]
 }
