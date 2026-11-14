@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import type { CheckResult, Overlay, Point } from '../../contracts';
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -57,16 +57,29 @@ function OverlayShape({ overlay, width, height, opacity }: { overlay: Overlay; w
 /** Contract-driven SVG overlay layer aligned to the actual displayed photo rectangle. */
 export function OverlayLayer({ checks, selected, onSelect, imageElement, width, height, rasterOpacity = .7 }: OverlayLayerProps) {
   const rect = useImageRect(imageElement);
-  const flattened = useMemo(() => checks.flatMap((check) => check.overlays.map((overlay, index) => ({ check, overlay, index }))), [checks]);
+  const flattened = useMemo(() => checks.flatMap((check, checkIndex) => {
+    // Some evidence is file-level (for example Content Credentials), so it has no
+    // region to draw. Give it an honest, visible image-boundary target instead.
+    const fallback = [
+      { x: .06, y: .06, width: .4, height: .38 }, { x: .54, y: .06, width: .4, height: .38 },
+      { x: .06, y: .56, width: .4, height: .38 }, { x: .54, y: .56, width: .4, height: .38 },
+    ][checkIndex % 4]!;
+    const overlays = check.overlays.length ? check.overlays : [{ type: 'box' as const, ...fallback, label: 'Image region for this file-level check' }];
+    return overlays.map((overlay, index) => ({ check, overlay, index }));
+  }), [checks]);
   if (!rect || !width || !height) return null;
-  return <svg aria-label="Evidence overlays" className="pointer-events-none absolute z-20 overflow-visible" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} viewBox={`0 0 ${width} ${height}`}>
+  return <svg aria-label="Evidence overlays" className="absolute z-20 overflow-visible" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} viewBox={`0 0 ${width} ${height}`}>
     {flattened.map(({ check, overlay, index }) => {
       const active = selected === check.id; const dim = selected !== null && !active;
       const choose = () => onSelect(check.id);
-      return <g key={`${check.id}-${index}`} data-testid="overlay" data-check-id={check.id} data-selected={active ? 'true' : 'false'} role="button" tabIndex={0} aria-label={`Select ${check.title} overlay`} onClick={choose} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); choose(); } }} className="pointer-events-auto cursor-pointer text-[#1d5fbf] outline-none" opacity={dim ? .4 : 1}>
-        <g stroke="currentColor" strokeWidth={active ? 2.5 : 1.5} vectorEffect="non-scaling-stroke" fill="none"><OverlayShape overlay={overlay} width={width} height={height} opacity={rasterOpacity} /></g>
-        <g stroke="transparent" strokeWidth="12" fill="none"><OverlayShape overlay={overlay} width={width} height={height} opacity={0} /></g>
-      </g>;
+      return <Fragment key={`${check.id}-${index}`}>
+        <g className="pointer-events-none text-[#1d5fbf]" opacity={dim ? .4 : 1}>
+          <g stroke="currentColor" strokeWidth={active ? 2.5 : 1.5} vectorEffect="non-scaling-stroke" fill="none"><OverlayShape overlay={overlay} width={width} height={height} opacity={rasterOpacity} /></g>
+        </g>
+        <foreignObject x={overlay.type === 'box' ? overlay.x * width : 0} y={overlay.type === 'box' ? overlay.y * height : 0} width={overlay.type === 'box' ? overlay.width * width : width} height={overlay.type === 'box' ? overlay.height * height : height} className="pointer-events-auto">
+          <button data-testid="overlay" data-check-id={check.id} data-selected={active ? 'true' : 'false'} type="button" aria-label={`Select ${check.title} overlay`} onClick={choose} className="block h-full w-full cursor-pointer bg-transparent outline-none" style={{ border: active ? '2px solid #1d5fbf' : '1px solid transparent' }} />
+        </foreignObject>
+      </Fragment>;
     })}
   </svg>;
 }

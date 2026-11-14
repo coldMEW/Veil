@@ -1,33 +1,23 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps } from 'react';
 import { MotionConfig, motion } from 'motion/react';
 import {
-  Broom,
   Check,
   Copy,
-  TextAa,
-  Export,
+  LockSimple,
   FilePdf,
   WarningOctagon,
   X,
-  type IconProps,
 } from '@phosphor-icons/react';
 import { ImageCanvas } from '../components/canvas/ImageCanvas';
+import { OverlayLayer } from '../components/canvas/OverlayLayer';
 import { Viewfinder, type Rect } from '../components/canvas/Viewfinder';
 import { ChoosePhotoButton, DropStage, OpenAnotherButton } from '../components/ImagePicker';
 import { rowReveal } from '../components/ResultCard';
-import {
-  closeImage,
-  openImageFile,
-  useImageSession,
-  type ImageSessionState,
-} from '../lib/runtime/imageSession';
-import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
+import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
 import { useModelFocus } from '../features/inspect/model/useModelFocus';
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
-import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
 import { CleanFlow } from './clean/CleanPanel';
-import { FaceWarpCard } from './inspect/FaceWarpCard';
 import { widenToTrainingCrop } from './inspect/faceBox';
 import { ProvenanceCard } from './inspect/ProvenanceCard';
 import { useProvenance } from './inspect/useProvenance';
@@ -37,27 +27,25 @@ import { useWarpDetector } from '../features/inspect/warp/useWarpDetector';
 import { LOW as WARP_LOW, toWarpOverlay } from '../features/inspect/warp/preprocess';
 import type { FaceBox } from '../features/inspect/warp/warpTypes';
 import { useClean, type FillMethod } from './clean/useClean';
-import { WorkspaceHeader } from '../components/WorkspaceHeader';
-import { ResultsPanel } from './results/ResultsPanel';
-import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
-import { ReportView } from '../components/report/ReportView';
-import { buildReport } from '../features/report/report';
+import { EvidenceRow } from './results/EvidenceRow';
+import { EvidenceSheet } from './results/EvidenceSheet';
+import { ReportSheet } from '../components/report/ReportSheet';
 import type { CheckResult } from '../contracts';
 
-type TabId = 'inspect' | 'clean' | 'protect';
 type Ready = Extract<ImageSessionState, { status: 'ready' }>;
+
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 const onFile = (file: File) => void openImageFile(file);
 
 type Mode = 'photo' | 'document' | 'clean';
 
-export function AppWorkspace({ initialMode = 'photo' }: { initialMode?: Mode }) {
-  const [mode, setMode] = useState<Mode>(initialMode);
-  const [sheetExpanded, setSheetExpanded] = useState(false);
-  const sheetStart = useRef<number | null>(null);
+export function AppWorkspace() {
+  const [mode, setMode] = useState<Mode>('photo');
   const [showReport, setShowReport] = useState(false);
-  const tab: TabId = mode === 'clean' ? 'clean' : 'inspect';
+  const [overlayTarget, setOverlayTarget] = useState<HTMLElement | null>(null);
+  const [shownOnPhoto, setShownOnPhoto] = useState<Set<string>>(() => new Set());
+  const tab = mode === 'clean' ? 'clean' : 'inspect';
   const session = useImageSession();
   const ready = session.status === 'ready' ? session : null;
   const focus = useModelFocus(ready?.asset.id ?? null, ready?.bitmap ?? null);
@@ -109,23 +97,10 @@ export function AppWorkspace({ initialMode = 'photo' }: { initialMode?: Mode }) 
     const c = document.createElement('canvas');
     c.width = r.width;
     c.height = r.height;
-    c
-      .getContext('2d')
-      ?.putImageData(
-        new ImageData(
-          new Uint8ClampedArray(toWarpOverlay(r.magnitude, r.width, r.height)),
-          r.width,
-          r.height,
-        ),
-        0,
-        0,
-      );
+    c.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(toWarpOverlay(r.magnitude, r.width, r.height)), r.width, r.height), 0, 0);
     const W = ready.asset.width;
     const H = ready.asset.height;
-    return {
-      rect: { x: r.faceRect.x / W, y: r.faceRect.y / H, w: r.faceRect.width / W, h: r.faceRect.height / H },
-      image: c,
-    };
+    return { rect: { x: r.faceRect.x / W, y: r.faceRect.y / H, w: r.faceRect.width / W, h: r.faceRect.height / H }, image: c };
   }, [warp.state, ready]);
   const onImagePoint = shadow.marking && tab === 'inspect' ? shadow.addPoint : null;
   const clean = useClean(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
@@ -133,20 +108,11 @@ export function AppWorkspace({ initialMode = 'photo' }: { initialMode?: Mode }) 
   const [showAfter, setShowAfter] = useState(true);
   const cs = clean.state;
   const cleanCandidates =
-    cs.status === 'review' || cs.status === 'cleaning' || (cs.status === 'done' && !showAfter)
-      ? cs.candidates
-      : null;
+    cs.status === 'review' || cs.status === 'cleaning' || (cs.status === 'done' && !showAfter) ? cs.candidates : null;
   const boxes = useMemo(
     () =>
       tab === 'clean' && cleanCandidates
-        ? cleanCandidates.map((c) => ({
-            id: c.id,
-            x: c.region.x,
-            y: c.region.y,
-            w: c.region.w,
-            h: c.region.h,
-            selected: c.selected,
-          }))
+        ? cleanCandidates.map((c) => ({ id: c.id, x: c.region.x, y: c.region.y, w: c.region.w, h: c.region.h, selected: c.selected }))
         : null,
     [tab, cleanCandidates],
   );
@@ -154,129 +120,68 @@ export function AppWorkspace({ initialMode = 'photo' }: { initialMode?: Mode }) 
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
-        ? {
-            rect: focus.state.result.crop,
-            grid: focus.state.result.grid,
-            values: focus.state.magnitudes,
-            rgba: focus.state.overlay,
-          }
+        ? { rect: focus.state.result.crop, grid: focus.state.result.grid, values: focus.state.magnitudes, rgba: focus.state.overlay }
         : null,
     [focus.state, showOverlay],
   );
-  const modelCard = (
-    <ModelFocusCard
-      state={focus.state}
-      onRun={() => {
-        setShowOverlay(true);
-        void focus.run();
-      }}
-      onCancel={focus.cancel}
-      showOverlay={showOverlay}
-      onToggleOverlay={() => setShowOverlay((v) => !v)}
-    />
-  );
-
   // Keep the mode in step with what was actually opened (a PDF dropped on "Check a photo", etc.).
   useEffect(() => {
     if (session.status === 'document' && mode !== 'document') setMode('document');
     if (session.status === 'ready' && mode === 'document') setMode('photo');
   }, [session.status, mode]);
   useEffect(() => setShowReport(false), [ready?.asset.id, doc?.sha256]);
+  // Step 2: the automatic checks start as soon as a photo opens for checking.
+  useEffect(() => {
+    if (mode === 'photo' && ready && focus.state.status === 'idle') {
+      setShowOverlay(true);
+      void focus.run();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, ready?.asset.id]);
 
-  const shadowFinding: Finding = (() => {
-    const r = shadow.result;
-    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const };
-    if (!r) return { ...base, tone: 'idle', headline: 'Optional: mark objects and their shadows.' };
-    if (r.execution !== 'complete' || r.finding === 'inconclusive' || r.finding === 'not_applicable')
-      return {
-        ...base,
-        tone: 'idle',
-        headline: r.reason ? `Needs more: ${r.reason}` : 'Not enough marks yet.',
-      };
-    return r.finding === 'inconsistent'
-      ? { ...base, tone: 'notice', headline: 'Some marked shadows disagree with one light source.' }
-      : { ...base, tone: 'clear', headline: 'The marked shadows fit one light source.' };
-  })();
   // When a map is switched on but has nothing above its threshold, say so on the photo.
   const aiMapEmpty =
-    showOverlay &&
-    focus.state.status === 'done' &&
-    !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
-  const warpMapEmpty = showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
-  const findings: Finding[] = [
-    provenanceFinding(provenance),
-    aiSignalFinding(focus.state),
-    warpFinding(warp.state),
-    shadowFinding,
-  ];
-  const checking =
-    provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
-  const hasFile = session.status === 'ready' || session.status === 'document';
-  useEffect(() => {
-    const cleanPhoto = () => {
-      setMode('clean');
-      setSheetExpanded(true);
-    };
-    const back = (event: Event) => {
-      if (event.defaultPrevented) return;
-      if (showReport) {
-        event.preventDefault();
-        setShowReport(false);
-      } else if (sheetExpanded) {
-        event.preventDefault();
-        setSheetExpanded(false);
-      } else if (hasFile) {
-        event.preventDefault();
-        clean.cancel();
-        closeImage();
-      }
-    };
-    window.addEventListener('veil-clean', cleanPhoto);
-    window.addEventListener('veil-back', back);
-    return () => {
-      window.removeEventListener('veil-clean', cleanPhoto);
-      window.removeEventListener('veil-back', back);
-    };
-  }, [showReport, sheetExpanded, hasFile, clean.cancel]);
-  const report = useMemo(() => {
-    if (!showReport || !ready) return null;
-    const checks: CheckResult[] = [];
-    if (provenance.status === 'done') checks.push(provenance.checkResult);
-    if (focus.state.status === 'done') checks.push(focus.state.checkResult);
-    if (warp.state.status === 'done') checks.push(warp.state.checkResult);
-    if (shadow.result) checks.push({ ...(shadow.result as unknown as CheckResult), overlays: [] });
-    return buildReport({
-      appVersion: '0.1.0',
-      commit: 'local',
-      generatedAt: new Date().toISOString(),
-      original: ready.asset,
-      checks,
-      candidates: [],
-      transforms: [],
+    showOverlay && focus.state.status === 'done' && !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
+  const warpMapEmpty =
+    showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
+  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
+  const evidenceChecks = useMemo<CheckResult[]>(() => {
+    if (!ready) return [];
+    const waiting = (id: string, title: string, observation: string, method: string): CheckResult => ({
+      id, assetId: ready.asset.id, kind: 'signal', execution: 'unavailable', finding: 'inconclusive', title, observation, method,
+      assumptions: [], limitations: ['This check has not completed for the open file.'], reason: 'The check has not run or is still running.', evidence: {}, overlays: [], source: 'live',
     });
-  }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
-  const startOver = () => {
-    setShowReport(false);
-    closeImage();
-  };
-
+    return [
+      provenance.status === 'done' ? provenance.checkResult : waiting('provenance', 'Content Credentials', 'Reading signed provenance attached to this file.', 'Local C2PA and metadata inspection.'),
+      focus.state.status === 'done' ? focus.state.checkResult : waiting('model-focus', 'Model focus', focus.state.status === 'failed' ? `Did not finish: ${focus.state.message}` : 'Model focus is running on this device.', 'Local model occlusion analysis.'),
+      warp.state.status === 'done' ? warp.state.checkResult : waiting('face-warp', 'Face warps', 'Mark a face to run this optional check.', 'Local face-warp model analysis after a face selection.'),
+      shadow.result ?? waiting('shadows', 'Shadows', 'Mark an object and its shadow to run this optional check.', 'Local geometric comparison of marked shadow pairs.'),
+    ];
+  }, [ready, provenance, focus.state, warp.state, shadow.result]);
+  useEffect(() => {
+    setShownOnPhoto((previous) => new Set(evidenceChecks.filter((check) => previous.size === 0 || previous.has(check.id)).map((check) => check.id)));
+  }, [evidenceChecks]);
+  const togglePhotoOverlay = (id: string, show: boolean) => setShownOnPhoto((previous) => {
+    const next = new Set(previous);
+    if (show) next.add(id); else next.delete(id);
+    return next;
+  });
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-full flex-col">
-        <WorkspaceHeader
-          fileName={ready?.fileName ?? doc?.fileName}
-          onReport={ready ? () => setShowReport(true) : undefined}
-        />
+        <header className="relative z-10 flex h-11 shrink-0 items-center justify-between gap-3 bg-night px-4">
+          <div className="flex min-w-0 items-center gap-3"><span className="text-base font-semibold">Veil</span><span className="truncate text-sm text-muted">{ready?.fileName ?? doc?.fileName ?? 'No file open'}</span>{ready && <span className="hidden rounded-full bg-raised px-2 py-0.5 text-xs text-muted sm:inline">{checking ? 'Checking' : `Checked · ${evidenceChecks.length} findings`}</span>}</div>
+          <div className="flex items-center gap-2"><span className="hidden items-center gap-1 text-sm text-muted lg:flex" title="Photos are processed on this device and not uploaded."><LockSimple size={16} aria-hidden />On this device</span><OpenAnotherButton onFile={onFile} />{ready && <button type="button" onClick={() => setShowReport(true)} className="h-9 rounded-control bg-gold px-3 text-sm font-medium text-gold-ink">Save report</button>}</div>
+        </header>
 
         {session.status === 'empty' ? (
           <main id="workspace-panel" className="relative min-h-0 flex-1 overflow-hidden lightbox">
             <DropStage onFile={onFile} onDragChange={() => undefined} />
             <p className="absolute inset-x-0 bottom-10 text-center text-sm text-muted">
-              Check a photo <span aria-hidden>·</span> Check a PDF <span aria-hidden>·</span> Remove private
-              details
+              Check a photo <span aria-hidden>·</span> Check a PDF <span aria-hidden>·</span> Remove private details
             </p>
           </main>
-        ) : showReport && report ? (
+        ) : showReport && ready ? (
           <main id="workspace-panel" className="min-h-0 flex-1 overflow-y-auto bg-panel">
             <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6 sm:px-8">
               <button
@@ -286,309 +191,154 @@ export function AppWorkspace({ initialMode = 'photo' }: { initialMode?: Mode }) 
               >
                 ← Back to results
               </button>
-              <div
-                data-testid="report-sheet"
-                className="rounded-2xl border border-line bg-night p-6 shadow-sm sm:p-10"
-              >
-                <ReportView report={report} />
+              <div className="rounded-2xl border border-line bg-night p-6 shadow-sm sm:p-10">
+                <ReportSheet asset={ready.asset} fileName={ready.fileName} checks={evidenceChecks} transforms={[]} onClose={() => setShowReport(false)} />
               </div>
             </div>
           </main>
         ) : (
-          <main data-testid="workspace" id="workspace-panel" className="workspace-layout">
-            <aside
-              data-testid="tools-rail"
-              aria-label="Tools"
-              className="hidden rounded-panel border border-line bg-panel p-3 lg:block"
-            >
-              <p className="px-2 py-2 text-xs font-medium text-muted">Inspect</p>
-              {['Content Credentials', 'Model focus', 'Face warps', 'Shadows'].map((label) => (
-                <button
-                  key={label}
-                  type="button"
-                  onClick={() => {
-                    setMode('photo');
-                    setSelectedCheck(
-                      label === 'Content Credentials'
-                        ? 'provenance'
-                        : label === 'Model focus'
-                          ? 'ai-signal'
-                          : label === 'Face warps'
-                            ? 'face-warp'
-                            : 'shadows',
-                    );
-                  }}
-                  className={mode === 'photo' ? 'tool-row is-active' : 'tool-row'}
-                >
-                  {label}
-                </button>
-              ))}
-              <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Clean</p>
-              <button
-                type="button"
-                onClick={() => setMode('clean')}
-                className={
-                  mode === 'clean'
-                    ? 'flex h-10 w-full items-center rounded-control bg-raised px-3 text-left text-sm font-medium'
-                    : 'flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised'
-                }
-              >
-                Find private text
-              </button>
-
-              <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Protect</p>
-              <p className="px-3 py-2 text-xs text-muted">
-                Experimental tools are not connected in this build.
-              </p>
-            </aside>
-            <section data-testid="canvas-well" aria-label="Photo" className="canvas-well lightbox">
-              <PhotoStage
-                session={session}
-                overlay={tab === 'inspect' ? overlay : null}
-                marks={tab === 'inspect' ? shadow.drawing : null}
-                boxes={boxes}
-                displayBitmap={displayBitmap}
-                onImagePoint={onImagePoint}
-                onImageRect={onImageRect}
-                focusBox={tab === 'inspect' && faceBox && !(warpHeat && showWarp) ? faceBox : null}
-                heatImage={tab === 'inspect' && warpHeat && showWarp ? warpHeat : null}
-              />
-              <nav className="canvas-layers" aria-label="Evidence layers">
-                {[
-                  ['provenance', 'Credentials'],
-                  ['ai-signal', 'Model focus'],
-                  ['face-warp', 'Face warp'],
-                  ['shadows', 'Shadows'],
-                ].map(([id, label]) => (
-                  <button
-                    key={id}
-                    type="button"
-                    data-testid="overlay"
-                    data-check-id={id}
-                    data-selected={selectedCheck === id ? 'true' : 'false'}
-                    aria-label={`Select ${label} evidence`}
-                    aria-pressed={selectedCheck === id}
-                    className={selectedCheck === id ? 'layer-control is-selected' : 'layer-control'}
-                    onClick={() => {
-                      setSelectedCheck(id ?? null);
-                      setSheetExpanded(true);
-                    }}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
-              {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
-                <div
-                  role="status"
-                  className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4"
-                >
-                  <p className="max-w-md rounded-full border border-line bg-night/95 px-4 py-2 text-center text-sm text-muted shadow-sm backdrop-blur">
-                    {aiMapEmpty
-                      ? 'AI heatmap: no area raised the AI signal, so nothing is coloured. Check Content Credentials above.'
-                      : 'Face warp map: no notable warp in the marked face, so nothing is coloured.'}
-                  </p>
-                </div>
-              )}
-            </section>
-            <aside
-              aria-label="Evidence"
-              className={sheetExpanded ? 'evidence-pane is-expanded' : 'evidence-pane'}
-            >
+        <main data-testid="workspace"
+          id="workspace-panel"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[232px_minmax(0,1fr)_360px] lg:gap-2 lg:p-2 lg:overflow-hidden"
+        >
+          <aside data-testid="tools-rail" aria-label="Tools" className="hidden rounded-panel border border-line bg-panel p-3 lg:block">
+            <p className="px-2 py-2 text-xs font-medium text-muted">Inspect</p>
+            {['Content Credentials', 'Model focus', 'Face warps', 'Shadows', 'Eyes', 'Spectrum', 'Compare with original'].map((label) => <button key={label} type="button" onClick={() => { setMode('photo'); if (label === 'Face warps') startFaceMarking(); if (label === 'Shadows') shadow.setMarking(true); }} className={mode === 'photo' ? 'flex h-10 w-full items-center rounded-control bg-raised px-3 text-left text-sm font-medium' : 'flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised'}>{label}</button>)}
+            <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Clean</p>
+            <button type="button" onClick={() => setMode('clean')} className={mode === 'clean' ? 'flex h-10 w-full items-center rounded-control bg-raised px-3 text-left text-sm font-medium' : 'flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised'}>Find private text</button>
+            <button type="button" onClick={() => setMode('clean')} className="flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised">Manual mask</button>
+            <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Protect</p>
+            <button type="button" onClick={() => setMode('photo')} className="flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised">Experimental</button>
+          </aside>
+          <section data-testid="canvas-well" aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
+            <PhotoStage
+              session={session}
+              overlay={tab === 'inspect' ? overlay : null}
+              marks={tab === 'inspect' ? shadow.drawing : null}
+              boxes={boxes}
+              displayBitmap={displayBitmap}
+              onImagePoint={onImagePoint}
+              onImageRect={onImageRect}
+              focusBox={tab === 'inspect' && faceBox && !(warpHeat && showWarp) ? faceBox : null}
+              heatImage={tab === 'inspect' && warpHeat && showWarp ? warpHeat : null}
+              onImageElement={setOverlayTarget}
+            />
+            {ready && tab === 'inspect' && <OverlayLayer checks={evidenceChecks.filter((check) => shownOnPhoto.has(check.id))} selected={selectedCheck} onSelect={setSelectedCheck} imageElement={overlayTarget} width={ready.asset.width} height={ready.asset.height} />}
+            {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
               <div
-                data-testid="evidence-sheet"
-                className="evidence-sheet-content"
-                aria-label="Evidence sheet"
+                role="status"
+                className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4"
               >
-                <button
-                  className="sheet-handle"
-                  type="button"
-                  aria-label={sheetExpanded ? 'Collapse evidence' : 'Expand evidence'}
-                  aria-expanded={sheetExpanded}
-                  onClick={() => setSheetExpanded((v) => !v)}
-                  onPointerDown={(e) => {
-                    sheetStart.current = e.clientY;
-                    e.currentTarget.setPointerCapture(e.pointerId);
-                  }}
-                  onPointerUp={(e) => {
-                    if (sheetStart.current !== null && Math.abs(e.clientY - sheetStart.current) > 25)
-                      setSheetExpanded(e.clientY < sheetStart.current);
-                    sheetStart.current = null;
-                  }}
-                >
-                  <span aria-hidden />
-                  <span className="sr-only">Evidence</span>
-                </button>
-                <nav className="mobile-tool-tabs" aria-label="Photo tools">
-                  <button aria-pressed={mode === 'photo'} onClick={() => setMode('photo')}>
-                    Inspect
-                  </button>
-                  <button
-                    aria-pressed={mode === 'clean'}
-                    onClick={() => {
-                      setMode('clean');
-                      setSheetExpanded(true);
-                    }}
-                  >
-                    Clean
-                  </button>
-                  <button
-                    onClick={() => {
-                      setMode('photo');
-                      setSelectedCheck('provenance');
-                      setSheetExpanded(true);
-                    }}
-                  >
-                    Details
-                  </button>
-                </nav>
-                {/* New content appears at once and settles in; nothing waits on an exit. */}
-                <motion.div
-                  data-testid="evidence-rail"
-                  key={tab}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
-                >
-                  {tab === 'inspect' && doc && (
-                    <motion.div
-                      initial="hidden"
-                      animate="show"
-                      variants={{ show: { transition: { staggerChildren: 0.06 } } }}
-                    >
-                      <div className="flex items-center justify-between gap-3 border-b border-line pb-5">
-                        <div className="min-w-0">
-                          <h2
-                            className="truncate text-xl font-semibold tracking-[-0.025em]"
-                            title={doc.fileName}
-                          >
-                            {doc.fileName}
-                          </h2>
-                          <p className="mt-1 truncate font-mono text-[13px] text-faint" title={doc.sha256}>
-                            SHA-256 {doc.sha256}
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={closeImage}
-                          aria-label="Close document"
-                          className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-raised hover:text-ink"
-                        >
-                          <X size={18} aria-hidden />
-                        </button>
-                      </div>
-                      <div className="mt-2 divide-y divide-line">
-                        <div data-check="provenance">
-                          <ProvenanceCard state={provenance} />
-                        </div>
-                        <div data-check="document" className="py-4">
-                          {docAnalysis.status === 'done' ? (
-                            <DocumentPanel
-                              fileName={doc.fileName}
-                              sha256={doc.sha256}
-                              byteLength={doc.bytes.length}
-                              analysis={docAnalysis.analysis}
-                              assetId={doc.sha256}
-                            />
-                          ) : docAnalysis.status === 'failed' ? (
-                            <p className="text-sm text-danger" role="alert">
-                              {docAnalysis.message}
-                            </p>
-                          ) : (
-                            <p className="text-sm text-faint" role="status">
-                              Reading the document structure…
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="mt-6">
-                        <OpenAnotherButton onFile={onFile} />
-                      </div>
-                    </motion.div>
-                  )}
-                  {tab === 'inspect' && !doc && ready && (
-                    <ResultsPanel
-                      fileName={ready.fileName}
-                      findings={findings}
-                      checks={{
-                        provenance: provenance.status === 'done' ? provenance.checkResult : undefined,
-                        'ai-signal': focus.state.status === 'done' ? focus.state.checkResult : undefined,
-                        'face-warp': warp.state.status === 'done' ? warp.state.checkResult : undefined,
-                      }}
-                      checking={checking}
-                      layers={{
-                        ai: {
-                          visible: showOverlay,
-                          available: focus.state.status === 'done',
-                          toggle: () => setShowOverlay((v) => !v),
-                        },
-                        face: {
-                          visible: showWarp,
-                          available: warp.state.status === 'done',
-                          toggle: () => setShowWarp((v) => !v),
-                        },
-                      }}
-                      deeper={
-                        <>
-                          <FaceWarpCard
-                            state={warp.state}
-                            marking={faceMarking}
-                            onMark={startFaceMarking}
-                            onStopMarking={() => setFaceMarking(false)}
-                            onRetry={() => (faceBox ? void warp.run(faceBox) : startFaceMarking())}
-                            onCancel={warp.cancel}
-                            showOverlay={showWarp}
-                            onToggleOverlay={() => setShowWarp((v) => !v)}
-                          />
-                          <ShadowCard a={shadow} />
-                        </>
-                      }
-                      details={
-                        <>
-                          <ProvenanceCard state={provenance} />
-                          {modelCard}
-                        </>
-                      }
-                      onReport={() => setShowReport(true)}
-                      onNew={startOver}
-                      selected={selectedCheck}
-                      onSelect={setSelectedCheck}
-                    />
-                  )}
-                  {tab === 'clean' &&
-                    (ready ? (
-                      <motion.div
-                        data-testid="clean-panel"
-                        initial="hidden"
-                        animate="show"
-                        variants={{ show: { transition: { staggerChildren: 0.06 } } }}
-                      >
-                        <PhotoSummary session={ready} />
-                        <CleanFlow
-                          state={cs}
-                          fileName={ready.fileName}
-                          method={fillMethod}
-                          onMethod={setFillMethod}
-                          onScan={() => void clean.scan()}
-                          onCancel={clean.cancel}
-                          onToggle={clean.toggle}
-                          onAll={clean.setAll}
-                          onClean={() => {
-                            setShowAfter(true);
-                            void clean.clean(fillMethod);
-                          }}
-                          onBack={clean.backToReview}
-                          showAfter={showAfter}
-                          onShowAfter={setShowAfter}
-                        />
-                      </motion.div>
-                    ) : (
-                      <CleanPanel session={session} />
-                    ))}
-                </motion.div>
+                <p className="max-w-md rounded-full border border-line bg-night/95 px-4 py-2 text-center text-sm text-muted shadow-sm backdrop-blur">
+                  {aiMapEmpty
+                    ? 'AI heatmap: no area raised the AI signal, so nothing is coloured. Check Content Credentials above.'
+                    : 'Face warp map: no notable warp in the marked face, so nothing is coloured.'}
+                </p>
               </div>
-            </aside>
-          </main>
+            )}
+          </section>
+          <aside
+            aria-label="Evidence"
+            className="panel-light bg-panel px-5 pb-28 pt-6 lg:overflow-y-auto lg:border-l lg:border-line lg:px-7 lg:pb-8"
+          >
+            {/* New content appears at once and settles in; nothing waits on an exit. */}
+            <motion.div data-testid="evidence-rail"
+              key={tab}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
+            >
+              {tab === 'inspect' && doc && (
+                <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+                  <div className="flex items-center justify-between gap-3 border-b border-line pb-5">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-xl font-semibold tracking-[-0.025em]" title={doc.fileName}>{doc.fileName}</h2>
+                      <p className="mt-1 truncate font-mono text-[13px] text-faint" title={doc.sha256}>SHA-256 {doc.sha256}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeImage}
+                      aria-label="Close document"
+                      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-raised hover:text-ink"
+                    >
+                      <X size={18} aria-hidden />
+                    </button>
+                  </div>
+                  <div className="mt-2 divide-y divide-line">
+                    <div data-check="provenance">
+                      <ProvenanceCard state={provenance} />
+                    </div>
+                    <div data-check="document" className="py-4">
+                      {docAnalysis.status === 'done' ? (
+                        <DocumentPanel
+                          fileName={doc.fileName}
+                          sha256={doc.sha256}
+                          byteLength={doc.bytes.length}
+                          analysis={docAnalysis.analysis}
+                          assetId={doc.sha256}
+                        />
+                      ) : docAnalysis.status === 'failed' ? (
+                        <p className="text-sm text-danger" role="alert">{docAnalysis.message}</p>
+                      ) : (
+                        <p className="text-sm text-faint" role="status">Reading the document structure…</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-6">
+                    <OpenAnotherButton onFile={onFile} />
+                  </div>
+                </motion.div>
+              )}
+              {tab === 'inspect' && !doc && ready && (
+                <section aria-label="Evidence results">
+                  <div className="mb-4 flex items-start justify-between gap-3 border-b border-line pb-4">
+                    <div className="min-w-0"><h2 className="truncate text-[16px] font-medium" title={ready.fileName}>{ready.fileName}</h2><p className="mt-1 text-[12px] text-muted">{checking ? 'Checks are running on this device.' : `${evidenceChecks.length} checks, each with its own limits.`}</p></div>
+                    <button type="button" onClick={() => setShowReport(true)} data-testid="open-report" className="h-9 shrink-0 rounded-control bg-gold px-3 text-sm font-medium text-gold-ink">Save report</button>
+                  </div>
+                  <div className="divide-y divide-line">
+                    {evidenceChecks.map((check) => <EvidenceRow key={check.id} check={check} open={selectedCheck === check.id} onToggle={() => setSelectedCheck((current) => current === check.id ? null : check.id)} showOnPhoto={shownOnPhoto.has(check.id)} onShowOnPhoto={(show) => togglePhotoOverlay(check.id, show)} />)}
+                  </div>
+                  <div className="mt-5 border-t border-line pt-4"><OpenAnotherButton onFile={onFile} /></div>
+                </section>
+              )}
+              {tab === 'clean' &&
+                (ready ? (
+                  <motion.div data-testid="clean-panel" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+                    <PhotoSummary session={ready} />
+                    <CleanFlow
+                      state={cs}
+                      fileName={ready.fileName}
+                      method={fillMethod}
+                      onMethod={setFillMethod}
+                      onScan={() => void clean.scan()}
+                      onCancel={clean.cancel}
+                      onToggle={clean.toggle}
+                      onAll={clean.setAll}
+                      onClean={() => {
+                        setShowAfter(true);
+                        void clean.clean(fillMethod);
+                      }}
+                      onBack={clean.backToReview}
+                      showAfter={showAfter}
+                      onShowAfter={setShowAfter}
+                    />
+                  </motion.div>
+                ) : (
+                  <p className="text-sm text-muted">Open a photo to find private text.</p>
+                ))}
+              
+            </motion.div>
+            {ready && tab === 'inspect' && (
+              <EvidenceSheet count={evidenceChecks.length}>
+                <div className="divide-y divide-line">
+                  {evidenceChecks.map((check) => <EvidenceRow key={check.id} check={check} open={selectedCheck === check.id} onToggle={() => setSelectedCheck((current) => current === check.id ? null : check.id)} showOnPhoto={shownOnPhoto.has(check.id)} onShowOnPhoto={(show) => togglePhotoOverlay(check.id, show)} />)}
+                </div>
+              </EvidenceSheet>
+            )}
+          </aside>
+        </main>
         )}
+
+
       </div>
     </MotionConfig>
   );
@@ -624,6 +374,7 @@ function PhotoStage({
   onImageRect,
   focusBox,
   heatImage,
+  onImageElement,
 }: {
   session: ImageSessionState;
   overlay: HeatOverlay | null;
@@ -634,6 +385,7 @@ function PhotoStage({
   heatImage: ComponentProps<typeof ImageCanvas>['heatImage'];
   displayBitmap: ImageBitmap | null;
   onImagePoint: ((p: { x: number; y: number }) => void) | null;
+  onImageElement: (element: HTMLElement | null) => void;
 }) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const [dragging, setDragging] = useState(false);
@@ -670,76 +422,74 @@ function PhotoStage({
   return (
     <div ref={ref} className="absolute inset-0">
       {session.status === 'empty' && (
-        <motion.div key="empty" className="absolute inset-0">
-          <DropStage onFile={onFile} onDragChange={setDragging} />
-        </motion.div>
-      )}
-      {session.status === 'loading' && (
-        <motion.div
-          key="loading"
-          className="absolute inset-0 flex items-center justify-center"
-          role="status"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-        >
-          <span className="skeleton px-4 text-center text-sm text-muted">Opening {session.fileName}</span>
-        </motion.div>
-      )}
-      {session.status === 'error' && (
-        <motion.div
-          key="error"
-          className="absolute inset-0 flex items-center justify-center p-8"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
-        >
-          <div role="alert" className="flex max-w-md flex-col items-center text-center">
-            <WarningOctagon size={40} weight="thin" className="text-danger" aria-hidden />
-            <h1 className="mt-4 text-2xl font-semibold tracking-[-0.025em] text-balance">
-              Couldn’t open <span className="break-all">{session.fileName}</span>
-            </h1>
-            <p className="mt-2 text-muted text-pretty">{session.reason}</p>
-            <div className="mt-7">
-              <ChoosePhotoButton onFile={onFile} label="Choose another photo" />
+          <motion.div key="empty" className="absolute inset-0">
+            <DropStage onFile={onFile} onDragChange={setDragging} />
+          </motion.div>
+        )}
+        {session.status === 'loading' && (
+          <motion.div
+            key="loading"
+            className="absolute inset-0 flex items-center justify-center"
+            role="status"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+          >
+            <span className="skeleton px-4 text-center text-sm text-muted">Opening {session.fileName}</span>
+          </motion.div>
+        )}
+        {session.status === 'error' && (
+          <motion.div
+            key="error"
+            className="absolute inset-0 flex items-center justify-center p-8"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
+          >
+            <div role="alert" className="flex max-w-md flex-col items-center text-center">
+              <WarningOctagon size={40} weight="thin" className="text-danger" aria-hidden />
+              <h1 className="mt-4 text-2xl font-semibold tracking-[-0.025em] text-balance">
+                Couldn’t open <span className="break-all">{session.fileName}</span>
+              </h1>
+              <p className="mt-2 text-muted text-pretty">{session.reason}</p>
+              <div className="mt-7">
+                <ChoosePhotoButton onFile={onFile} label="Choose another photo" />
+              </div>
             </div>
-          </div>
-        </motion.div>
-      )}
-      {session.status === 'document' && (
-        <motion.div
-          key={session.sha256}
-          className="absolute inset-0 flex items-center justify-center p-8"
-          initial={{ opacity: 0, y: 8 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
-        >
-          <div className="flex max-w-md flex-col items-center text-center">
-            <FilePdf size={56} weight="thin" className="text-gold" aria-hidden />
-            <h1 className="mt-4 break-all text-2xl font-semibold tracking-[-0.025em]">{session.fileName}</h1>
-            <p className="tabular mt-1 text-muted">
-              PDF document, {Math.round(session.bytes.length / 1024).toLocaleString()} KiB
-            </p>
-            <p className="mt-4 text-sm text-faint text-pretty">
-              Veil reads this document's structure, save history and Content Credentials on this device. The
-              results are on the right.
-            </p>
-          </div>
-        </motion.div>
-      )}
-      {session.status === 'ready' && (
-        <motion.div key={session.asset.id} className="absolute inset-0">
-          <ImageCanvas
-            bitmap={displayBitmap ?? session.bitmap}
-            label={`Photo: ${session.fileName}`}
-            onFit={setPhotoRect}
-            overlay={overlay}
-            marks={marks}
-            boxes={boxes}
-            onImagePoint={onImagePoint}
-            onImageRect={onImageRect}
-            focusBox={focusBox}
-            heatImage={heatImage}
-          />
-        </motion.div>
-      )}
+          </motion.div>
+        )}
+        {session.status === 'document' && (
+          <motion.div
+            key={session.sha256}
+            className="absolute inset-0 flex items-center justify-center p-8"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
+          >
+            <div className="flex max-w-md flex-col items-center text-center">
+              <FilePdf size={56} weight="thin" className="text-gold" aria-hidden />
+              <h1 className="mt-4 break-all text-2xl font-semibold tracking-[-0.025em]">{session.fileName}</h1>
+              <p className="tabular mt-1 text-muted">PDF document, {Math.round(session.bytes.length / 1024).toLocaleString()} KiB</p>
+              <p className="mt-4 text-sm text-faint text-pretty">
+                Veil reads this document's structure, save history and Content Credentials on this device. The results are on the right.
+              </p>
+            </div>
+          </motion.div>
+        )}
+        {session.status === 'ready' && (
+          <motion.div key={session.asset.id} className="absolute inset-0">
+            <ImageCanvas
+              bitmap={displayBitmap ?? session.bitmap}
+              label={`Photo: ${session.fileName}`}
+              onFit={setPhotoRect}
+              overlay={overlay}
+              marks={marks}
+              boxes={boxes}
+              onImagePoint={onImagePoint}
+              onImageRect={onImageRect}
+              focusBox={focusBox}
+              heatImage={heatImage}
+            />
+            {photoRect && <div ref={onImageElement} aria-hidden className="pointer-events-none absolute" style={{ left: photoRect.x, top: photoRect.y, width: photoRect.w, height: photoRect.h }} />}
+          </motion.div>
+        )}
       <Viewfinder rect={frame} tone={tone} gap={gap} breathing={session.status === 'empty' && !dragging} />
     </div>
   );
@@ -783,8 +533,7 @@ function PhotoSummary({ session }: { session: Ready }) {
             {session.fileName}
           </h2>
           <p className="tabular mt-1 text-sm text-muted">
-            {asset.width} × {asset.height} px, {sizeKiB} KiB,{' '}
-            {asset.mimeType === 'image/png' ? 'PNG' : 'JPEG'}
+            {asset.width} × {asset.height} px, {sizeKiB} KiB, {asset.mimeType === 'image/png' ? 'PNG' : 'JPEG'}
           </p>
         </div>
         <button
@@ -812,91 +561,4 @@ function PhotoSummary({ session }: { session: Ready }) {
   );
 }
 
-interface Feature {
-  icon: ComponentType<IconProps>;
-  title: string;
-  body: string;
-}
 
-/** What a tab will do, shown before a photo is open. */
-function TabIntro({ title, body, features }: { title: string; body: string; features: Feature[] }) {
-  return (
-    <motion.div
-      initial="hidden"
-      animate="show"
-      variants={{ show: { transition: { staggerChildren: 0.06 } } }}
-    >
-      <motion.h2
-        variants={rowReveal}
-        className="text-[1.75rem] font-semibold leading-tight tracking-[-0.03em]"
-      >
-        {title}
-      </motion.h2>
-      <motion.p variants={rowReveal} className="mt-2 text-muted text-pretty">
-        {body}
-      </motion.p>
-      <ul className="mt-7 space-y-5">
-        {features.map(({ icon: Icon, title: t, body: b }) => (
-          <motion.li key={t} variants={rowReveal} className="flex gap-3.5">
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-full border border-line bg-raised text-gold">
-              <Icon size={19} aria-hidden />
-            </span>
-            <div>
-              <p className="font-medium">{t}</p>
-              <p className="mt-0.5 text-sm text-muted text-pretty">{b}</p>
-            </div>
-          </motion.li>
-        ))}
-      </ul>
-    </motion.div>
-  );
-}
-
-const CLEAN_FEATURES: Feature[] = [
-  {
-    icon: TextAa,
-    title: 'Find private text',
-    body: 'Addresses, plates, emails and phone numbers, found at full resolution.',
-  },
-  {
-    icon: Broom,
-    title: 'You choose what goes',
-    body: 'Nothing is removed until you select it. Undo is always there.',
-  },
-  {
-    icon: Export,
-    title: 'Fresh export',
-    body: 'New pixels in a new file, with no location or camera metadata copied.',
-  },
-];
-
-function NotBuilt() {
-  return (
-    <motion.p
-      variants={rowReveal}
-      className="mt-7 rounded-2xl border border-line bg-raised p-4 text-sm text-muted"
-    >
-      Not built yet in this version.
-    </motion.p>
-  );
-}
-
-function CleanPanel({ session }: { session: ImageSessionState }) {
-  return (
-    <motion.div
-      initial="hidden"
-      animate="show"
-      variants={{ show: { transition: { staggerChildren: 0.06 } } }}
-    >
-      {session.status === 'ready' && <PhotoSummary session={session} />}
-      <div className={session.status === 'ready' ? 'mt-7' : ''}>
-        <TabIntro
-          title="Clean"
-          body="Remove the details you don't want to share, then export a fresh file."
-          features={CLEAN_FEATURES}
-        />
-        <NotBuilt />
-      </div>
-    </motion.div>
-  );
-}
