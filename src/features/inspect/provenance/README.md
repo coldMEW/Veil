@@ -1,4 +1,4 @@
-﻿# Embedded Content Credentials
+# Embedded Content Credentials
 
 `readProvenance(bytes, assetId)` validates original file bytes and returns a shared CheckResult. Keep
 originals for this check; cleaned/exported pixels have different provenance. SDK errors return
@@ -27,10 +27,10 @@ strings escaped rather than as HTML.
 
 ## Browser check
 
-Start Vite on5181, then:
+The tracked Playwright config starts Vite on5181 automatically; leave that port free. Run:
 
 ```powershell
-npx playwright test tests/e2e/provenance.spec.ts --browser chromium --workers 1 --reporter list --output node_modules/.cache/provenance-results
+npx playwright test
 ```
 
 The test generates an unsigned JPEG in canvas. It downloads the public CAI c2pa-rs CA.jpg fixture at test time
