@@ -3,6 +3,7 @@ import { animate } from 'animejs';
 import { CaretDown, Eye, EyeSlash } from '@phosphor-icons/react';
 import type { FindingTone } from './findings';
 import type { EvidenceItem } from './evidence';
+import { ViewStrip } from '../../features/inspect/model/ViewStrip';
 
 const PILL: Record<FindingTone, string> = {
   alert: 'bg-alert-bg text-alert-ink',
@@ -100,6 +101,7 @@ export function EvidenceRow({ item, open, onToggle }: { item: EvidenceItem; open
       <div ref={body} id={panelId} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
         {(open || shown) && (
           <div data-testid="evidence-details" className="grid gap-4 px-4 pb-4 pl-[3.25rem] text-sm">
+            {item.views && item.views.length > 0 && <ViewStrip views={item.views} compact />}
             {item.why.length > 0 && <Section label="Why">{item.why.join(' ')}</Section>}
             <Section label="Method">{item.method}</Section>
             {item.assumptions.length > 0 && <Section label="Assumptions">{item.assumptions.join(' ')}</Section>}

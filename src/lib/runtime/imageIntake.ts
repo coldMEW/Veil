@@ -4,7 +4,9 @@
 export const MAX_INPUT_BYTES = 80 * 1024 * 1024; // safety ceiling for what a phone can hold in memory
 export const MAX_INPUT_PIXELS = 150_000_000; // safety ceiling before decoding (larger than any camera photo)
 /** Larger photos are scaled down to this many pixels when they open; the original bytes and hash are kept. */
-export const WORKING_PIXELS = 12_000_000;
+// Exactly a "12 MP" phone sensor (4032 x 3024). A round 12,000,000 resamples every full-size phone photo
+// by 0.8%, which shifts its JPEG 8x8 block grid and blinds the recompression check.
+export const WORKING_PIXELS = 4032 * 3024;
 /** Largest bitmap any analysis receives (a phone's "12 MP" 4032 × 3024); opened photos are at most WORKING_PIXELS. */
 export const MAX_DECODED_PIXELS = 4032 * 3024;
 

@@ -3,6 +3,7 @@
 // the row states how the check works and that it has not produced anything yet.
 
 import type { CheckResult } from '../../contracts';
+import type { FocusResult } from '../../features/inspect/model/focusTypes';
 import type { NormRect } from '../../components/canvas/ImageCanvas';
 import { TONE_LABEL, type Finding, type FindingTone } from './findings';
 
@@ -17,6 +18,8 @@ export interface EvidenceItem {
   method: string;
   /** What was measured and what it showed, in plain sentences. */
   why: string[];
+  /** Detector output per part of the photo (AI-image detector only). */
+  views?: NonNullable<FocusResult['views']>;
   assumptions: string[];
   limitations: string[];
   numbers: Array<[string, string]>;
@@ -59,7 +62,7 @@ const ABOUT: Record<string, { method: string; limitations: string[]; regionLabel
   },
   shadows: {
     method: 'You mark points on objects and the matching points on their shadows. The lines are tested against one dominant light source.',
-    limitations: ['Needs at least two clear object and shadow pairs. Several lights or soft shadows make the test inconclusive.'],
+    limitations: ['Needs at least three clear object and shadow pairs. Several lights or soft shadows make the test inconclusive.'],
     regionLabel: 'Points you marked',
   },
 };
@@ -89,6 +92,7 @@ export function toEvidence(
       headline: f.headline,
       method: check?.method || about.method,
       why: f.why ?? [],
+      views: f.views,
       assumptions: check?.assumptions ?? [],
       limitations: check?.limitations.length ? check.limitations : f.limits ? [f.limits] : about.limitations,
       numbers: check ? numbersFrom(check.evidence) : [],

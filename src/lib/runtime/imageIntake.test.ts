@@ -114,3 +114,11 @@ describe('isPdf', () => {
     expect(isPdf(new Uint8Array())).toBe(false);
   });
 });
+
+describe('working size keeps full-size phone photos untouched', () => {
+  it('does not resample a 4032 x 3024 photo in either orientation (resampling shifts the JPEG block grid)', () => {
+    expect(workingSize(4032, 3024)).toEqual({ width: 4032, height: 3024, scaled: false });
+    expect(workingSize(3024, 4032)).toEqual({ width: 3024, height: 4032, scaled: false });
+    expect(workingSize(4033, 3024).scaled).toBe(true);
+  });
+});

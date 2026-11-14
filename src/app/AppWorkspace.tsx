@@ -41,7 +41,7 @@ import { useClean, type FillMethod } from './clean/useClean';
 import { EvidenceRow } from './results/EvidenceRow';
 import { EvidenceSheet } from './results/EvidenceSheet';
 import { toEvidence } from './results/evidence';
-import { aiSignalFinding, forensicsFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
+import { aiSignalFinding, evidenceLevel, forensicsFinding, LEVEL_TEXT, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
 import { useForensics } from '../features/inspect/forensics';
 import { ReportSheet } from '../components/report/ReportSheet';
 import { buildReport } from '../features/report/report';
@@ -286,7 +286,8 @@ export function AppWorkspace() {
     face: { visible: showWarp, available: warp.state.status === 'done', toggle: () => setShowWarp((v) => !v) },
   });
   const pendingTitles = findings.filter((f) => f.tone === 'pending').map((f) => f.title);
-  const flagged = findings.filter((f) => f.tone === 'alert').length;
+  // The strongest flag any single check raised; never a count, vote or score (AGENTS.md rule 1).
+  const level = evidenceLevel(findings);
   const toggleRow = (id: string) => setSelectedCheck((cur) => (cur === id ? null : id));
 
   const goTab = (next: TabId) => {
@@ -301,10 +302,10 @@ export function AppWorkspace() {
     <div className="flex flex-col gap-6">
       <header className="hidden px-1 lg:block">
         <h2 className="text-xl font-semibold tracking-[-0.015em]">
-          {checking ? 'Checking your photo…' : flagged ? `${flagged} thing${flagged === 1 ? '' : 's'} worth a closer look` : 'What we found'}
+          {checking && level !== 'strong' ? 'Checking your photo…' : LEVEL_TEXT[level].title}
         </h2>
         <p className="mt-1 text-sm text-muted text-pretty">
-          Each result says how it was checked and what it can’t tell you. Veil never gives a single verdict.
+          {LEVEL_TEXT[level].body || 'Each result says how it was checked and what it can’t tell you. Veil never gives a single verdict.'}
         </p>
       </header>
       <div data-testid="evidence-rail" className="flex flex-col gap-1" aria-label="Evidence">
@@ -433,7 +434,8 @@ export function AppWorkspace() {
   const panel =
     tab === 'clean' ? cleanPanel : tab === 'protect' ? protectPanel : doc ? documentPanel : inspectPanel;
   const sheetTitle = tab === 'clean' ? 'Clean' : tab === 'protect' ? 'Protect' : doc ? 'Document' : 'Evidence';
-  const sheetSubtitle = tab === 'inspect' && ready ? (checking ? 'Checking…' : `${items.length} checks`) : undefined;
+  // Phones don't see the rail header, so the sheet carries the same summary.
+  const sheetSubtitle = tab === 'inspect' && ready ? (checking && level !== 'strong' ? 'Checking…' : LEVEL_TEXT[level].title) : undefined;
 
   return (
     <MotionConfig reducedMotion="user">
