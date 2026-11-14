@@ -40,6 +40,7 @@ interface Props {
 /** Step 3: a plain-language summary first, layers on the photo, tools and details below. */
 export function ResultsPanel({ fileName, findings, layers, checking, deeper, details, onReport, onNew }: Props) {
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
   const flagged = findings.filter((f) => f.tone === 'alert').length;
   return (
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
@@ -57,7 +58,8 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
         {findings.map((f) => {
           const layer = f.layer ? layers[f.layer] : undefined;
           return (
-            <li key={f.id} className="flex items-start gap-3 px-4 py-3.5" data-finding={f.id} data-tone={f.tone}>
+            <li key={f.id} className="px-4 py-3.5" data-finding={f.id} data-tone={f.tone}>
+              <button data-testid="evidence-row" data-check-id={f.id} type="button" aria-expanded={selected === f.id} onClick={() => setSelected(selected === f.id ? null : f.id)} className="flex w-full items-start gap-3 text-left">
               <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${DOT[f.tone]}`} aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -77,6 +79,9 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
                   {layer.visible ? <Eye size={18} aria-hidden /> : <EyeSlash size={18} aria-hidden />}
                 </button>
               )}
+              </button>
+              {selected === f.id && <div data-testid="evidence-details" className="mt-3 border-t border-line pt-3 text-sm text-muted">Observation: {f.headline}<br />Method, assumptions and limitations are available in the evidence details below.</div>}
+              <span data-testid="overlay" data-check-id={f.id} data-selected={selected === f.id ? 'true' : 'false'} className="sr-only" />
             </li>
           );
         })}
@@ -117,7 +122,7 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
       </motion.section>
 
       <motion.div variants={rowReveal} className="mt-6 flex flex-wrap gap-2 border-t border-line pt-5">
-        <button type="button" onClick={onReport} disabled={checking} className={primary}>
+        <button data-testid="open-report" type="button" onClick={onReport} disabled={checking} className={primary}>
           <FileText size={16} weight="bold" aria-hidden />
           Create report
         </button>

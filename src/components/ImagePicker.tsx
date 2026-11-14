@@ -9,6 +9,7 @@ function useFilePicker(onFile: (file: File) => void) {
   const inputRef = useRef<HTMLInputElement>(null);
   const input: ReactNode = (
     <input
+      data-testid="file-input"
       ref={inputRef}
       type="file"
       accept="image/jpeg,image/png,application/pdf"
@@ -89,6 +90,7 @@ export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => vo
       }}
       onDragLeave={() => setDrag(false)}
       onDrop={onDrop}
+      data-testid="drop-zone"
       className="absolute inset-0 flex items-center justify-center px-6 py-10"
     >
       <motion.div
@@ -101,7 +103,7 @@ export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => vo
           variants={rise}
           className="text-[2rem] font-semibold leading-[1.08] tracking-[-0.03em] text-balance sm:text-5xl"
         >
-          {dragging ? 'Drop to open' : 'Open a photo'}
+          {dragging ? 'Drop a photo' : 'Drop a photo or a PDF'}
         </motion.h1>
         <motion.p variants={rise} className="mt-4 max-w-sm text-base text-muted text-pretty sm:text-lg">
           See what can be observed about it, then choose what to remove before you share it.

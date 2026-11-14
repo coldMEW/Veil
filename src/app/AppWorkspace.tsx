@@ -234,17 +234,17 @@ export function AppWorkspace() {
               >
                 ← Back to results
               </button>
-              <div className="rounded-2xl border border-line bg-night p-6 shadow-sm sm:p-10">
+              <div data-testid="report-sheet" className="rounded-2xl border border-line bg-night p-6 shadow-sm sm:p-10">
                 <ReportView report={report} />
               </div>
             </div>
           </main>
         ) : (
-        <main
+        <main data-testid="workspace"
           id="workspace-panel"
           className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[232px_minmax(0,1fr)_360px] lg:gap-2 lg:p-2 lg:overflow-hidden"
         >
-          <aside aria-label="Tools" className="hidden rounded-panel border border-line bg-panel p-3 lg:block">
+          <aside data-testid="tools-rail" aria-label="Tools" className="hidden rounded-panel border border-line bg-panel p-3 lg:block">
             <p className="px-2 py-2 text-xs font-medium text-muted">Inspect</p>
             {['Content Credentials', 'Model focus', 'Face warps', 'Shadows', 'Eyes', 'Spectrum', 'Compare with original'].map((label) => <button key={label} type="button" onClick={() => setMode('photo')} className={mode === 'photo' ? 'flex h-10 w-full items-center rounded-control bg-raised px-3 text-left text-sm font-medium' : 'flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised'}>{label}</button>)}
             <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Clean</p>
@@ -253,7 +253,7 @@ export function AppWorkspace() {
             <p className="mt-4 px-2 py-2 text-xs font-medium text-muted">Protect</p>
             <button type="button" onClick={() => setMode('photo')} className="flex h-10 w-full items-center rounded-control px-3 text-left text-sm hover:bg-raised">Experimental</button>
           </aside>
-          <section aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
+          <section data-testid="canvas-well" aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
             <PhotoStage
               session={session}
               overlay={tab === 'inspect' ? overlay : null}
@@ -278,10 +278,11 @@ export function AppWorkspace() {
               </div>
             )}
           </section>
-          <aside
+          <aside data-testid="evidence-rail"
             aria-label="Evidence"
             className="panel-light bg-panel px-5 pb-28 pt-6 lg:overflow-y-auto lg:border-l lg:border-line lg:px-7 lg:pb-8"
           >
+            <div data-testid="evidence-sheet" className="lg:hidden" aria-label="Evidence sheet" />
             {/* New content appears at once and settles in; nothing waits on an exit. */}
             <motion.div
               key={tab}
