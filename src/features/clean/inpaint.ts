@@ -141,7 +141,7 @@ export class MiganInpainter {
   }
 
   /** Inpaint the masked region. Returns a new full-size buffer; `src` is not mutated. */
-  async inpaint(src: Pixels, mask: Mask, opts: { pad?: number; minSize?: number } = {}): Promise<InpaintResult> {
+  async inpaint(src: Pixels, mask: Mask, opts: { pad?: number; minSize?: number; maxSide?: number } = {}): Promise<InpaintResult> {
     if (!this.session || this.state !== 'ready') throw new Error('MI-GAN not loaded');
     const bounds = maskBounds(mask);
     if (!bounds) return { pixels: { ...src, data: new Uint8ClampedArray(src.data) }, crop: { x: 0, y: 0, w: 0, h: 0 }, ms: 0, backend: this.backend };
@@ -149,7 +149,8 @@ export class MiganInpainter {
     const pad = opts.pad ?? Math.max(64, Math.round(0.5 * Math.max(bounds.w, bounds.h)));
     const crop = workingCrop(bounds, src.width, src.height, pad, opts.minSize ?? MIGAN_NATIVE);
     // Run at native resolution: resize the crop (longest side -> 512), inpaint, resize back.
-    const scale = MIGAN_NATIVE / Math.max(crop.w, crop.h);
+    // Thin holes (glyph strokes) inpaint sharper at native resolution; large holes need ~512 context.
+    const scale = Math.min(1, (opts.maxSide ?? MIGAN_NATIVE) / Math.max(crop.w, crop.h));
     const mw = Math.max(8, Math.round(crop.w * scale));
     const mh = Math.max(8, Math.round(crop.h * scale));
     const cropPx = resizeBilinear(extractCrop(src, crop), mw, mh);

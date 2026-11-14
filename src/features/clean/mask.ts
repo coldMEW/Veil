@@ -88,6 +88,50 @@ export function dilate(mask: Mask, radius: number): Mask {
   return { width: w, height: h, data: out };
 }
 
+/**
+ * Fill enclosed holes: unmasked pixels that cannot reach the edge of the mask's bounding box (+1 px)
+ * without crossing the mask become masked. Removes islands such as a glossy highlight on a sticker
+ * letter that the colour test kept, which the inpainter would otherwise preserve as a visible patch.
+ */
+export function fillHoles(mask: Mask): Mask {
+  const { width: w, height: h } = mask;
+  const b = maskBounds(mask);
+  const out = { width: w, height: h, data: mask.data.slice() };
+  if (!b) return out;
+  const x0 = Math.max(0, b.x - 1);
+  const y0 = Math.max(0, b.y - 1);
+  const x1 = Math.min(w - 1, b.x + b.w);
+  const y1 = Math.min(h - 1, b.y + b.h);
+  const bw = x1 - x0 + 1;
+  const reach = new Uint8Array(bw * (y1 - y0 + 1));
+  const stack: number[] = [];
+  const push = (x: number, y: number) => {
+    const li = (y - y0) * bw + (x - x0);
+    if (reach[li] || mask.data[y * w + x]) return;
+    reach[li] = 1;
+    stack.push(x, y);
+  };
+  for (let x = x0; x <= x1; x++) {
+    push(x, y0);
+    push(x, y1);
+  }
+  for (let y = y0; y <= y1; y++) {
+    push(x0, y);
+    push(x1, y);
+  }
+  while (stack.length) {
+    const y = stack.pop()!;
+    const x = stack.pop()!;
+    if (x > x0) push(x - 1, y);
+    if (x < x1) push(x + 1, y);
+    if (y > y0) push(x, y - 1);
+    if (y < y1) push(x, y + 1);
+  }
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++) if (!mask.data[y * w + x] && !reach[(y - y0) * bw + (x - x0)]) out.data[y * w + x] = 1;
+  return out;
+}
+
 export function maskArea(mask: Mask): number {
   let n = 0;
   for (let i = 0; i < mask.data.length; i++) n += mask.data[i]!;

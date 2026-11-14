@@ -95,3 +95,42 @@ export function workingCrop(
   const y = Math.round(Math.min(Math.max(0, cy - h / 2), imgH - h));
   return { x, y, w, h };
 }
+
+/**
+ * Mosaic (pixelate) the masked area with square blocks of `block` px: each block becomes the mean colour of
+ * its masked pixels. Reduces recognisability but is NOT a guarantee of anonymity (low-resolution faces can
+ * still be recognised or reconstructed); solid redaction is the high-assurance option.
+ * Unmasked pixels are byte-identical; the source is not mutated.
+ */
+export function pixelate(src: Pixels, mask: Mask, block: number): Pixels {
+  assertSameSize(src, mask);
+  if (!Number.isInteger(block) || block < 2) throw new Error('block must be an integer >= 2');
+  const out = new Uint8ClampedArray(src.data);
+  const { width: w, height: h } = src;
+  for (let by = 0; by < h; by += block)
+    for (let bx = 0; bx < w; bx += block) {
+      let r = 0, g = 0, b = 0, n = 0;
+      const ye = Math.min(h, by + block);
+      const xe = Math.min(w, bx + block);
+      for (let y = by; y < ye; y++)
+        for (let x = bx; x < xe; x++) {
+          const i = y * w + x;
+          if (!mask.data[i]) continue;
+          r += src.data[i * 4]!;
+          g += src.data[i * 4 + 1]!;
+          b += src.data[i * 4 + 2]!;
+          n++;
+        }
+      if (!n) continue;
+      for (let y = by; y < ye; y++)
+        for (let x = bx; x < xe; x++) {
+          const i = y * w + x;
+          if (!mask.data[i]) continue;
+          out[i * 4] = r / n;
+          out[i * 4 + 1] = g / n;
+          out[i * 4 + 2] = b / n;
+          out[i * 4 + 3] = 255;
+        }
+    }
+  return { width: w, height: h, data: out };
+}
