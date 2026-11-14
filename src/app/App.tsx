@@ -33,7 +33,6 @@ import { useWarpDetector } from '../features/inspect/warp/useWarpDetector';
 import { LOW as WARP_LOW, toWarpOverlay } from '../features/inspect/warp/preprocess';
 import type { FaceBox } from '../features/inspect/warp/warpTypes';
 import { useClean, type FillMethod } from './clean/useClean';
-import { HomeScreen } from './home/HomeScreen';
 import { StepBar } from '../components/StepBar';
 import { ResultsPanel } from './results/ResultsPanel';
 import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
@@ -195,11 +194,6 @@ export function App() {
       transforms: [],
     });
   }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
-  const pickFile = (m: Mode, file: File) => {
-    setMode(m);
-    setShowReport(false);
-    void openImageFile(file);
-  };
   const startOver = () => {
     setShowReport(false);
     closeImage();
@@ -224,8 +218,11 @@ export function App() {
         </header>
 
         {session.status === 'empty' ? (
-          <main id="workspace-panel" className="min-h-0 flex-1 overflow-y-auto">
-            <HomeScreen onPick={pickFile} />
+          <main id="workspace-panel" className="relative min-h-0 flex-1 overflow-hidden lightbox">
+            <DropStage onFile={onFile} onDragChange={() => undefined} />
+            <p className="absolute inset-x-0 bottom-10 text-center text-sm text-muted">
+              Check a photo <span aria-hidden>·</span> Check a PDF <span aria-hidden>·</span> Remove private details
+            </p>
           </main>
         ) : showReport && report ? (
           <main id="workspace-panel" className="min-h-0 flex-1 overflow-y-auto bg-panel">

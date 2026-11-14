@@ -49,7 +49,7 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
           {checking ? 'Running the checks…' : flagged ? `${flagged} thing${flagged === 1 ? '' : 's'} worth a closer look` : 'What we found'}
         </h2>
         <p className="mt-1 text-sm text-muted text-pretty">
-          Each line is evidence from one check, with its own limits. Veil never gives a single “real or fake” verdict.
+          Each line is evidence from one check, with its own limits. Veil does not give a single verdict.
         </p>
       </motion.header>
 

@@ -58,7 +58,7 @@ export function ProvenanceCard({ state }: { state: ProvenanceState }) {
           c.contentChanged
             ? { label: 'Changed after signing', tone: 'text-misfit' }
             : aiTypes.length
-              ? { label: 'AI-made (declared)', tone: 'text-[#b91c1c]' }
+              ? { label: 'Generative source declared', tone: 'text-[#b91c1c]' }
               : c.present
                 ? { label: 'Credentials found', tone: 'text-fit' }
                 : { label: 'None found', tone: 'text-muted' }
