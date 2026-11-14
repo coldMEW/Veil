@@ -1,0 +1,60 @@
+{
+  "comment": "Pinned model artifacts fetched at build time into public/models/<dir>/. sha256 is verified; a mismatch fails the build.",
+  "artifacts": [
+    {
+      "id": "migan",
+      "dir": "migan",
+      "file": "migan_pipeline_v2.onnx",
+      "url": "https://huggingface.co/andraniksargsyan/migan/resolve/406830d0fa60666da0071c342ad2fbc8f30c5c64/migan_pipeline_v2.onnx",
+      "revision": "406830d0fa60666da0071c342ad2fbc8f30c5c64",
+      "sha256": "6f1f3530a1a2324b19752018ce756088b07973cda8d7d890034ace5c8a48c40b",
+      "bytes": 28079181,
+      "license": "MIT",
+      "feature": "clean"
+    },
+    {
+      "id": "ocr-det-v3",
+      "dir": "ocr",
+      "file": "det-v3.onnx",
+      "url": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/detection/v3/det.onnx",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "ee40e80071ba3a320d4efda75f3e22047a7d049e9bf7bcaaf9daea23fc21b935",
+      "bytes": 2429873,
+      "license": "Apache-2.0",
+      "feature": "clean"
+    },
+    {
+      "id": "ocr-rec-en",
+      "dir": "ocr",
+      "file": "rec.onnx",
+      "url": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/languages/english/rec.onnx",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "4e16deb22c4da6468bdca539b2cd3c8687825538b67109177c47d359ab994cd7",
+      "bytes": 7830888,
+      "license": "Apache-2.0",
+      "feature": "clean"
+    },
+    {
+      "id": "ocr-dict-en",
+      "dir": "ocr",
+      "file": "dict.txt",
+      "url": "https://huggingface.co/monkt/paddleocr-onnx/resolve/7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65/languages/english/dict.txt",
+      "revision": "7b02d0a30a07ba2b92ad1ff5a8941ae2c633de65",
+      "sha256": "e025a66d31f327ba0c232e03f407ae8d105e1e709e7ccb3f408aa778c24e70d6",
+      "bytes": 1416,
+      "license": "Apache-2.0",
+      "feature": "clean"
+    },
+    {
+      "id": "diffvax-immunizer",
+      "dir": "diffvax",
+      "file": "diffvax_immunizer.onnx",
+      "url": "https://huggingface.co/coldmew/veil-diffvax-immunizer/resolve/7f45aabc2d6b9cf71452fdb49bf1acbe9957fb8e/diffvax_immunizer.onnx",
+      "revision": "7f45aabc2d6b9cf71452fdb49bf1acbe9957fb8e",
+      "sha256": "44aa61ea8d6fbdc485bc897376cff41027e9885d5f68c3dd2e4bae8092cf3cd4",
+      "bytes": 36640862,
+      "license": "MIT (upstream ozdentarikcan/DiffVax @77fe66a; ONNX export by Veil)",
+      "feature": "protect"
+    }
+  ]
+}

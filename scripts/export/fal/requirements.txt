@@ -1,0 +1,6 @@
+# Isolated venv only (python -m venv venv). Exact versions used for the committed checksum.
+torch==2.12.1
+onnx==1.20.1
+onnxruntime==1.27.0
+numpy==2.4.6
+pillow==12.2.0

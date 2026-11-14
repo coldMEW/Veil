@@ -1,0 +1,10 @@
+{
+  "name": "Veil",
+  "short_name": "Veil",
+  "description": "Inspect the evidence in a photo and choose what you share.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050e1f",
+  "theme_color": "#050e1f",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

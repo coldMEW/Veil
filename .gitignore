@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+.vercel/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+
+# model weights are fetched at build time (scripts/export/fetch-models.mjs), never committed
+public/models/
+test-results/
+playwright-report/
