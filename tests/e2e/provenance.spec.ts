@@ -48,8 +48,15 @@ test('offline C2PA distinguishes absent, intact and altered embedded credentials
         response: r,
         headers: {
           ...r.headers(),
-          'content-security-policy':
-            "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'; connect-src 'self'; worker-src 'self' blob:; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:",
+          'content-security-policy': [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval'",
+            "connect-src 'self'",
+            "worker-src 'self' blob:",
+            "img-src 'self' data: blob:",
+            "style-src 'self' 'unsafe-inline'",
+            "font-src 'self' data:",
+          ].join('; '),
         },
       });
       return;
