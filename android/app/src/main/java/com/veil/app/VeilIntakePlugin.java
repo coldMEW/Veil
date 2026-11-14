@@ -1,6 +1,15 @@
 package com.veil.app;
 
 import android.content.Intent;
+import android.app.Activity;
+import android.Manifest;
+import androidx.activity.result.ActivityResult;
+import com.getcapacitor.PermissionState;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
+import com.getcapacitor.annotation.ActivityCallback;
+import java.io.File;
+import java.io.FileInputStream;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.database.Cursor;
@@ -14,8 +23,51 @@ import java.io.InputStream;
 import java.io.ByteArrayOutputStream;
 
 /** Share input is read into memory only; no copy is written to app storage. */
-@CapacitorPlugin(name = "VeilIntake")
+@CapacitorPlugin(name = "VeilIntake", permissions = {
+    @Permission(strings = { Manifest.permission.CAMERA }, alias = "camera")
+})
 public class VeilIntakePlugin extends Plugin {
+    @PluginMethod public void capturePhoto(PluginCall call) {
+        if (getPermissionState("camera") != PermissionState.GRANTED) {
+            requestPermissionForAlias("camera", call, "cameraPermissionResult");
+            return;
+        }
+        startActivityForResult(call, new Intent(getContext(), VeilCameraActivity.class), "cameraResult");
+    }
+    @PermissionCallback private void cameraPermissionResult(PluginCall call) {
+        if (getPermissionState("camera") == PermissionState.GRANTED) capturePhoto(call);
+        else call.reject("Camera access is needed to take a photo. You can still open an existing image.");
+    }
+    @ActivityCallback private void cameraResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        if (result.getResultCode() != Activity.RESULT_OK || result.getData() == null) {
+            call.reject("Camera cancelled"); return;
+        }
+        String path = result.getData().getStringExtra("capturePath");
+        getBridge().execute(() -> {
+            File file = null;
+            try {
+                if (path == null) throw new Exception("Camera returned no photo.");
+                File candidate = new File(path);
+                String root = new File(getContext().getCacheDir(), "veil-camera").getCanonicalPath() + File.separator;
+                if (!candidate.getCanonicalPath().startsWith(root)) throw new Exception("Invalid camera output path.");
+                file = candidate;
+                if (file.length() > 10 * 1024 * 1024) throw new Exception("Photo exceeds 10 MiB. Try a simpler view.");
+                byte[] bytes;
+                try (FileInputStream input = new FileInputStream(file);
+                     ByteArrayOutputStream data = new ByteArrayOutputStream()) {
+                    byte[] buffer = new byte[65536]; int size;
+                    while ((size = input.read(buffer)) != -1) data.write(buffer, 0, size);
+                    bytes = data.toByteArray();
+                }
+                JSObject photo = new JSObject();
+                photo.put("base64", Base64.encodeToString(bytes, Base64.NO_WRAP));
+                photo.put("name", "Camera photo.jpg"); photo.put("mime", "image/jpeg");
+                call.resolve(photo);
+            } catch (Exception error) { call.reject(error.getMessage()); }
+            finally { if (file != null) file.delete(); }
+        });
+    }
     @Override protected void handleOnNewIntent(Intent intent) {
         if (Intent.ACTION_SEND.equals(intent.getAction())) {
             notifyListeners("sharedImage", new JSObject(), true);

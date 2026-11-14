@@ -1,5 +1,3 @@
-import { Capacitor } from '@capacitor/core';
-import { Camera, EncodingType, type MediaResult } from '@capacitor/camera';
 import { registerPlugin } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -17,6 +15,7 @@ interface SharedImage {
 }
 const intake = registerPlugin<{
   takeSharedImage(): Promise<SharedImage>;
+  capturePhoto(): Promise<SharedImage>;
   saveCleanPng(options: { base64: string; name: string }): Promise<{ uri: string }>;
   addListener(event: 'sharedImage', callback: () => void): Promise<unknown>;
 }>('VeilIntake');
@@ -38,7 +37,8 @@ export async function initializeNative(): Promise<void> {
   await intake.addListener('sharedImage', () => void consume());
   await consume();
   await NativeApp.addListener('appRestoredResult', (result) => {
-    if (result.pluginId === 'Camera' && result.success) void openCapture(result.data as MediaResult);
+    if (result.pluginId === 'VeilIntake' && result.methodName === 'capturePhoto' && result.success)
+      void openCapture(result.data as SharedImage);
   });
   await NativeApp.addListener('backButton', () => {
     const event = new Event('veil-back', { cancelable: true });
@@ -80,26 +80,13 @@ export async function saveCleanCopy(bytes: Uint8Array, name: string): Promise<vo
   }
 }
 
-/** Explicit camera capture; same local intake, no gallery copy and no remote request. */
-async function openCapture(photo: MediaResult): Promise<void> {
-  const path = photo.webPath ?? (photo.uri ? Capacitor.convertFileSrc(photo.uri) : null);
-  if (!path) throw Error('Camera returned no photo.');
-  try {
-    const response = await fetch(path);
-    const blob = await response.blob();
-    await openImageFile(new File([blob], 'Camera photo.jpg', { type: 'image/jpeg' }));
-  } finally {
-    if (photo.uri?.startsWith('file://'))
-      await Filesystem.deleteFile({ path: photo.uri }).catch(() => undefined);
-  }
+/** CameraX returns bytes from a temporary private file, deleted by the native plugin. */
+async function openCapture(photo: SharedImage): Promise<void> {
+  if (!photo.base64) throw Error('Camera returned no photo.');
+  const bytes = Uint8Array.from(atob(photo.base64), (c) => c.charCodeAt(0));
+  await openImageFile(new File([bytes], photo.name ?? 'Camera photo.jpg', { type: 'image/jpeg' }));
 }
+/** Open Veil's own camera surface, rather than leaving the app for a system camera. */
 export async function takePhoto(): Promise<void> {
-  const photo = await Camera.takePhoto({
-    quality: 95,
-    saveToGallery: false,
-    encodingType: EncodingType.JPEG,
-    correctOrientation: true,
-    editable: 'no',
-  });
-  await openCapture(photo);
+  await openCapture(await intake.capturePhoto());
 }

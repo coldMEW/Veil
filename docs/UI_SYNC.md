@@ -97,3 +97,15 @@
   animation. Keep reduced motion and local-first guarantees. Native camera preview/capture stays on-device.
 - Screenshot review confirms large empty gray area, tiny toolbar glyphs and unnecessary file-limit/task text.
   Device screenshots remain in scratch only. Native camera will be tested without photographing private scenes.
+
+
+### Camera implementation update (15:38 CST)
+
+- CameraX1.6.2 native in-app viewfinder now compiles (56s first Gradle build). Not yet claimed as physical
+  preview/capture acceptance. JS takePhoto() signature is unchanged; native capturePhoto plugin replaces
+  the external camera intent. Includes torch, front/back switch,80dp shutter,28dp icons/56dp hit targets,
+  native press animation, scoped permission prompt, temporary JPEG cleanup; no gallery auto-save.
+- Important font diagnostic: @fontsource-variable/geist names its face "Geist Variable", while old shared
+  CSS sets font-family Geist. Please verify and use the actual loaded face in the new typography system.
+- User explicitly wants per-change screenshots/updates. Please push one complete visible redesign loop
+  soon, with an obvious labeled Take photo action. Existing empty screen is not accepted.
