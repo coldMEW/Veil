@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { isAndroid } from './environment';
-import { downloadModel, optionalModels, type OptionalModel } from './modelStore';
+import { downloadModel, optionalModels, MODEL_CACHE, type OptionalModel } from './modelStore';
 import { ensureOptionalModel, type ConsentRequest } from './modelConsent';
 
 /** Android-only, explicit consent and cancellable progress; no photo data enters this flow. */
@@ -24,6 +24,20 @@ export function NativeModels() {
   const [loaded, setLoaded] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  const [cached, setCached] = useState<string[]>([]);
+  useEffect(() => {
+    if (!open || typeof caches === 'undefined') return;
+    let stale = false;
+    void caches.open(MODEL_CACHE).then(async (cache) => {
+      const ids = await Promise.all(
+        optionalModels.map(async (m) => ((await cache.match(m.path)) ? m.id : null)),
+      );
+      if (!stale) setCached(ids.filter((id): id is 'focus' | 'diffvax' => id !== null));
+    });
+    return () => {
+      stale = true;
+    };
+  }, [open]);
   const controller = useRef<AbortController | null>(null);
   const active = useRef<ConsentRequest | null>(null);
   useEffect(() => {
@@ -139,7 +153,7 @@ export function NativeModels() {
             {model ? (
               <>
                 <p>
-                  {model.title} ? {(model.bytes / 1e6).toFixed(1)} MB
+                  {model.title} - {(model.bytes / 1e6).toFixed(1)} MB
                 </p>
                 <p className="my-2 text-sm">Download from Hugging Face and verify its checksum?</p>
                 {loaded !== null && (
@@ -175,7 +189,8 @@ export function NativeModels() {
                     className="my-2 block text-sm underline"
                     onClick={() => void ensureOptionalModel(m.id).catch(() => undefined)}
                   >
-                    {m.title} ? {(m.bytes / 1e6).toFixed(1)} MB
+                    {m.title} -{' '}
+                    {cached.includes(m.id) ? 'On this device' : `${(m.bytes / 1e6).toFixed(1)} MB`}
                   </button>
                 ))}
                 <p className="my-3 text-xs">

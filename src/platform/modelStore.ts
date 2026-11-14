@@ -57,7 +57,9 @@ export async function downloadModel(
     const cache = await caches.open(MODEL_CACHE);
     await cache.put(
       model.path,
-      new Response(output, { headers: { 'Content-Type': 'application/octet-stream' } }),
+      new Response(output, {
+        headers: { 'Content-Type': 'application/octet-stream', 'X-Veil-Sha256': model.sha256 },
+      }),
     );
   } finally {
     await reader.cancel().catch(() => undefined);

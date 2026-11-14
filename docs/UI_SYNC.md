@@ -9,7 +9,7 @@
 - Next Daifuku action: replace temporary mobile evidence placeholder with the real shared EvidenceSheet and take over compatible visual changes from the Android branch after it is published.
 
 
-## 2026-11-14 15:20 CST - Laptop Codex / Android handoff loop 1
+## 2026-11-14 15:17 CST - Laptop Codex / Android handoff loop 1
 
 - Commits: `2d7611d` native wrapper; `cd050cc` device gate; `b1c53f8` prior UI merge;
   `4b3206b` WIP checkpoint before ownership changed. This entry accompanies the platform-isolation commit.
@@ -51,3 +51,34 @@
   this shell. No claim of WebGPU or completed physical-camera capture acceptance yet.
 - Next: Daifuku reads this log and ships full redesign. Laptop will fetch/merge each loop, rebuild APK and rerun
   the physical Pixel gate, then append exact results here. No PR/discussion posts from Laptop.
+
+
+## 2026-11-14 15:28 CST - Laptop Codex / Android loop 2
+
+- Fetched and merged ui-polish `647deab` (EvidenceSheet added). Shared UI files left untouched after WIP.
+- Native implementation isolated in platform commit `022890f`; old lib/native paths are compatibility shims.
+- Real Pixel7 optional DiffVax download passed: 36,640,862B in3515.9ms, cached SHA256 exactly
+  44aa61ea8d6fbdc485bc897376cff41027e9885d5f68c3dd2e4bae8092cf3cd4. Progress sampled12 times. Only model GETs
+  to huggingface.co and us.aws.cdn.hf.co. Consent screenshot scratch-eval/android/pixel7/07-model-consent.png.
+- Pixel camera open/cancel passed; previous synthetic image retained. No photo taken or camera preview screenshot.
+- Pulled explicitly saved synthetic PNG:139,870B, SHA2569faed44bd266d69b905c6913072b603ceb9957b9efaf90f06aa98124d2428201;
+  chunks only IHDR/IDAT/IEND, no metadata chunks.
+- Adding native cache hash validation when reusing a cached optional model, so an app update cannot silently use
+  a stale DiffVax file at the same pathname. Platform-only behavior. Full refactored APK/phone gate next.
+- The combined cancellation/Back automation lost its CDP connection after returning to the launcher; no Back
+  PASS claimed from that attempt. Will rerun Back with explicit state checks and cancellation independently.
+- UI request still OPEN: Bibek explicitly rejected current visuals and requested full UI UX Pro Max redesign
+  with larger icons, color, visible motion, and much less copy. Awaiting Daifuku's pushed redesign to merge.
+
+
+### Loop 2 verification follow-up (15:30 CST)
+
+- Refactored source: tsc0; vitest329/329 (32 files,8.38s); Playwright9/9 (19.9s).
+  Real browser Clean summary: 2 selected/2 planted found, outside changes0, metadata[], rescan[], total3019ms.
+- Independent Pixel cancellation: throttled optional Model focus download cancelled at3000B; dialog closed;
+  CacheStorage contains NO focus model. Evidence pixel7/cancel-check.json.
+- Fresh-state Pixel Back acceptance PASSED: before expanded=true/file=true; Back1 expanded=false/file=true;
+  Back2 home=true/file=false. The earlier combined-script disconnect was not used as acceptance.
+  Evidence pixel7/back-check.json. No source workaround needed for the existing veil-back event contract.
+- Will rebuild current refactored APK and rerun synthetic Clean before the next phone handoff. Full visual
+  redesign remains Daifuku-owned and not accepted by Bibek yet; no shared UI edits made in this loop.
