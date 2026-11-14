@@ -18,7 +18,7 @@ import { ChoosePhotoButton, DropStage, OpenAnotherButton } from '../components/I
 import { rowReveal } from '../components/ResultCard';
 import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
 import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
-import { useModelFocus } from '../features/inspect/model/useModelFocus';
+import { emptyMapCaption, useModelFocus } from '../features/inspect/model/useModelFocus';
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
@@ -36,7 +36,7 @@ import { useClean, type FillMethod } from './clean/useClean';
 import { HomeScreen } from './home/HomeScreen';
 import { StepBar } from '../components/StepBar';
 import { ResultsPanel } from './results/ResultsPanel';
-import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
+import { aiSignalFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
 import { ReportView } from '../components/report/ReportView';
 import { buildReport } from '../features/report/report';
 import type { CheckResult } from '../contracts';
@@ -161,13 +161,13 @@ export function App() {
 
   const shadowFinding: Finding = (() => {
     const r = shadow.result;
-    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const };
+    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const, group: 'physical' as const };
     if (!r) return { ...base, tone: 'idle', headline: 'Optional: mark objects and their shadows.' };
     if (r.execution !== 'complete' || r.finding === 'inconclusive' || r.finding === 'not_applicable')
       return { ...base, tone: 'idle', headline: r.reason ? `Needs more: ${r.reason}` : 'Not enough marks yet.' };
     return r.finding === 'inconsistent'
-      ? { ...base, tone: 'notice', headline: 'Some marked shadows disagree with one light source.' }
-      : { ...base, tone: 'clear', headline: 'The marked shadows fit one light source.' };
+      ? { ...base, tone: 'notice', short: 'Shadows disagree with one light', headline: 'Some marked shadows disagree with one light source.', why: [SHADOW_WHY, 'Some of your marked lines miss the place where the others meet.'], limits: SHADOW_LIMITS }
+      : { ...base, tone: 'clear', short: 'Shadows fit one light', headline: 'The marked shadows fit one light source.', why: [SHADOW_WHY, 'Your marked lines meet in one place, within the 5 degree limit.'], limits: SHADOW_LIMITS };
   })();
   // When a map is switched on but has nothing above its threshold, say so on the photo.
   const aiMapEmpty =
@@ -265,8 +265,8 @@ export function App() {
                 className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4"
               >
                 <p className="max-w-md rounded-full border border-line bg-night/95 px-4 py-2 text-center text-sm text-muted shadow-sm backdrop-blur">
-                  {aiMapEmpty
-                    ? 'AI heatmap: no area raised the AI signal, so nothing is coloured. Check Content Credentials above.'
+                  {aiMapEmpty && focus.state.status === 'done'
+                    ? emptyMapCaption(focus.state.result)
                     : 'Face warp map: no notable warp in the marked face, so nothing is coloured.'}
                 </p>
               </div>
