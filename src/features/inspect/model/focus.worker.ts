@@ -4,8 +4,8 @@
 
 import { configureOrt, hasWebGpu } from '../../../lib/runtime/ortEnv';
 import models from './models.json';
-import { CROP, cropGeometry, cropRgba, occlude, resizeBicubic, selectFocusGrid, toChw } from './preprocess';
-import type { FocusRequest, FocusResponse } from './focusTypes';
+import { CROP, cropGeometry, cropRgba, occlude, resizeBicubic, selectFocusGrid, toChw, viewWindows } from './preprocess';
+import type { FocusRequest, FocusResponse, FocusResult } from './focusTypes';
 
 const MODEL = models['communityforensics-vit-s-fp32'];
 const BATCH = 8;
@@ -83,13 +83,26 @@ async function run(req: FocusRequest) {
   const resized = resizeBicubic(pixels, full.width, full.height, g.resizedWidth, g.resizedHeight);
   const crop = cropRgba(resized, g.resizedWidth, g.left, g.top);
   const base = toChw(crop);
+  // The ends of the long edge, at the same scale, so the model also sees what the centre crop leaves out.
+  const windows = viewWindows(g);
+  const extra = windows.filter((w) => w.label !== 'center');
+  const extraBatch = new Float32Array(extra.length * 3 * CROP * CROP);
+  extra.forEach((w, k) => toChw(cropRgba(resized, g.resizedWidth, w.left, w.top), extraBatch.subarray(k * 3 * CROP * CROP, (k + 1) * 3 * CROP * CROP)));
   const preprocessMs = performance.now() - preprocessStart;
 
-  const total = grid * grid + 1;
+  const total = grid * grid + 1 + (extra.length ? 1 : 0);
   const t0 = performance.now();
   const baseLogit = (await logits(s, base, 1))[0] ?? Number.NaN;
   const baseMs = performance.now() - t0;
   post({ type: 'progress', id, stage: 'running', done: 1, total });
+
+  const views: NonNullable<FocusResult['views']> = [{ label: 'center', logit: baseLogit, crop: g.source }];
+  if (extra.length) {
+    const out = await logits(s, extraBatch, extra.length);
+    extra.forEach((w, k) => views.push({ label: w.label, logit: out[k] ?? Number.NaN, crop: w.source }));
+    post({ type: 'progress', id, stage: 'running', done: 2, total });
+  }
+  const viewOffset = extra.length ? 2 : 1;
 
   const cells = grid * grid;
   const deltas = new Float32Array(cells);
@@ -101,11 +114,11 @@ async function run(req: FocusRequest) {
     for (let k = 0; k < n; k++) occlude(base, grid, start + k, batch.subarray(k * one, (k + 1) * one));
     const out = await logits(s, batch, n);
     for (let k = 0; k < n; k++) deltas[start + k] = baseLogit - (out[k] ?? Number.NaN);
-    post({ type: 'progress', id, stage: 'running', done: 1 + start + n, total });
+    post({ type: 'progress', id, stage: 'running', done: viewOffset + start + n, total });
   }
   const occlusionMs = performance.now() - t1;
 
-  if (!Number.isFinite(baseLogit) || deltas.some((d) => !Number.isFinite(d))) {
+  if (!Number.isFinite(baseLogit) || deltas.some((d) => !Number.isFinite(d)) || views.some((v) => !Number.isFinite(v.logit))) {
     throw new Error('The model produced a non-finite output.');
   }
 
@@ -117,6 +130,7 @@ async function run(req: FocusRequest) {
       deltas,
       grid,
       crop: g.source,
+      views,
       backend,
       threads: ort.env.wasm.numThreads ?? 1,
       timings: { loadMs, preprocessMs, baseMs, occlusionMs, totalMs: performance.now() - started },

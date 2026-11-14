@@ -28,6 +28,25 @@ function Header({ sub }: { sub: string }) {
   );
 }
 
+/**
+ * Veil cannot read SynthID on the device (the decoder is not public), so it only points to Google's
+ * own checker. A plain link the person chooses to open; no request is made from Veil's code.
+ */
+export const SYNTHID_URL = 'https://synthid.com/';
+
+function WatermarkPointer() {
+  return (
+    <p className="-mt-1 pb-4 pl-12 text-xs text-muted text-pretty">
+      Invisible watermark: images made with Google, OpenAI, Nvidia or Kakao tools carry a SynthID watermark that is
+      built to survive screenshots. Veil can{'’'}t read it on this device. You can check it yourself at{' '}
+      <a href={SYNTHID_URL} target="_blank" rel="noopener noreferrer" className="font-medium text-ink underline underline-offset-2">
+        Google{'’'}s SynthID Detector
+      </a>
+      . That uploads the photo to Google, and {'“'}not detected{'”'} doesn{'’'}t mean it came from a camera.
+    </p>
+  );
+}
+
 const ms = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`);
 
 /** The model diagnostic: explicit run, visible progress, cancel, retry, and a result kept apart from physics. */
@@ -57,6 +76,7 @@ export function ModelFocusCard({ state, onRun, onCancel, showOverlay, onToggleOv
             Model load {ms(t.loadMs)}, one pass {ms(t.baseMs)}, map {ms(t.occlusionMs)}
           </p>
         </div>
+        <WatermarkPointer />
       </motion.div>
     );
   }
@@ -68,7 +88,7 @@ export function ModelFocusCard({ state, onRun, onCancel, showOverlay, onToggleOv
           <Header sub="Model diagnostic, not run yet" />
           <div className="pl-12">
             <p className="mt-2 text-sm text-muted text-pretty">
-              Shows which parts of the photo push an AI-image detector toward “AI-generated”. Red is the strongest signal, yellow weaker; no colour means no area moved it. Never a verdict.
+              Shows how strongly an AI-image detector leans toward “AI-generated” across the photo, then which parts push it. Red is the strongest signal, yellow weaker. Works on screenshots too, because it reads pixels, not metadata. Never a verdict.
             </p>
             <button type="button" onClick={onRun} className={`${ghostButton} mt-3`}>
               <Play size={16} weight="fill" aria-hidden />

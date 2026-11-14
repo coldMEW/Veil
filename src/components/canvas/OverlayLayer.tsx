@@ -22,14 +22,20 @@ export function OverlayLayer({ items, photo, selected, onSelect }: Props) {
   const placed = items.filter((i) => i.region);
   return (
     <div className="pointer-events-none absolute inset-0 z-10" aria-label="Areas each check looked at">
-      {placed.map((item) => (
-        <Mark key={item.id} item={item} photo={photo} active={selected === item.id} dim={selected !== null && selected !== item.id} onSelect={onSelect} />
-      ))}
+      {placed.map((item) => {
+        // Checks that looked at the whole photo share one frame; their number badges sit side by side.
+        const wholeIndex = placed.filter((p) => isWhole(p)).indexOf(item);
+        return (
+          <Mark key={item.id} item={item} photo={photo} badgeOffset={Math.max(0, wholeIndex) * 30} active={selected === item.id} dim={selected !== null && selected !== item.id} onSelect={onSelect} />
+        );
+      })}
     </div>
   );
 }
 
-function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; photo: Rect; active: boolean; dim: boolean; onSelect: (id: string) => void }) {
+const isWhole = (i: EvidenceItem) => !!i.region && i.region.w > 0.98 && i.region.h > 0.98;
+
+function Mark({ item, photo, active, dim, onSelect, badgeOffset }: { item: EvidenceItem; photo: Rect; active: boolean; dim: boolean; onSelect: (id: string) => void; badgeOffset: number }) {
   const ref = useRef<HTMLButtonElement>(null);
   const r = item.region!;
   // A whole-image region sits just inside the photo edge so its outline stays visible.
@@ -70,9 +76,10 @@ function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; phot
       <span
         aria-hidden
         className={[
-          'tabular absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
-          active ? 'bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
+          'tabular absolute top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
+          active ? 'z-10 bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
         ].join(' ')}
+        style={{ left: 8 + badgeOffset }}
       >
         {item.number}
         {active && <span className="pr-1 font-semibold">{item.regionLabel}</span>}

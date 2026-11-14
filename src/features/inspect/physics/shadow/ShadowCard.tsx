@@ -3,6 +3,8 @@ import { ArrowCounterClockwise, Check, Crosshair, Sun, Trash } from '@phosphor-i
 import { ResultCard, rowReveal } from '../../../../components/ResultCard';
 import type { CheckResult as CardResult, Overlay as CardOverlay } from '../../../../contracts';
 import { explainShadowResult } from './shadowExplain';
+import { explainReflectionResult } from './reflectionExplain';
+import type { GeometryMode } from './lineGeometryCheck';
 import type { CheckResult } from './shadowTypes';
 import { MIN_PAIRS, type ShadowAnnotation } from './useShadowAnnotation';
 
@@ -10,17 +12,17 @@ const ghostButton =
   'inline-flex h-11 items-center gap-2 rounded-full border border-line-strong px-4 text-sm font-medium transition-[color,border-color,transform] duration-200 hover:border-gold/60 hover:text-gold active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40';
 
 /** The shell's draft card contract has no rays or reason field yet; adapt without dropping meaning. */
-function toCard(result: CheckResult): CardResult {
+function toCard(result: CheckResult, mode: GeometryMode): CardResult {
   const overlays: CardOverlay[] = [];
   for (const o of result.overlays) {
     if (o.type === 'points' || o.type === 'lines' || o.type === 'box') overlays.push(o);
     else if (o.type === 'rays') overlays.push({ type: 'lines', lines: o.rays, label: o.label });
   }
   // Plain-language text for people; the technical result stays intact in `evidence` for the report.
-  const plain = explainShadowResult(result);
+  const plain = mode === 'reflection' ? explainReflectionResult(result) : explainShadowResult(result);
   return {
     ...result,
-    title: 'Shadow and light geometry',
+    title: mode === 'reflection' ? 'Reflection geometry' : 'Shadow and light geometry',
     observation: `${plain.headline} ${plain.observation}`,
     method: plain.method,
     assumptions: plain.assumptions,
@@ -29,14 +31,14 @@ function toCard(result: CheckResult): CardResult {
   };
 }
 
-function Header({ sub }: { sub: string }) {
+function Header({ sub, mode }: { sub: string; mode: GeometryMode }) {
   return (
     <div className="flex gap-3">
       <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full bg-raised text-muted">
         <Sun size={18} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="font-semibold leading-snug">Shadow and light geometry</h3>
+        <h3 className="font-semibold leading-snug">{mode === 'reflection' ? 'Reflection geometry' : 'Shadow and light geometry'}</h3>
         <p className="mt-0.5 text-sm text-faint">{sub}</p>
       </div>
     </div>
@@ -44,19 +46,23 @@ function Header({ sub }: { sub: string }) {
 }
 
 /** Physical check: the person marks object and shadow points; the lines are tested against one light. */
-export function ShadowCard({ a }: { a: ShadowAnnotation }) {
+export function ShadowCard({ a, mode = 'shadow' }: { a: ShadowAnnotation; mode?: GeometryMode }) {
   const count = a.pairs.length;
-  const step = a.pending ? 'Now tap where that point’s shadow falls.' : 'Tap a point on an object, such as the top of a pole.';
+  const step = mode === 'reflection'
+    ? (a.pending ? 'Now tap its reflection in the mirror or water.' : 'Tap an object point, such as the corner of a window.')
+    : (a.pending ? 'Now tap where that point’s shadow falls.' : 'Tap a point on an object, such as the top of a pole.');
 
   return (
     <motion.article variants={rowReveal} className="py-4">
       {!a.marking && count === 0 ? (
         <>
-          <Header sub="Physical, not run yet" />
+          <Header sub="Physical, not run yet" mode={mode} />
           <div className="pl-12">
             <p className="mt-2 text-sm text-muted text-pretty">
-              Mark at least {MIN_PAIRS} objects and where their shadows fall. Under one light, the lines should meet at
-              one place.
+              {mode === 'reflection'
+                ? 'Mark at least 3 points and where each one appears in the mirror or water. With one flat mirror, the lines should meet at one place.'
+                : <>Mark at least {MIN_PAIRS} objects and where their shadows fall. Under one light, the lines should meet at
+                  one place.</>}
             </p>
             <button type="button" onClick={() => a.setMarking(true)} className={`${ghostButton} mt-3`}>
               <Crosshair size={16} aria-hidden />
@@ -67,9 +73,9 @@ export function ShadowCard({ a }: { a: ShadowAnnotation }) {
       ) : (
         <>
           {a.result ? (
-            <ResultCard result={toCard(a.result)} />
+            <ResultCard result={toCard(a.result, mode)} />
           ) : (
-            <Header sub="Physical, marking" />
+            <Header sub="Physical, marking" mode={mode} />
           )}
           <div className="pl-12">
             {a.marking && (

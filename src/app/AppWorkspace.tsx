@@ -21,7 +21,7 @@ import { OverlayLayer } from '../components/canvas/OverlayLayer';
 import { ChoosePhotoButton, OpenAnotherButton } from '../components/ImagePicker';
 import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
 import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
-import { useModelFocus } from '../features/inspect/model/useModelFocus';
+import { emptyMapCaption, useModelFocus } from '../features/inspect/model/useModelFocus';
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
@@ -41,7 +41,8 @@ import { useClean, type FillMethod } from './clean/useClean';
 import { EvidenceRow } from './results/EvidenceRow';
 import { EvidenceSheet } from './results/EvidenceSheet';
 import { toEvidence } from './results/evidence';
-import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
+import { aiSignalFinding, forensicsFinding, provenanceFinding, SHADOW_LIMITS, SHADOW_WHY, warpFinding, type Finding } from './results/findings';
+import { useForensics } from '../features/inspect/forensics';
 import { ReportSheet } from '../components/report/ReportSheet';
 import { buildReport } from '../features/report/report';
 import type { CheckResult } from '../contracts';
@@ -77,6 +78,7 @@ export function AppWorkspace() {
   );
   const docAnalysis = useDocumentAnalysis(doc?.sha256 ?? null, doc?.bytes ?? null);
   const warp = useWarpDetector(ready?.asset.id ?? null, ready?.bitmap ?? null);
+  const forensics = useForensics(ready?.asset.id ?? null, ready?.bitmap ?? null, ready?.bytes ?? null, ready?.asset.mimeType ?? null);
   const [faceMarking, setFaceMarking] = useState(false);
   const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
   const [showWarp, setShowWarp] = useState(true);
@@ -179,6 +181,7 @@ export function AppWorkspace() {
   useEffect(() => setShowReport(false), [ready?.asset.id, doc?.sha256]);
   // Step 2: the automatic checks start as soon as a photo opens for checking.
   useEffect(() => {
+    if (mode === 'photo' && ready && forensics.ela.status === 'idle') void forensics.run();
     if (mode === 'photo' && ready && focus.state.status === 'idle') {
       setShowOverlay(true);
       void focus.run();
@@ -188,27 +191,40 @@ export function AppWorkspace() {
 
   const shadowFinding: Finding = (() => {
     const r = shadow.result;
-    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const };
+    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const, group: 'physical' as const };
     if (!r) return { ...base, tone: 'idle', headline: 'Optional: mark objects and their shadows.' };
     if (r.execution !== 'complete' || r.finding === 'inconclusive' || r.finding === 'not_applicable')
       return { ...base, tone: 'idle', headline: r.reason ? `Needs more: ${r.reason}` : 'Not enough marks yet.' };
     return r.finding === 'inconsistent'
-      ? { ...base, tone: 'notice', headline: 'Some marked shadows disagree with one light source.' }
-      : { ...base, tone: 'clear', headline: 'The marked shadows fit one light source.' };
+      ? { ...base, tone: 'notice', short: 'Shadows disagree with one light', headline: 'Some marked shadows disagree with one light source.', why: [SHADOW_WHY, 'Some of your marked lines miss the place where the others meet.'], limits: SHADOW_LIMITS }
+      : { ...base, tone: 'clear', short: 'Shadows fit one light', headline: 'The marked shadows fit one light source.', why: [SHADOW_WHY, 'Your marked lines meet in one place, within the 5 degree limit.'], limits: SHADOW_LIMITS };
   })();
   // When a map is switched on but has nothing above its threshold, say so on the photo.
   const aiMapEmpty =
     showOverlay && focus.state.status === 'done' && !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
   const warpMapEmpty =
     showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
-  const findings: Finding[] = [provenanceFinding(provenance), aiSignalFinding(focus.state), warpFinding(warp.state), shadowFinding];
-  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
+  const findings: Finding[] = [
+    provenanceFinding(provenance),
+    forensicsFinding('thumbnail', forensics.thumbnail),
+    aiSignalFinding(focus.state),
+    forensicsFinding('ela', forensics.ela),
+    forensicsFinding('noise', forensics.noise),
+    warpFinding(warp.state),
+    shadowFinding,
+  ];
+  const checking =
+    provenance.status !== 'done' ||
+    focus.state.status === 'loading' ||
+    focus.state.status === 'running' ||
+    [forensics.thumbnail, forensics.ela, forensics.noise].some((f) => f.status === 'running');
   const report = useMemo(() => {
     if (!showReport || !ready) return null;
     const checks: CheckResult[] = [];
     if (provenance.status === 'done') checks.push(provenance.checkResult);
     if (focus.state.status === 'done') checks.push(focus.state.checkResult);
     if (warp.state.status === 'done') checks.push(warp.state.checkResult);
+    for (const f of [forensics.thumbnail, forensics.ela, forensics.noise]) if (f.checkResult) checks.push({ ...f.checkResult, overlays: [] });
     if (shadow.result) checks.push({ ...(shadow.result as unknown as CheckResult), overlays: [] });
     return buildReport({
       appVersion: '0.1.0',
@@ -219,7 +235,7 @@ export function AppWorkspace() {
       candidates: [],
       transforms: [],
     });
-  }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
+  }, [showReport, ready, provenance, focus.state, warp.state, forensics.thumbnail, forensics.ela, forensics.noise, shadow.result]);
   const startOver = () => {
     setShowReport(false);
     closeImage();
@@ -248,16 +264,22 @@ export function AppWorkspace() {
         : null;
     return {
       provenance: { x: 0, y: 0, w: 1, h: 1 },
+      'exif-thumbnail': forensics.thumbnail.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
+      ela: forensics.ela.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
+      noise: forensics.noise.status === 'done' ? { x: 0, y: 0, w: 1, h: 1 } : null,
       'ai-signal': crop ? { x: crop.x / W, y: crop.y / H, w: crop.width / W, h: crop.height / H } : null,
       'face-warp': faceBox,
       shadows: shadowBox,
     };
-  }, [ready, focus.state, shadow.drawing, faceBox]);
+  }, [ready, focus.state, shadow.drawing, faceBox, forensics.thumbnail.status, forensics.ela.status, forensics.noise.status]);
   const checksById = {
     provenance: provenance.status === 'done' ? provenance.checkResult : undefined,
     'ai-signal': focus.state.status === 'done' ? focus.state.checkResult : undefined,
     'face-warp': warp.state.status === 'done' ? warp.state.checkResult : undefined,
     shadows: shadow.result ? (shadow.result as unknown as CheckResult) : undefined,
+    'exif-thumbnail': forensics.thumbnail.checkResult ?? undefined,
+    ela: forensics.ela.checkResult ?? undefined,
+    noise: forensics.noise.checkResult ?? undefined,
   };
   const items = toEvidence(findings, checksById, regions, {
     ai: { visible: showOverlay, available: focus.state.status === 'done', toggle: () => setShowOverlay((v) => !v) },
@@ -477,7 +499,7 @@ export function AppWorkspace() {
               {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
                 <div role="status" className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center px-4">
                   <p className="max-w-md rounded-full bg-panel/95 px-4 py-2 text-center text-sm text-muted shadow-[var(--shadow-card)]">
-                    {aiMapEmpty ? 'AI signal map: no area raised the signal, so nothing is coloured.' : 'Face warp map: no notable warp in the marked face.'}
+                    {aiMapEmpty && focus.state.status === 'done' ? emptyMapCaption(focus.state.result) : 'Face warp map: no notable warp in the marked face.'}
                   </p>
                 </div>
               )}

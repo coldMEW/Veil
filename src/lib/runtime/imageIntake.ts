@@ -5,6 +5,8 @@ export const MAX_INPUT_BYTES = 80 * 1024 * 1024; // safety ceiling for what a ph
 export const MAX_INPUT_PIXELS = 150_000_000; // safety ceiling before decoding (larger than any camera photo)
 /** Larger photos are scaled down to this many pixels when they open; the original bytes and hash are kept. */
 export const WORKING_PIXELS = 12_000_000;
+/** Largest bitmap any analysis receives (a phone's "12 MP" 4032 × 3024); opened photos are at most WORKING_PIXELS. */
+export const MAX_DECODED_PIXELS = 4032 * 3024;
 
 /** The size a photo is worked on at: unchanged up to WORKING_PIXELS, otherwise scaled down evenly. */
 export function workingSize(width: number, height: number): { width: number; height: number; scaled: boolean } {

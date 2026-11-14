@@ -15,6 +15,8 @@ export interface EvidenceItem {
   label: string;
   headline: string;
   method: string;
+  /** What was measured and what it showed, in plain sentences. */
+  why: string[];
   assumptions: string[];
   limitations: string[];
   numbers: Array<[string, string]>;
@@ -39,6 +41,21 @@ const ABOUT: Record<string, { method: string; limitations: string[]; regionLabel
     method: 'A local model predicts where a face you mark may have been reshaped, and by how many pixels.',
     limitations: ['Only covers the face you mark. Strong lens distortion and heavy compression can look like warping.'],
     regionLabel: 'Face you marked',
+  },
+  'exif-thumbnail': {
+    method: 'Compares the small preview picture a camera stores inside the file with the photo itself.',
+    limitations: ['Many apps remove or rebuild the preview, so a missing or different preview is common and proves nothing on its own.'],
+    regionLabel: 'Whole file',
+  },
+  ela: {
+    method: 'Re-saves the photo as JPEG at a known quality and maps where it changes more than the rest.',
+    limitations: ['Edges, text, sky and earlier re-saves also stand out, so a bright area is a reason to look closer, not proof.'],
+    regionLabel: 'Whole photo',
+  },
+  noise: {
+    method: 'Measures the fine camera noise in blocks across the photo and marks blocks that differ from the rest.',
+    limitations: ['Sky, blur, depth of field and denoising change noise; generated images can be even everywhere.'],
+    regionLabel: 'Whole photo',
   },
   shadows: {
     method: 'You mark points on objects and the matching points on their shadows. The lines are tested against one dominant light source.',
@@ -71,8 +88,9 @@ export function toEvidence(
       label: f.headline.startsWith('Did not finish') || f.headline.startsWith('Could not') ? 'Didn’t finish' : f.tone === 'idle' && check ? 'Nothing found' : TONE_LABEL[f.tone],
       headline: f.headline,
       method: check?.method || about.method,
+      why: f.why ?? [],
       assumptions: check?.assumptions ?? [],
-      limitations: check?.limitations.length ? check.limitations : about.limitations,
+      limitations: check?.limitations.length ? check.limitations : f.limits ? [f.limits] : about.limitations,
       numbers: check ? numbersFrom(check.evidence) : [],
       region: regions[f.id] ?? null,
       regionLabel: about.regionLabel,
