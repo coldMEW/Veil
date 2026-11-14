@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { CheckResult, Overlay, Point } from '../../contracts';
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -19,8 +19,7 @@ function useImageRect(element: HTMLElement | null): Rect | null {
   useEffect(() => {
     if (!element) return;
     const update = () => {
-      const r = element.getBoundingClientRect();
-      setRect({ x: r.left, y: r.top, width: r.width, height: r.height });
+      setRect({ x: element.offsetLeft, y: element.offsetTop, width: element.offsetWidth, height: element.offsetHeight });
     };
     update();
     const observer = new ResizeObserver(update);
@@ -60,7 +59,7 @@ export function OverlayLayer({ checks, selected, onSelect, imageElement, width, 
   const rect = useImageRect(imageElement);
   const flattened = useMemo(() => checks.flatMap((check) => check.overlays.map((overlay, index) => ({ check, overlay, index }))), [checks]);
   if (!rect || !width || !height) return null;
-  return <svg aria-label="Evidence overlays" className="pointer-events-none fixed z-20 overflow-visible" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} viewBox={`0 0 ${width} ${height}`}>
+  return <svg aria-label="Evidence overlays" className="pointer-events-none absolute z-20 overflow-visible" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} viewBox={`0 0 ${width} ${height}`}>
     {flattened.map(({ check, overlay, index }) => {
       const active = selected === check.id; const dim = selected !== null && !active;
       const choose = () => onSelect(check.id);
