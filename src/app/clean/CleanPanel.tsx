@@ -1,3 +1,4 @@
+import { saveCleanCopy } from '../../lib/native/platform';
 import { motion } from 'motion/react';
 import {
   ArrowCounterClockwise,
@@ -43,14 +44,7 @@ interface Props {
   onShowAfter: (v: boolean) => void;
 }
 
-function download(bytes: Uint8Array, name: string) {
-  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/png' }));
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = name;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
+
 
 export function CleanFlow(p: Props) {
   const { state } = p;
@@ -238,7 +232,7 @@ export function CleanFlow(p: Props) {
         ))}
       </div>
       <div className="mt-4 flex flex-wrap gap-2">
-        <button type="button" onClick={() => download(state.bytes, `${base}-clean.png`)} className={primary}>
+        <button type="button" onClick={() => void saveCleanCopy(state.bytes, `${base}-clean.png`).catch((e) => alert(String(e)))} className={primary}>
           <DownloadSimple size={16} weight="bold" aria-hidden />
           Save clean copy
         </button>

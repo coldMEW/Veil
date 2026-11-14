@@ -177,6 +177,15 @@ export function App() {
   const findings: Finding[] = [provenanceFinding(provenance), aiSignalFinding(focus.state), warpFinding(warp.state), shadowFinding];
   const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
   const hasFile = session.status === 'ready' || session.status === 'document';
+  useEffect(() => {
+    const back = (event: Event) => {
+      if (showReport) { event.preventDefault(); setShowReport(false); }
+      else if (hasFile) { event.preventDefault(); clean.cancel(); closeImage(); }
+    };
+    window.addEventListener('veil-back', back);
+    return () => window.removeEventListener('veil-back', back);
+  }, [showReport, hasFile, clean.cancel]);
+
   const step: 1 | 2 | 3 | 4 = !hasFile ? 1 : showReport ? 4 : mode === 'photo' && checking ? 2 : 3;
   const report = useMemo(() => {
     if (!showReport || !ready) return null;

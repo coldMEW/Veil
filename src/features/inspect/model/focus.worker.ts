@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { modelResponse } from '../../../lib/native/modelStore';
 // Runs the model-focus diagnostic off the main thread. The page cancels a run
 // by terminating this worker, which also stops any computation in flight.
 
@@ -21,7 +22,7 @@ const post = (msg: FocusResponse, transfer: Transferable[] = []) =>
 async function getSession() {
   if (session) return session;
   const t0 = performance.now();
-  const res = await fetch(MODEL.servedAs);
+  const res = await modelResponse(MODEL.servedAs);
   if (!res.ok) throw new Error(`Model download failed (HTTP ${res.status}).`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));

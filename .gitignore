@@ -12,3 +12,9 @@ coverage/
 public/models/
 test-results/
 playwright-report/
+
+*.apk
+*.aab
+*.keystore
+*.jks
+android/local.properties

@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { modelResponse } from '../../../lib/native/modelStore';
 // Cancellation terminates this worker, including model fetch and computation.
 import { configureOrt, hasWebGpu } from '../../../lib/runtime/ortEnv';
 import { EXACT_RESIZE, faceRectFromBox, flowMagnitude, preprocessBitmap, SHORTEST_EDGE } from './preprocess';
@@ -42,7 +43,7 @@ async function getSession() {
   }
   const t0 = performance.now();
   warmupMs = 0;
-  const response = await fetch(MODEL_INFO.servedAs);
+  const response = await modelResponse(MODEL_INFO.servedAs);
   if (!response.ok) throw new Error(`Model download failed (HTTP ${response.status}).`);
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.byteLength !== MODEL_INFO.bytes) throw new Error('The model file does not match its pinned byte count.');

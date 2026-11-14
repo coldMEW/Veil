@@ -1,3 +1,5 @@
+import { isAndroid } from '../../../lib/native/environment';
+import { ensureOptionalModel } from '../../../lib/native/modelConsent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CheckResult } from '../../../contracts';
 import models from './models.json';
@@ -98,6 +100,8 @@ export function useModelFocus(assetId: string | null, bitmap: ImageBitmap | null
 
   const run = useCallback(async () => {
     if (!assetId || !bitmap) return;
+    try { if (isAndroid()) await ensureOptionalModel('focus'); }
+    catch (e) { setState({ status: 'failed', message: String(e) }); return; }
     stop();
     const id = ++runId.current;
     setState({ status: 'loading' });

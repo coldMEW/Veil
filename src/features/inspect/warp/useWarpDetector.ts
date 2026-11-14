@@ -1,3 +1,5 @@
+import { isAndroid } from '../../../lib/native/environment';
+import { ensureOptionalModel } from '../../../lib/native/modelConsent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CheckResult } from '../../../contracts';
 import { EXACT_RESIZE, HIGH, LOW, SHORTEST_EDGE, warpPointToSource } from './preprocess';
@@ -185,6 +187,7 @@ export function useWarpDetector(assetId: string | null, bitmap: ImageBitmap | nu
     const id = ++runId.current;
     setState({ status: 'loading' });
     try {
+      if (isAndroid()) await ensureOptionalModel('warp');
       await preload();
       if (runId.current === id) setState({ status: 'idle' });
     } catch (error) {
@@ -198,6 +201,7 @@ export function useWarpDetector(assetId: string | null, bitmap: ImageBitmap | nu
     setState({ status: ready ? 'running' : 'loading' });
     let copy: ImageBitmap | null = null;
     try {
+      if (isAndroid()) await ensureOptionalModel('warp');
       await preload();
       if (runId.current !== id) return;
       // Transfer a copy; the open photo keeps its own bitmap.
