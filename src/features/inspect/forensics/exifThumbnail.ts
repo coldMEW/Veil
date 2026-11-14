@@ -65,6 +65,87 @@ export function extractExifThumbnail(bytes: Uint8Array): Uint8Array | null {
   } catch { return null; }
 }
 
+/**
+ * EXIF orientation of the main image (IFD0 tag 0x0112), 1 when absent or malformed. Browsers apply it
+ * to the main image but not to the embedded thumbnail, which carries no tag of its own, so a phone
+ * photo held upright would otherwise compare a sideways thumbnail with an upright image.
+ */
+export function exifOrientation(bytes: Uint8Array): number {
+  try {
+    if (bytes[0] !== 0xff || bytes[1] !== 0xd8) return 1;
+    let at = 2;
+    while (at < bytes.length) {
+      if (bytes[at] !== 0xff) return 1;
+      while (bytes[at] === 0xff) at++;
+      const marker = bytes[at++];
+      if (marker === undefined || marker === 0xda || marker === 0xd9 || marker === 0) return 1;
+      if (marker === 0x01 || marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd7)) continue;
+      if (at + 2 > bytes.length) return 1;
+      const length = bytes[at]! * 256 + bytes[at + 1]!;
+      if (length < 2 || at + length > bytes.length) return 1;
+      const payload = bytes.subarray(at + 2, at + length);
+      if (marker === 0xe1 && payload.length >= 14 && [0x45, 0x78, 0x69, 0x66, 0, 0].every((v, i) => payload[i] === v)) {
+        const tiff = payload.subarray(6), view = new DataView(tiff.buffer, tiff.byteOffset, tiff.byteLength);
+        const little = tiff[0] === 0x49 && tiff[1] === 0x49;
+        if (!little && !(tiff[0] === 0x4d && tiff[1] === 0x4d)) return 1;
+        if (view.getUint16(2, little) !== 42) return 1;
+        const ifd0 = view.getUint32(4, little);
+        if (ifd0 < 8 || ifd0 + 2 > tiff.length) return 1;
+        const count = view.getUint16(ifd0, little);
+        if (count > 1000 || ifd0 + 2 + count * 12 > tiff.length) return 1;
+        for (let i = 0; i < count; i++) {
+          const entry = ifd0 + 2 + i * 12;
+          if (view.getUint16(entry, little) !== 0x0112) continue;
+          if (view.getUint16(entry + 2, little) !== 3 || view.getUint32(entry + 4, little) !== 1) return 1;
+          const value = view.getUint16(entry + 8, little);
+          return value >= 1 && value <= 8 ? value : 1;
+        }
+        return 1;
+      }
+      at += length;
+    }
+    return 1;
+  } catch { return 1; }
+}
+
+/** Apply one of the eight EXIF orientations to RGBA pixels (5 to 8 swap width and height). */
+export function orientPixels(image: PixelImage, orientation: number): PixelImage {
+  if (orientation === 1 || !Number.isInteger(orientation) || orientation < 1 || orientation > 8) return image;
+  const { width: W, height: H, rgba } = image;
+  const swap = orientation >= 5;
+  const width = swap ? H : W, height = swap ? W : H;
+  const out = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      let sx: number, sy: number;
+      switch (orientation) {
+        case 2: sx = W - 1 - x; sy = y; break;
+        case 3: sx = W - 1 - x; sy = H - 1 - y; break;
+        case 4: sx = x; sy = H - 1 - y; break;
+        case 5: sx = y; sy = x; break;
+        case 6: sx = y; sy = H - 1 - x; break;
+        case 7: sx = W - 1 - y; sy = H - 1 - x; break;
+        default: sx = W - 1 - y; sy = x; break; // 8
+      }
+      const from = (sy * W + sx) * 4, to = (y * width + x) * 4;
+      out[to] = rgba[from]!; out[to + 1] = rgba[from + 1]!; out[to + 2] = rgba[from + 2]!; out[to + 3] = rgba[from + 3]!;
+    }
+  }
+  return { rgba: out, width, height };
+}
+
+/**
+ * Orient the thumbnail like the displayed main image. Only accepted when it brings the aspect ratios
+ * closer, so a browser that did not rotate the main image is not made worse.
+ */
+export function orientThumbnailLike(thumb: PixelImage, main: { width: number; height: number }, orientation: number): PixelImage {
+  const oriented = orientPixels(thumb, orientation);
+  if (oriented === thumb) return thumb;
+  const ratio = (a: { width: number; height: number }) => a.width / a.height;
+  const target = ratio(main);
+  return Math.abs(ratio(oriented) - target) < Math.abs(ratio(thumb) - target) ? oriented : thumb;
+}
+
 export interface ThumbnailComparison {
   aspectRatioDifference: number;
   meanDifference: number;

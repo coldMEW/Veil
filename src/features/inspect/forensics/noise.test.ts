@@ -59,3 +59,36 @@ describe('noise consistency evidence', () => {
     checked(noiseCheckResult('asset', grid));
   });
 });
+
+describe('noise consistency on textured scenes (regression, 2026-11-14)', () => {
+  it('finds a smooth pasted block among widely varying texture, which the linear scale missed', () => {
+    // 16 x 16 cells of 32 px: scene texture varies 30..120 (grass, deck), a 4 x 4 pasted block sits at 4.
+    const cols = 16, rows = 16, cell = 32;
+    let seed = 7;
+    const rand = () => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed / 2 ** 31; };
+    const values = Float32Array.from({ length: cols * rows }, (_, i) => {
+      const x = i % cols, y = Math.floor(i / cols);
+      return x >= 9 && x < 13 && y >= 9 && y < 13 ? 4 : 30 + rand() * 90;
+    });
+    const summary = noiseSummary({ values, cols, rows, cell, width: cols * cell, height: rows * cell });
+    expect(summary.regions).toHaveLength(1);
+    const [region] = summary.regions;
+    expect(region!.x).toBeCloseTo(9 / cols, 2);
+    expect(region!.y).toBeCloseTo(9 / rows, 2);
+  });
+
+  it('does not flag texture that varies widely but evenly', () => {
+    let seed = 11;
+    const rand = () => { seed = (seed * 1103515245 + 12345) % 2 ** 31; return seed / 2 ** 31; };
+    const values = Float32Array.from({ length: 256 }, () => 30 + rand() * 90);
+    expect(noiseSummary({ values, cols: 16, rows: 16, cell: 32, width: 512, height: 512 }).regions).toHaveLength(0);
+  });
+});
+
+describe('analysis bounds', () => {
+  it('accepts a full-size "12 MP" phone photo, the same limit intake allows', () => {
+    expect(analysisGeometry(4032, 3024)).toMatchObject({ width: 2048, height: 1536 });
+    expect(analysisGeometry(3024, 4032)).toMatchObject({ width: 1536, height: 2048 });
+    expect(() => analysisGeometry(4033, 3024)).toThrow(RangeError);
+  });
+});

@@ -1,3 +1,4 @@
+import { MAX_DECODED_PIXELS } from '../../../lib/runtime/imageIntake';
 import type { Overlay } from '../../../contracts';
 
 export interface PixelImage {
@@ -46,7 +47,7 @@ export function analysisGeometry(width: number, height: number): AnalysisGeometr
 
 export function assertDimensions(width: number, height: number): void {
   if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width <= 0 || height <= 0
-    || width * height > 12_000_000) throw new RangeError('Image dimensions are outside the supported bounds.');
+    || width * height > MAX_DECODED_PIXELS) throw new RangeError('Image dimensions are outside the supported bounds.');
 }
 
 export function assertPixels(rgba: Uint8ClampedArray, width: number, height: number): void {

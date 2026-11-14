@@ -44,18 +44,25 @@ export function noiseResidualGrid(rgba: Uint8ClampedArray, width: number, height
   return grid;
 }
 
+/** Lowest noise level used before taking a log, in Laplacian units. */
+const LOG_FLOOR = 0.25;
+
 export function noiseSummary(grid: CellGrid): NoiseSummary {
   assertGrid(grid);
   if (Array.from(grid.values).some((v) => !Number.isNaN(v) && (!Number.isFinite(v) || v < 0))) {
     throw new RangeError('Noise values must be nonnegative or skipped.');
   }
-  const values = Array.from(grid.values).filter(Number.isFinite), center = median(values), deviation = mad(values, center);
-  // Quantized low-noise cells can share exactly the same MAD. An epsilon
-  // denominator would exaggerate one-step differences. In this degenerate
-  // case use one grayscale Laplacian step in noise-level units instead.
+  const values = Array.from(grid.values).filter(Number.isFinite), center = median(values);
+  // Noise level is a scale, so regions are compared as ratios (log domain). In the linear domain the
+  // spread of textured scene areas (grass, foliage) swamped a pasted smooth region with a tenth of the
+  // noise; measured on 2026-11-14 the log domain found that splice and flagged fewer camera photos.
+  const logs = Array.from(grid.values, (v) => Number.isFinite(v) ? Math.log(Math.max(v, LOG_FLOOR)) : NaN);
+  const finiteLogs = logs.filter(Number.isFinite), logCenter = median(finiteLogs), deviation = mad(finiteLogs, logCenter);
+  // Quantized low-noise cells can share exactly the same MAD; an epsilon denominator would exaggerate
+  // one-step differences, so fall back to a fixed ratio (about +-28 percent per unit).
   const robustScale = deviation * 1.4826;
-  const denominator = robustScale > 1e-6 ? robustScale : 1.4826 / (4 * Math.sqrt(1.25));
-  const zScores = Float32Array.from(grid.values, (v) => Number.isFinite(v) ? (v - center) / denominator : NaN);
+  const denominator = robustScale > 1e-6 ? robustScale : 0.25;
+  const zScores = Float32Array.from(logs, (v) => Number.isFinite(v) ? (v - logCenter) / denominator : NaN);
   return { median: center, mad: deviation, zScale: denominator, zScores, usableCells: values.length,
     usableFraction: values.length / grid.values.length,
     regions: connectedRegions(grid, Array.from(zScores, (v) => Number.isFinite(v) && Math.abs(v) >= 3.5)) };
@@ -63,7 +70,7 @@ export function noiseSummary(grid: CellGrid): NoiseSummary {
 
 export function noiseCheckResult(assetId: string, grid: CellGrid, geometry?: AnalysisGeometry): CheckResult {
   const result = baseResult('noise', assetId), summary = noiseSummary(grid);
-  result.method = 'Luma Laplacian residual; per-cell MAD times 1.4826; robust regional z-scores.';
+  result.method = 'Luma Laplacian residual; per-cell MAD times 1.4826; robust regional z-scores of the log noise level (compared as ratios).';
   result.assumptions = ['Enough image cells contain measurable noise for a regional comparison.'];
   result.limitations = ['Smooth skies, blur, depth of field and heavy denoising change noise naturally.',
     'Generated images can have even noise everywhere, so an even map shows nothing either way.',
@@ -74,7 +81,7 @@ export function noiseCheckResult(assetId: string, grid: CellGrid, geometry?: Ana
     usableCells: summary.usableCells, usableFraction: summary.usableFraction, regions: summary.regions,
     cols: grid.cols, rows: grid.rows, cell: grid.cell, analysisWidth: grid.width, analysisHeight: grid.height,
     zThreshold: 3.5, zScale: summary.zScale,
-    zeroMadScale: 1.4826 / (4 * Math.sqrt(1.25)) };
+    zeroMadScale: 0.25, domain: 'log' };
   if (summary.usableCells < 20) {
     result.finding = 'not_applicable';
     result.reason = 'The image is too small or too flat to compare noise across regions.';

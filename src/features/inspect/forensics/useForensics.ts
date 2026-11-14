@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CheckResult, Execution } from '../../../contracts';
 import { readBitmap, recompressOnMain } from './browser';
-import { decodeThumbnail, extractExifThumbnail, thumbnailCheckResult } from './exifThumbnail';
+import { decodeThumbnail, exifOrientation, extractExifThumbnail, orientThumbnailLike, thumbnailCheckResult } from './exifThumbnail';
 import type { ForensicsRequest, ForensicsResponse, ForensicsStates } from './forensicsTypes';
 import { analysisGeometry } from './grid';
 import { CHECK_IDS, failureResult } from './results';
@@ -80,11 +80,14 @@ export function useForensics(assetId: string | null, bitmap: ImageBitmap | null,
       try {
         decoded = await decodeThumbnail(embedded);
         if (!active()) return;
-        const thumb = readBitmap(decoded), main = readBitmap(bitmap);
+        const main = readBitmap(bitmap), thumb = orientThumbnailLike(readBitmap(decoded), main, exifOrientation(bytes));
         send({ type: 'thumbnail', id, assetId, thumb, main }, [thumb.rgba.buffer as ArrayBuffer, main.rgba.buffer as ArrayBuffer]);
       } catch { finish('exif-thumbnail', failureResult('exif-thumbnail', assetId, 'failed', 'The embedded thumbnail could not be decoded.')); }
       finally { decoded?.close(); }
-    } catch { if (active()) failPending('failed', 'The image worker or pixel preparation is unavailable in this browser.'); }
+    } catch (error) {
+      const why = error instanceof Error ? error.message : String(error);
+      if (active()) failPending('failed', `The image worker or pixel preparation is unavailable in this browser (${why}).`);
+    }
   }, [assetId, bitmap, bytes, mimeType, stop]);
 
   const cancel = useCallback(() => { stop(); setStates(idle()); }, [stop]);
