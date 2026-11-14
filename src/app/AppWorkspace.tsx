@@ -282,7 +282,7 @@ export function AppWorkspace() {
             aria-label="Evidence"
             className="panel-light bg-panel px-5 pb-28 pt-6 lg:overflow-y-auto lg:border-l lg:border-line lg:px-7 lg:pb-8"
           >
-            <div data-testid="evidence-sheet" className="lg:hidden" aria-label="Evidence sheet" />
+            <div data-testid="evidence-sheet" className="block h-1 w-full lg:hidden" aria-label="Evidence sheet" />
             {/* New content appears at once and settles in; nothing waits on an exit. */}
             <motion.div
               key={tab}
