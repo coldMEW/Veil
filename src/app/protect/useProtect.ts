@@ -7,6 +7,36 @@ import { runProtect, PROTECT_LABEL } from '../../features/protect/protect';
 /** Same-origin copy of the pinned Hugging Face artifact (scripts/export/models.json, verified by SHA-256). */
 export const DIFFVAX_URL = '/models/diffvax/diffvax_immunizer.onnx';
 export const DIFFVAX_BYTES = 36_640_862;
+/** The pinned upstream file, used when the app does not carry its own copy (the Android build). */
+export const DIFFVAX_PINNED_URL =
+  'https://huggingface.co/coldmew/veil-diffvax-immunizer/resolve/7f45aabc2d6b9cf71452fdb49bf1acbe9957fb8e/diffvax_immunizer.onnx';
+const CACHE = 'veil-optional-models-v1';
+
+/** Same-origin copy first; then a verified cached download; then the pinned upstream file (cached after it verifies in load()). */
+async function getModelBytes(onProgress: (loaded: number, total: number) => void): Promise<Uint8Array> {
+  try {
+    const head = await fetch(DIFFVAX_URL, { method: 'HEAD' });
+    if (head.ok && (Number(head.headers.get('content-length')) || DIFFVAX_BYTES) > 1_000_000) return await fetchWithProgress(DIFFVAX_URL, onProgress);
+  } catch {
+    /* fall through */
+  }
+  if (typeof caches !== 'undefined') {
+    const hit = await (await caches.open(CACHE)).match(DIFFVAX_URL);
+    if (hit) {
+      const bytes = new Uint8Array(await hit.arrayBuffer());
+      onProgress(bytes.length, bytes.length);
+      return bytes;
+    }
+  }
+  return fetchWithProgress(DIFFVAX_PINNED_URL, onProgress, { credentials: 'omit', referrerPolicy: 'no-referrer' });
+}
+
+async function remember(bytes: Uint8Array) {
+  if (typeof caches === 'undefined') return;
+  const cache = await caches.open(CACHE);
+  if (await cache.match(DIFFVAX_URL)) return;
+  await cache.put(DIFFVAX_URL, new Response(bytes as BodyInit, { headers: { 'Content-Type': 'application/octet-stream' } }));
+}
 
 export type ProtectState =
   | { status: 'idle' }
@@ -37,8 +67,8 @@ function bitmapPixels(bitmap: ImageBitmap): Pixels {
   return { width: img.width, height: img.height, data: img.data };
 }
 
-async function fetchWithProgress(url: string, onProgress: (loaded: number, total: number) => void): Promise<Uint8Array> {
-  const res = await fetch(url);
+async function fetchWithProgress(url: string, onProgress: (loaded: number, total: number) => void, init?: RequestInit): Promise<Uint8Array> {
+  const res = await fetch(url, init);
   if (!res.ok || !res.body) throw new Error(`The protection model could not be downloaded (${res.status}).`);
   const total = Number(res.headers.get('content-length')) || DIFFVAX_BYTES;
   const reader = res.body.getReader();
@@ -88,7 +118,7 @@ export function useProtect(assetId: string | null, sha256: string | null, bitmap
     loading.current ??= (async () => {
       setState({ status: 'downloading', loaded: 0, total: DIFFVAX_BYTES });
       try {
-        const bytes = await fetchWithProgress(DIFFVAX_URL, (loaded, total) => setState({ status: 'downloading', loaded, total }));
+        const bytes = await getModelBytes((loaded, total) => setState({ status: 'downloading', loaded, total }));
         const gpu = typeof navigator !== 'undefined' && 'gpu' in navigator;
         const order: Array<'webgpu' | 'wasm'> = gpu ? ['webgpu', 'wasm'] : ['wasm'];
         let lastError: unknown = null;
@@ -105,6 +135,7 @@ export function useProtect(assetId: string | null, sha256: string | null, bitmap
           }
         }
         if (lastError) throw lastError;
+        void remember(bytes).catch(() => undefined); // only verified bytes reach here
         setState({ status: 'ready' });
       } catch (e) {
         setState({ status: 'failed', message: message(e) });
