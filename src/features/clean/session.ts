@@ -154,6 +154,37 @@ export interface CleanOutput {
 }
 
 /**
+ * Find inpainted pixels whose luma lies far outside the range of the real background just around the mask
+ * (1st..99th percentile of an 8-px ring, widened by `margin`). Returns a dilated mask of those pixels
+ * (restricted to the original mask), or null when the fill is plausible.
+ */
+export function fillOutliers(pixels: Pixels, mask: Mask, margin = 35, minBlob = 6): Mask | null {
+  const { width: w } = pixels;
+  const ring = dilate(mask, 8);
+  const lum = (i: number) => 0.299 * pixels.data[i * 4]! + 0.587 * pixels.data[i * 4 + 1]! + 0.114 * pixels.data[i * 4 + 2]!;
+  const ringL: number[] = [];
+  for (let i = 0; i < ring.data.length; i++) if (ring.data[i] && !mask.data[i]) ringL.push(lum(i));
+  if (ringL.length < 50) return null;
+  ringL.sort((a, b) => a - b);
+  const lo = ringL[Math.floor(ringL.length * 0.01)]! - margin;
+  const hi = ringL[Math.floor(ringL.length * 0.99)]! + margin;
+  const out = emptyMask(w, pixels.height);
+  let n = 0;
+  for (let i = 0; i < mask.data.length; i++) {
+    if (!mask.data[i]) continue;
+    const L = lum(i);
+    if (L < lo || L > hi) {
+      out.data[i] = 1;
+      n++;
+    }
+  }
+  if (n < minBlob) return null;
+  const grown = dilate(out, 6);
+  for (let i = 0; i < grown.data.length; i++) if (!mask.data[i]) grown.data[i] = 0;
+  return grown;
+}
+
+/**
  * Remove the approved region and export a fresh, metadata-free PNG, then verify the exported bytes.
  * `method` 'solid_redaction' never needs a model; 'migan_inpaint' requires `inpainter`.
  * Re-scan of target regions is done by the caller with the OCR engine on `verification.decoded`.
@@ -174,7 +205,17 @@ export async function runClean(opts: {
   let pixels: Pixels;
   if (method === 'migan_inpaint') {
     if (!opts.inpainter) throw new Error('migan_inpaint requires a loaded inpainter');
-    pixels = (await opts.inpainter.inpaint(src, mask, { maxSide: opts.inpaintMaxSide ?? 512 })).pixels;
+    const maxSide = opts.inpaintMaxSide ?? 512;
+    pixels = (await opts.inpainter.inpaint(src, mask, { maxSide })).pixels;
+    // Repair pass: MI-GAN occasionally emits a small near-white/near-black blob that depends on the working
+    // resolution (measured on a real photo: present at 512/768/1400, absent at 1024). Pixels far outside the
+    // brightness range of the real background ring are re-inpainted once at a different resolution.
+    const alts = maxSide === 1024 ? [768, 512] : [1024, 768];
+    for (const alt of alts) {
+      const outliers = fillOutliers(pixels, mask);
+      if (!outliers) break;
+      pixels = (await opts.inpainter.inpaint(pixels, outliers, { maxSide: alt })).pixels;
+    }
   } else {
     pixels = solidRedact(src, mask, opts.color ?? [0, 0, 0]);
   }

@@ -87,3 +87,31 @@ describe('auto-selection safety', () => {
     ]);
   });
 });
+
+describe('inpaint outlier repair', () => {
+  it('detects a bright blob inside a plausible fill and re-inpaints only it', async () => {
+    const { fillOutliers, runClean } = await import('./session');
+    const { rectsToMask } = await import('./mask');
+    const W = 60, H = 40;
+    const data = new Uint8ClampedArray(W * H * 4).fill(120);
+    for (let i = 3; i < data.length; i += 4) data[i] = 255;
+    const src = { width: W, height: H, data };
+    const mask = rectsToMask([{ x: 0.3, y: 0.3, w: 0.4, h: 0.4 }], W, H);
+    // plausible fill = same grey; bad fill = grey with a white 4x4 blob in the middle
+    const bad = { width: W, height: H, data: new Uint8ClampedArray(data) };
+    for (let y = 18; y < 22; y++) for (let x = 28; x < 32; x++) { const i = (y * W + x) * 4; bad.data[i] = bad.data[i + 1] = bad.data[i + 2] = 255; }
+    expect(fillOutliers(src, mask)).toBeNull();
+    expect(fillOutliers(bad, mask)).not.toBeNull();
+    const calls: number[] = [];
+    const inpainter = {
+      inpaint: async (_s: typeof src, _m: unknown, o?: { maxSide?: number }) => {
+        calls.push(o?.maxSide ?? 0);
+        return { pixels: calls.length === 1 ? bad : { width: W, height: H, data: new Uint8ClampedArray(data) } };
+      },
+    };
+    const r = await runClean({ src, srcSha256: 'x', mask, expansionPx: 0, method: 'migan_inpaint', inpainter, inpaintMaxSide: 1400 }).catch((e) => e);
+    // encodePng needs a browser canvas; in node we only assert the repair call sequence before export
+    expect(calls).toEqual([1400, 1024]);
+    void r;
+  });
+});
