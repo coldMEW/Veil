@@ -58,8 +58,8 @@ describe('report', () => {
 describe('clean session helpers', () => {
   it('pre-selects private categories only', () => {
     const c = candidatesFromOcr('a1', [
-      { rect: { x: 0, y: 0, w: 0.1, h: 0.1 }, text: '221B Baker St' },
-      { rect: { x: 0.5, y: 0.5, w: 0.1, h: 0.1 }, text: 'Welcome' },
+      { rect: { x: 0, y: 0, w: 0.1, h: 0.1 }, text: '221B Baker St', recScore: 0.95 },
+      { rect: { x: 0.5, y: 0.5, w: 0.1, h: 0.1 }, text: 'Welcome', recScore: 0.95 },
     ]);
     expect(c.map((x) => [x.category, x.selected])).toEqual([['address', true], ['other_text', false]]);
   });

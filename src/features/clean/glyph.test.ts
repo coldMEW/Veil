@@ -54,3 +54,36 @@ describe('glyph mask', () => {
     expect(maskArea(glyphMask(src, poly, { dilatePx: 0, polarity: 'any' }).mask)).toBe(6 * 3 * 20 + 70 * 5);
   });
 });
+
+describe('textRemovalMask', () => {
+  it('removes only text strokes inside the quad and never spreads past the clip quad', async () => {
+    const { textRemovalMask } = await import('./session');
+    const src = sign(100, 60);
+    const cand = {
+      id: 'c', assetId: 'a', category: 'address' as const, sourceMethod: 'ocr' as const, selected: true,
+      region: { x: 0.18, y: 0.3, w: 0.65, h: 0.4 },
+    };
+    const { mask } = textRemovalMask(src, [cand], { dilateMaxPx: 1, dilateMinPx: 1 });
+    // strokes are inside x 20..80, y 20..40; nothing may be marked in the sky (x >= 90) or far outside the quad
+    expect(maskArea(mask)).toBeGreaterThan(6 * 3 * 20 * 0.8);
+    for (let y = 0; y < 60; y++) for (let x = 90; x < 100; x++) expect(mask.data[y * 100 + x]).toBe(0);
+    expect(textRemovalMask(src, [{ ...cand, selected: false }]).mask.data.some((v) => v === 1)).toBe(false);
+  });
+});
+
+describe('auto-selection safety', () => {
+  it('does not pre-select low-confidence OCR reads (false detections on faces/texture)', async () => {
+    const { candidatesFromOcr } = await import('./session');
+    const rect = { x: 0.1, y: 0.1, w: 0.1, h: 0.05 };
+    const c = candidatesFromOcr('a', [
+      { rect, text: '105', recScore: 0.99 },
+      { rect, text: '18', recScore: 0.58 },
+      { rect, text: '221B Baker St', recScore: 0.9 },
+    ]);
+    expect(c.map((x) => [x.category, x.selected])).toEqual([
+      ['room_or_id_number', true],
+      ['room_or_id_number', false],
+      ['address', true],
+    ]);
+  });
+});

@@ -4,6 +4,7 @@ import { dilate, emptyMask, fillRect, type Mask, type Pixels } from './mask';
 import { solidRedact, type RGB } from './redact';
 import { maskSha256, sha256Hex } from './hash';
 import { encodePng, verifyExport, type ExportVerification } from './export';
+import { glyphMask, polygonMask } from './glyph';
 
 /** Shape produced by the OCR engine (src/features/clean/ocr). */
 export interface OcrBox {
@@ -14,13 +15,83 @@ export interface OcrBox {
   recScore?: number;
 }
 
+/**
+ * Tuned on real phone photos (street signs, room numbers): sample the background inside a slightly grown
+ * text quad, mask only text-coloured pixels, dilate in proportion to text height (blurred photo text has a
+ * soft halo), and clip to a modestly grown quad so nearby edges/structures are never repainted.
+ */
+export const TEXT_REMOVAL_DEFAULTS = {
+  threshold: 30,
+  dilateFraction: 0.2,
+  dilateMaxPx: 20,
+  dilateMinPx: 4,
+  sampleGrow: [1.06, 1.08] as const,
+  clipGrow: [1.1, 1.12] as const,
+  /** Thin glyph holes inpaint sharpest at native resolution (up to this side length). */
+  inpaintMaxSide: 1400,
+};
+
+function growQuad(quad: Point[], fx: number, fy: number): Point[] {
+  const cx = quad.reduce((s, p) => s + p.x, 0) / quad.length;
+  const cy = quad.reduce((s, p) => s + p.y, 0) / quad.length;
+  return quad.map((p) => ({ x: cx + (p.x - cx) * fx, y: cy + (p.y - cy) * fy }));
+}
+
+function quadOf(c: PrivacyCandidate): Point[] {
+  return (
+    c.quad ?? [
+      { x: c.region.x, y: c.region.y },
+      { x: c.region.x + c.region.w, y: c.region.y },
+      { x: c.region.x + c.region.w, y: c.region.y + c.region.h },
+      { x: c.region.x, y: c.region.y + c.region.h },
+    ]
+  );
+}
+
+/**
+ * One combined removal mask for all selected candidates. 'glyph' candidates (default for OCR text) remove
+ * only text strokes; 'region' and manual candidates remove the whole region. Inpaint the union ONCE:
+ * re-inpainting overlapping crops one by one creates artefacts.
+ */
+export function textRemovalMask(
+  src: Pixels,
+  candidates: PrivacyCandidate[],
+  opts: Partial<typeof TEXT_REMOVAL_DEFAULTS> = {},
+): { mask: Mask; dilatePx: number } {
+  const o = { ...TEXT_REMOVAL_DEFAULTS, ...opts };
+  const out = emptyMask(src.width, src.height);
+  let maxDil = 0;
+  for (const c of candidates) {
+    if (!c.selected) continue;
+    if (c.removal === 'region' || c.sourceMethod === 'manual') {
+      fillRect(out, c.region);
+      continue;
+    }
+    const quad = quadOf(c);
+    const d = Math.min(o.dilateMaxPx, Math.max(o.dilateMinPx, Math.round(o.dilateFraction * c.region.h * src.height)));
+    maxDil = Math.max(maxDil, d);
+    const g = glyphMask(src, growQuad(quad, o.sampleGrow[0], o.sampleGrow[1]), { threshold: o.threshold, dilatePx: d }).mask;
+    const clip = polygonMask(growQuad(quad, o.clipGrow[0], o.clipGrow[1]), src.width, src.height);
+    for (let i = 0; i < g.data.length; i++) if (g.data[i] && clip.data[i]) out.data[i] = 1;
+  }
+  return { mask: out, dilatePx: maxDil };
+}
+
 let seq = 0;
 const newId = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString(36)}`;
+
+/**
+ * Minimum recognizer score for a candidate to be PRE-selected. Low-confidence reads are often false
+ * detections on faces, hair or texture (measured on a real selfie: a 0.58 "number" on a forehead vs 0.985+
+ * for the real room number). They are still listed for the person to review, just not pre-selected.
+ */
+export const AUTO_SELECT_MIN_SCORE = 0.85;
 
 /** OCR boxes -> privacy candidates. Text stays in memory only. */
 export function candidatesFromOcr(assetId: string, boxes: OcrBox[]): PrivacyCandidate[] {
   return boxes.map((b) => {
     const { category } = classifyText(b.text);
+    const confident = (b.recScore ?? 0) >= AUTO_SELECT_MIN_SCORE;
     return {
       id: newId('cand'),
       assetId,
@@ -31,7 +102,7 @@ export function candidatesFromOcr(assetId: string, boxes: OcrBox[]): PrivacyCand
       removal: 'glyph',
       text: b.text,
       score: b.recScore,
-      selected: DEFAULT_SELECTED.has(category),
+      selected: DEFAULT_SELECTED.has(category) && confident,
     };
   });
 }
@@ -68,7 +139,7 @@ export function defaultExpansionPx(candidates: PrivacyCandidate[], height: numbe
 }
 
 export interface Inpainter {
-  inpaint(src: Pixels, mask: Mask): Promise<{ pixels: Pixels }>;
+  inpaint(src: Pixels, mask: Mask, opts?: { maxSide?: number }): Promise<{ pixels: Pixels }>;
 }
 
 export interface CleanOutput {
@@ -90,6 +161,8 @@ export async function runClean(opts: {
   expansionPx: number;
   method: Extract<TransformMethod, 'solid_redaction' | 'migan_inpaint'>;
   inpainter?: Inpainter;
+  /** Max model input side. 512 for large regions; TEXT_REMOVAL_DEFAULTS.inpaintMaxSide for thin glyph masks. */
+  inpaintMaxSide?: number;
   modelSha256?: string;
   color?: RGB;
 }): Promise<CleanOutput> {
@@ -97,7 +170,7 @@ export async function runClean(opts: {
   let pixels: Pixels;
   if (method === 'migan_inpaint') {
     if (!opts.inpainter) throw new Error('migan_inpaint requires a loaded inpainter');
-    pixels = (await opts.inpainter.inpaint(src, mask)).pixels;
+    pixels = (await opts.inpainter.inpaint(src, mask, { maxSide: opts.inpaintMaxSide ?? 512 })).pixels;
   } else {
     pixels = solidRedact(src, mask, opts.color ?? [0, 0, 0]);
   }
