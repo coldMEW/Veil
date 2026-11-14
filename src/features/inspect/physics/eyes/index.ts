@@ -57,6 +57,9 @@ function cropPixels(p: Pixels, r: PixelCrop): Pixels {
 }
 
 /** Luma is alpha-composited onto dark; invisible RGB cannot create a visible highlight. */
+/** Minimum luma difference between a crop's brightest pixel and its median for any highlight to count. */
+export const MIN_HIGHLIGHT_CONTRAST = 25;
+
 export function extractHighlights(crop: Pixels): Highlight[] {
   validatePixels(crop);
   const { width, height, data } = crop,
@@ -66,9 +69,14 @@ export function extractHighlights(crop: Pixels): Highlight[] {
     const j = i * 4;
     luma[i] = (0.2126 * data[j]! + 0.7152 * data[j + 1]! + 0.0722 * data[j + 2]!) * (data[j + 3]! / 255);
   }
-  // Nearest-rank 99th percentile of the crop's actual (not histogram-quantized) luma.
+  // Relative threshold: a highlight must be at least halfway from the crop's median to its maximum and
+  // above the 99th percentile. A fixed absolute floor (e.g. 220) misses the dim, diffuse catchlights of
+  // ordinary indoor phone photos (measured: iris median ~45, catchlight peak ~117-133).
   const ordered = luma.slice().sort();
-  const threshold = Math.max(220, ordered[Math.max(0, Math.ceil(area * 0.99) - 1)]!);
+  const median = ordered[Math.floor(area / 2)]!;
+  const max = ordered[area - 1]!;
+  if (max - median < MIN_HIGHLIGHT_CONTRAST) return [];
+  const threshold = Math.max(ordered[Math.max(0, Math.ceil(area * 0.99) - 1)]!, median + 0.5 * (max - median));
   const seen = new Uint8Array(area),
     queue = new Int32Array(area),
     highlights: Highlight[] = [];
@@ -106,6 +114,8 @@ export function extractHighlights(crop: Pixels): Highlight[] {
         }
     }
     if (tail < 2 || tail > area * 0.15) continue;
+    // Components touching the crop edge are usually sclera or skin entering a loose crop, not reflections.
+    if (minX === 0 || minY === 0 || maxX === width - 1 || maxY === height - 1) continue;
     highlights.push({
       centroid: { x: sumX / tail / width, y: sumY / tail / height },
       area: tail,
@@ -170,7 +180,7 @@ export function eyeObservation(
     title: 'Eye highlights',
     source: 'live',
     method:
-      'Manual eye crops; luma threshold max(220, crop 99th percentile); ' +
+      'Manual eye crops; luma threshold max(crop 99th percentile, halfway from median to maximum), min contrast 25; ' +
       'eight-connected bright components, size filtering and pixel-center centroids.',
     observation: `${describe('left', lh)}; ${describe('right', rh)}.`,
     reason: applicable
