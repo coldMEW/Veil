@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { AI_HIGH, AI_LOW, aiProbabilityDrops, CROP, cropGeometry, normalizeMagnitudes, occlude, selectFocusGrid, toAiOverlay, toChw } from './preprocess';
+import { AI_HIGH, AI_LOW, aiProbabilityDrops, CROP, cropGeometry, normalizeMagnitudes, occlude, outputBand, selectFocusGrid, toAiOverlay, toChw, viewWindows } from './preprocess';
 import { validateCheckResult } from '../../../contracts';
-import { toCheckResult } from './useModelFocus';
+import { emptyMapCaption, outputSummary, toCheckResult } from './useModelFocus';
 import type { FocusResult } from './focusTypes';
 
 describe('cropGeometry', () => {
@@ -154,7 +154,7 @@ describe('AI-signal observation', () => {
     const check = toCheckResult('asset', result);
     expect(validateCheckResult(check)).toEqual([]);
     expect(check).toMatchObject({ kind: 'model', finding: 'inconclusive', assetId: 'asset', source: 'live' });
-    expect(check.observation).toMatch(/^Strongest AI-signal area: lower left of the model crop\. Covering it lowers the detector's AI output by \d+ points\.$/);
+    expect(check.observation).toMatch(/^This detector's output leans strongly toward "AI-generated" on the centre crop\. Strongest AI-signal area: lower left of the model crop\. Covering it lowers the detector's AI output by \d+ points\.$/);
     expect(check.evidence).toMatchObject({ rawOutput: 3.25, deltas: Array.from(result.deltas) });
     expect(check.evidence.thresholds).toEqual({ low: AI_LOW, high: AI_HIGH, units: 'probability points (sigmoid drop)', purpose: 'display only' });
     expect(check.evidence.signConvention).toContain('Higher logits support AI-generated');
@@ -167,9 +167,75 @@ describe('AI-signal observation', () => {
   it('reports no above-threshold area for weak or purely negative responses', () => {
     for (const [deltas, logit] of [[new Float32Array(9).fill(1.4), -7.65], [new Float32Array(9).fill(-10), 3.25], [new Float32Array(9), 0]] as const) {
       const check = toCheckResult('asset', { ...result, deltas, logit });
-      expect(check.observation).toBe("No area raised this detector's AI output by 5 points or more.");
+      expect(check.observation).toMatch(/No area raised this detector's AI output by 5 points or more\.$/);
       expect(check.finding).toBe('inconclusive');
       expect(validateCheckResult(check)).toEqual([]);
     }
+  });
+
+  it('leads with the output band and explains an empty heatmap when the output is saturated', () => {
+    const saturated = toCheckResult('asset', { ...result, logit: 9.8, deltas: new Float32Array(9).fill(0.3) });
+    expect(saturated.observation).toBe(
+      `This detector's output leans strongly toward "AI-generated" on the centre crop. The heatmap stays empty because the output is saturated: covering any one area of the centre crop does not lower it by 5 points.`,
+    );
+    expect(validateCheckResult(saturated)).toEqual([]);
+    const raised = toCheckResult('asset', { ...result, logit: -1, deltas: new Float32Array(9) });
+    expect(raised.observation.startsWith("This detector's output is raised but stays under the 0.5 display line on the centre crop.")).toBe(true);
+    const low = toCheckResult('asset', { ...result, logit: -7.65, deltas: new Float32Array(9).fill(1.4) });
+    expect(low.observation).toBe("This detector's output stays low on the centre crop. No area raised this detector's AI output by 5 points or more.");
+  });
+
+  it('counts whole views and keeps them in the evidence', () => {
+    const views = [
+      { label: 'center' as const, logit: -6, crop: result.crop },
+      { label: 'start' as const, logit: 4, crop: result.crop },
+      { label: 'end' as const, logit: 0.2, crop: result.crop },
+    ];
+    const r = { ...result, logit: -6, deltas: new Float32Array(9), views };
+    expect(outputSummary(r)).toEqual({ band: 'strong', count: 1, views: 3, maxLogit: 4 });
+    const check = toCheckResult('asset', r);
+    expect(check.observation.startsWith(`This detector's output leans strongly toward "AI-generated" in 1 of 3 views of the photo.`)).toBe(true);
+    expect((check.evidence.views as Array<{ band: string }>).map((v) => v.band)).toEqual(['low', 'strong', 'leans']);
+    expect(toCheckResult('asset', { ...r, views: views.map((v) => ({ ...v, logit: -5 })) }).observation.startsWith("This detector's output stays low in all 3 views of the photo.")).toBe(true);
+  });
+
+  it('never captions an empty heatmap as "no AI signal" when the output is high', () => {
+    const empty = new Float32Array(9);
+    expect(emptyMapCaption({ ...result, logit: 9.8, deltas: empty })).toBe(
+      'Output already very high: no single area stands out.',
+    );
+    expect(emptyMapCaption({ ...result, logit: 0.3, deltas: empty })).toBe('Output already high: no single area stands out.');
+    expect(emptyMapCaption({ ...result, logit: -1, deltas: empty })).toBe('Output raised, but no single area stands out.');
+    expect(emptyMapCaption({ ...result, logit: -8, deltas: empty })).toBe('No area raised the AI signal.');
+  });
+
+  it('keeps verdict words out of the result', () => {
+    for (const logit of [-8, 0.3, 9.8]) {
+      const check = toCheckResult('asset', { ...result, logit, deltas: new Float32Array(9) });
+      expect(check.observation).not.toMatch(/\b(real|fake|authentic|genuine|forged|tampered)\b/i);
+      expect(JSON.stringify(check)).not.toMatch(/\d+\s?%/);
+    }
+  });
+});
+
+describe('detector output bands and views', () => {
+  it('bands the sigmoid output at 0.5 and 0.9', () => {
+    expect(outputBand(-7.65)).toBe('low');
+    expect(outputBand(0.1)).toBe('leans');
+    expect(outputBand(2.3)).toBe('strong');
+    expect(() => outputBand(NaN)).toThrow();
+  });
+
+  it('adds both ends of the long edge at the model scale, centre first', () => {
+    const portrait = viewWindows(cropGeometry(3024, 4032)); // 440 x 586
+    expect(portrait.map((w) => [w.label, w.left, w.top])).toEqual([['center', 28, 101], ['start', 28, 0], ['end', 28, 202]]);
+    expect(portrait[2]!.source.y + portrait[2]!.source.height).toBeCloseTo(586 * (4032 / 586), 6);
+    const landscape = viewWindows(cropGeometry(1184, 864));
+    expect(landscape.map((w) => w.label)).toEqual(['center', 'start', 'end']);
+    expect(landscape.every((w) => w.top === 28)).toBe(true);
+  });
+
+  it('uses only the centre crop for square photos', () => {
+    expect(viewWindows(cropGeometry(1000, 1000)).map((w) => w.label)).toEqual(['center']);
   });
 });

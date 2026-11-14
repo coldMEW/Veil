@@ -14,7 +14,50 @@ export const STD = [0.26862954, 0.26130258, 0.27577711] as const;
 export const AI_LOW = 0.05;
 export const AI_HIGH = 0.2;
 
-const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
+// Display bands on the detector's own sigmoid output for a whole 384 view. Uncalibrated display
+// choices: on 2026-11-14, 7 real phone photos scored at most 0.001 in every view, and one image
+// whose metadata declared an AI source scored 1.000 in every view, before and after its metadata was
+// stripped. Too few images to call this an error rate.
+export const OUTPUT_LEANS = 0.5;
+/** Wording only: outputs from here to OUTPUT_LEANS are described as raised, never as low. */
+export const OUTPUT_RAISED = 0.1;
+export const OUTPUT_STRONG = 0.9;
+/** At or above this output, covering one cell rarely moves it, so an empty heatmap means "saturated". */
+export const OUTPUT_SATURATED = 0.99;
+
+export const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
+
+export type OutputBand = 'strong' | 'leans' | 'low';
+
+export function outputBand(logit: number): OutputBand {
+  if (!Number.isFinite(logit)) throw new Error('The model produced a non-finite output.');
+  const p = sigmoid(logit);
+  return p >= OUTPUT_STRONG ? 'strong' : p >= OUTPUT_LEANS ? 'leans' : 'low';
+}
+
+export type ViewLabel = 'start' | 'center' | 'end';
+
+/**
+ * Up to three 384 windows at the model's own scale (short edge 440): the centre crop the model card
+ * uses, plus both ends of the long edge, so the model sees the whole photo except a thin strip of the
+ * short edge. Square-ish images, where the ends coincide with the centre, get fewer windows.
+ */
+export function viewWindows(g: CropGeometry): Array<{ label: ViewLabel; left: number; top: number; source: CropGeometry['source'] }> {
+  const sx = g.source.width / CROP;
+  const sy = g.source.height / CROP;
+  const landscape = g.resizedWidth > g.resizedHeight;
+  const span = (landscape ? g.resizedWidth : g.resizedHeight) - CROP;
+  const at = (label: ViewLabel, offset: number) => {
+    const left = landscape ? offset : g.left;
+    const top = landscape ? g.top : offset;
+    return { label, left, top, source: { x: left * sx, y: top * sy, width: CROP * sx, height: CROP * sy } };
+  };
+  const centre = landscape ? g.left : g.top;
+  const out = [at('center', centre)];
+  // Ends that overlap the centre by more than three quarters add little, so near-square photos keep one view.
+  if (span >= CROP / 4) out.push(at('start', 0), at('end', span));
+  return out;
+}
 
 /** How much each cell raises the detector's AI output: sigmoid(base) - sigmoid(base - delta), positive only. */
 export function aiProbabilityDrops(deltas: ArrayLike<number>, baseLogit: number): Float32Array {

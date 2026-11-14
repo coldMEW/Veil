@@ -14,6 +14,12 @@ export interface FocusResult {
   grid: number;
   /** The model's 384 crop in original image pixels. */
   crop: { x: number; y: number; width: number; height: number };
+  /**
+   * The detector's raw output on each whole 384 window (centre crop first, then the ends of the long
+   * edge). No occlusion: these say what the model output; the heatmap says where it came from.
+   * Results without it are treated as the centre crop only.
+   */
+  views?: Array<{ label: 'start' | 'center' | 'end'; logit: number; crop: { x: number; y: number; width: number; height: number } }>;
   backend: 'wasm' | 'webgpu';
   threads: number;
   timings: { loadMs: number; baseMs: number; occlusionMs: number; preprocessMs?: number; totalMs?: number };
