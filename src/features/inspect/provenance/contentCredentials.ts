@@ -3,7 +3,7 @@
 // verified by the reference implementation, not hand-parsed. The Wasm is served from this origin.
 // Nothing is uploaded; the SDK runs in its own worker.
 
-import { createC2pa, Reader, type C2pa } from '@contentauth/c2pa-web';
+import { createC2pa, Context, Reader, type C2pa } from '@contentauth/c2pa-web';
 import wasmSrc from '@contentauth/c2pa-web/resources/c2pa.wasm?url';
 import type { CheckResult } from '../../../contracts';
 
@@ -57,6 +57,23 @@ export interface ProvenanceResult {
 }
 
 let c2paPromise: Promise<C2pa> | null = null;
+
+/**
+ * Keep credential inspection local: do not fetch remote manifests, revocation
+ * data, or trust lists. The result records that signer trust is unknown.
+ */
+export const OFFLINE_SETTINGS = {
+  verify: {
+    verifyAfterReading: true,
+    verifyTrust: false,
+    verifyTimestampTrust: false,
+    remoteManifestFetch: false,
+    ocspFetch: false,
+  },
+  trust: { verifyTrustList: false },
+  cawgTrust: { verifyTrustList: false },
+} as const;
+
 function getC2pa(): Promise<C2pa> {
   c2paPromise ??= createC2pa({ wasmSrc });
   return c2paPromise;
@@ -144,7 +161,12 @@ export async function readProvenance(bytes: Uint8Array, mimeType: string): Promi
   let error: string | null = null;
   try {
     const c2pa = await getC2pa();
-    const reader = await Reader.fromBlob(c2pa, mimeType, new Blob([bytes as BlobPart], { type: mimeType }));
+    const reader = await Reader.fromBlob(
+      c2pa,
+      mimeType,
+      new Blob([bytes as BlobPart], { type: mimeType }),
+      new Context(OFFLINE_SETTINGS),
+    );
     if (reader) {
       try {
         credentials = summarizeManifestStore(await reader.manifestStore());
