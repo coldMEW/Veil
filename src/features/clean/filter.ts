@@ -19,11 +19,17 @@ const ZIP = /^\d{5}(-\d{4})?$/;
 
 const digitCount = (s: string) => (s.match(/\d/g) ?? []).length;
 
-/** Plate-like: 5-8 alphanumerics mixing letters and digits, at most one space/dash. */
+/**
+ * Plate-like: an alphanumeric core of 5-8 characters mixing letters and digits (>= 2 digits), with at most
+ * 2 extra separator/noise characters. Small real plates are often read with a stray symbol or a missing
+ * space (measured on a phone photo: a ~100 px wide plate read as 7 chars with one noise char).
+ */
 function isPlateLike(t: string): boolean {
-  if (!/^[A-Z0-9]+([\s-][A-Z0-9]+)?$/i.test(t)) return false;
-  const compact = t.replace(/[\s-]/g, '');
-  return /^[A-Z0-9]{5,8}$/i.test(compact) && /[A-Z]/i.test(compact) && /\d/.test(compact);
+  const compact = t.replace(/[^A-Z0-9]/gi, '');
+  if (compact.length < 5 || compact.length > 8) return false;
+  if (t.replace(/\s/g, '').length - compact.length > 2) return false;
+  if (t.trim().split(/\s+/).length > 3) return false;
+  return /[A-Z]/i.test(compact) && digitCount(compact) >= 2;
 }
 
 export function classifyText(raw: string): FilterResult {

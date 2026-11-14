@@ -12,7 +12,8 @@ import { glyphMask, polygonMask } from '../../src/features/clean/glyph';
 import { emptyMask, type Mask, type Pixels } from '../../src/features/clean/mask';
 import { MiganInpainter, MIGAN_MODEL } from '../../src/features/clean/inpaint';
 import { candidatesFromOcr, rescanExport, runClean, textRemovalMask, TEXT_REMOVAL_DEFAULTS, type CleanOutput } from '../../src/features/clean/session';
-import { changedOutsideMask } from '../../src/features/clean/redact';
+import { changedOutsideMask, pixelate } from '../../src/features/clean/redact';
+import { rectsToMask } from '../../src/features/clean/mask';
 import { buildReport, canonicalJson } from '../../src/features/report/report';
 import type { ImageAsset, Point, TransformRecord } from '../../src/contracts';
 
@@ -59,7 +60,17 @@ async function handle(file: File) {
   const inpainter = new MiganInpainter();
   await inpainter.load('/models/migan/' + MIGAN_MODEL.file, (q.get('backend') as 'wasm' | 'webgpu') ?? 'webgpu');
   const tClean = performance.now();
+  // Manual face regions (no face detector yet): pixelate before text removal; included in the export.
+  const faces = JSON.parse(q.get('faces') ?? '[]') as { x: number; y: number; w: number; h: number }[];
   let current = src;
+  // Pixels allowed to change = text mask (inpainted) + face regions (pixelated). The inpaint mask stays text-only.
+  const allowed = { ...fullMask, data: fullMask.data.slice() };
+  for (const f of faces) {
+    const fm = rectsToMask([f], src.width, src.height);
+    current = pixelate(current, fm, Math.max(12, Math.round((f.w * src.width) / 8)));
+    for (let i = 0; i < fm.data.length; i++) if (fm.data[i]) allowed.data[i] = 1;
+  }
+  if (faces.length && !masks.length) masks.push(emptyMask(src.width, src.height)); // still export once
   const transforms: TransformRecord[] = [];
   let last: CleanOutput | undefined;
   for (const m of masks) {
@@ -101,7 +112,7 @@ async function handle(file: File) {
   const result = {
     input: { bytes: bytes.byteLength, width: src.width, height: src.height, metadataBlocks: inMeta.metadataBlocks },
     ocr: { boxes: boxes.length, byCategory: byCat, scanMs: Math.round(scanMs) },
-    clean: { regions: perCandidate.length, regionHeightsPx: selected.map((c) => Math.round(c.region.h * src.height)), maskAreaPx: fullMask.data.reduce((s, v) => s + v, 0), inpaintPasses: masks.length, dilatePx: dil, changedOutsideMask: changedOutsideMask(src, current, fullMask), ms: Math.round(cleanMs) },
+    clean: { regions: perCandidate.length, regionHeightsPx: selected.map((c) => Math.round(c.region.h * src.height)), maskAreaPx: fullMask.data.reduce((s, v) => s + v, 0), inpaintPasses: masks.length, dilatePx: dil, changedOutsideMask: changedOutsideMask(src, current, allowed), ms: Math.round(cleanMs) },
     export: v ? { sha256: v.sha256, metadataBlocks: v.metadata.metadataBlocks, roundTripMismatches: v.roundTripMismatches } : null,
     rescan: { stillDetectedInSelected: rescan.stillDetected.length, selected: selected.length, totalBoxes: rescan.totalBoxes, ms: Math.round(rescanMs) },
     privacyStatement: report.clean.privacyStatement,

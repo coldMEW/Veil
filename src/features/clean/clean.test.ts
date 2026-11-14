@@ -164,3 +164,41 @@ describe('hashing', () => {
     expect(a).not.toBe(b);
   });
 });
+
+describe('fillHoles', () => {
+  it('fills an enclosed unmasked island but not open background', async () => {
+    const { fillHoles, emptyMask, maskArea } = await import('./mask');
+    const m = emptyMask(10, 10);
+    // ring from (2,2) to (6,6) with a 3x3 hole inside
+    for (let y = 2; y <= 6; y++) for (let x = 2; x <= 6; x++) m.data[y * 10 + x] = 1;
+    for (let y = 3; y <= 5; y++) for (let x = 3; x <= 5; x++) m.data[y * 10 + x] = 0;
+    const f = fillHoles(m);
+    expect(maskArea(f)).toBe(25);
+    expect(f.data[0]).toBe(0);
+    // an open C-shape (gap to the outside) is not filled
+    m.data[4 * 10 + 6] = 0;
+    m.data[4 * 10 + 5] = 0;
+    expect(fillHoles(m).data[4 * 10 + 4]).toBe(0);
+  });
+});
+
+describe('plate rule and pixelate', () => {
+  it('accepts noisy small-plate reads but not ordinary words or short numbers', () => {
+    expect(classifyText('43E.4A7').category).toBe('plate');
+    expect(classifyText('ABC 1234').category).toBe('plate');
+    expect(classifyText('7ABC123').category).toBe('plate');
+    expect(classifyText('18').category).not.toBe('plate');
+    expect(classifyText('Silverado').category).not.toBe('plate');
+    expect(classifyText('A1').category).not.toBe('plate');
+  });
+  it('pixelate changes only masked pixels and makes each block uniform', async () => {
+    const { pixelate } = await import('./redact');
+    const src = gradient(16, 16);
+    const mask = rectsToMask([{ x: 0, y: 0, w: 0.5, h: 0.5 }], 16, 16);
+    const out = pixelate(src, mask, 4);
+    expect(changedOutsideMask(src, out, mask)).toBe(0);
+    const at = (x: number, y: number) => out.data[(y * 16 + x) * 4];
+    expect(at(0, 0)).toBe(at(3, 3));
+    expect(() => pixelate(src, mask, 1)).toThrow();
+  });
+});

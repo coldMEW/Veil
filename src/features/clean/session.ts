@@ -1,6 +1,6 @@
 import type { PrivacyCandidate, Point, Rect, TransformMethod, TransformRecord } from '../../contracts';
 import { DEFAULT_SELECTED, classifyText } from './filter';
-import { dilate, emptyMask, fillRect, type Mask, type Pixels } from './mask';
+import { dilate, emptyMask, fillHoles, fillRect, type Mask, type Pixels } from './mask';
 import { solidRedact, type RGB } from './redact';
 import { maskSha256, sha256Hex } from './hash';
 import { encodePng, verifyExport, type ExportVerification } from './export';
@@ -74,7 +74,7 @@ export function textRemovalMask(
     const clip = polygonMask(growQuad(quad, o.clipGrow[0], o.clipGrow[1]), src.width, src.height);
     for (let i = 0; i < g.data.length; i++) if (g.data[i] && clip.data[i]) out.data[i] = 1;
   }
-  return { mask: out, dilatePx: maxDil };
+  return { mask: fillHoles(out), dilatePx: maxDil };
 }
 
 let seq = 0;
@@ -86,12 +86,16 @@ const newId = (p: string) => `${p}_${Date.now().toString(36)}_${(seq++).toString
  * for the real room number). They are still listed for the person to review, just not pre-selected.
  */
 export const AUTO_SELECT_MIN_SCORE = 0.85;
+export const PLATE_AUTO_SELECT_MIN_SCORE = 0.5;
 
 /** OCR boxes -> privacy candidates. Text stays in memory only. */
 export function candidatesFromOcr(assetId: string, boxes: OcrBox[]): PrivacyCandidate[] {
   return boxes.map((b) => {
     const { category } = classifyText(b.text);
-    const confident = (b.recScore ?? 0) >= AUTO_SELECT_MIN_SCORE;
+    // Plate-shaped reads (5-8 mixed letters+digits) almost never come from faces/texture, and small real
+    // plates read with low scores, so they are pre-selected from a lower score.
+    const minScore = category === 'plate' ? PLATE_AUTO_SELECT_MIN_SCORE : AUTO_SELECT_MIN_SCORE;
+    const confident = (b.recScore ?? 0) >= minScore;
     return {
       id: newId('cand'),
       assetId,
