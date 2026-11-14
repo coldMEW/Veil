@@ -11,10 +11,11 @@ Read the externally supplied team plan (kept outside this repository) before wor
 ## Ownership
 | Path | Owner |
 |---|---|
-| `src/features/inspect/physics/` | Sushant |
+| `src/features/inspect/physics/shadow/`, shadow annotation UI | Sandeep (reassigned from Sushant, see Decisions and Contracts) |
+| `src/features/inspect/physics/eyes/`, physics fixtures + acceptance, Inspect wording review | Bibek (reassigned from Sushant) |
 | `src/app/`, `src/components/`, `src/styles/`, `src/features/inspect/model/`, `src/lib/runtime/`, `public/`, CI/deploy | Sandeep |
 | `src/features/clean/`, `src/features/protect/`, `src/features/report/`, `src/features/inspect/spectrum/`, `src/features/inspect/provenance/`, `scripts/eval/`, `scripts/export/`, `tests/e2e/` | Bibek |
-| `src/contracts/` | Bibek (schema), Sandeep (integration review), Sushant (physics fields) |
+| `src/contracts/` | Bibek (schema), Sandeep (integration review), Sandeep (shadow fields), Bibek (eye fields) |
 
 Edit a contract only after posting the proposed change in Decisions and Contracts.
 
