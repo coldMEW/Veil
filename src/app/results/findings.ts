@@ -10,6 +10,7 @@ import type { WarpState } from '../../features/inspect/warp/useWarpDetector';
 import { HIGH as WARP_HIGH, LOW as WARP_LOW } from '../../features/inspect/warp/preprocess';
 import type { ProvenanceState } from '../inspect/useProvenance';
 import type { CameraHints } from '../../features/inspect/provenance/cameraHints';
+import type { ForensicsState } from '../../features/inspect/forensics/useForensics';
 
 /** alert = red flag, notice = amber flag, clear = this check found nothing, neutral = nothing to go on. */
 export type FindingTone = 'alert' | 'notice' | 'clear' | 'neutral' | 'pending' | 'idle';
@@ -219,3 +220,43 @@ export const LEVEL_TEXT: Record<EvidenceLevel, { title: string; body: string }> 
   none: { title: 'No signs found', body: 'Not proof it came from a camera.' },
   unknown: { title: 'Not enough to go on', body: 'No check could measure this photo.' },
 };
+
+type ForensicKey = 'ela' | 'noise' | 'thumbnail';
+const FORENSIC: Record<ForensicKey, { id: string; title: string; group: EvidenceGroup; basis: string; limits: string; flag: string; even: string; na: string }> = {
+  thumbnail: {
+    id: 'exif-thumbnail', title: 'Embedded preview', group: 'provenance',
+    basis: 'Cameras save a small preview inside the file. Edits made later often leave the old preview behind.',
+    limits: 'Some apps rotate, crop or regenerate the preview; a match shows nothing either way.',
+    flag: 'Preview differs from the photo', even: 'Preview matches the photo', na: 'No camera preview in the file',
+  },
+  ela: {
+    id: 'ela', title: 'JPEG recompression map', group: 'signal',
+    basis: 'Re-saves the JPEG once and compares. Pasted or edited areas often recompress differently.',
+    limits: 'Edges, text and repeated re-saves change the map.',
+    flag: 'Some areas recompress differently', even: 'Recompresses evenly', na: 'Needs the original JPEG',
+  },
+  noise: {
+    id: 'noise', title: 'Noise consistency map', group: 'signal',
+    basis: 'Camera noise is usually even across a photo. Pasted or generated areas often carry different noise.',
+    limits: 'Sky, blur, depth of field and denoising change noise; generated images can be even everywhere.',
+    flag: 'Noise differs in some areas', even: 'Noise is even', na: 'Too small or flat to compare',
+  },
+};
+
+/**
+ * Classic forensics checks. These maps also react to ordinary edges, sky and blur, so a standing-out
+ * region is an amber flag at most, never red.
+ */
+export function forensicsFinding(key: ForensicKey, s: ForensicsState): Finding {
+  const m = FORENSIC[key];
+  const base = { id: m.id, title: m.title, group: m.group };
+  if (s.status === 'idle') return { ...base, tone: 'idle', headline: 'Not run yet.' };
+  if (s.status === 'running') return { ...base, tone: 'pending', headline: 'Checking…' };
+  // A failure is not a result either way, but it must be visible, not folded into "not run".
+  if (s.status === 'failed') return { ...base, tone: 'neutral', short: 'Did not finish', headline: `Did not finish: ${s.message}` };
+  const r = s.checkResult;
+  const why = [m.basis, r.observation];
+  if (r.finding === 'not_applicable') return { ...base, tone: 'neutral', short: m.na, headline: r.observation, why, limits: m.limits };
+  if (r.finding === 'inconsistent') return { ...base, tone: 'notice', short: m.flag, headline: r.observation, why, limits: m.limits };
+  return { ...base, tone: 'clear', short: m.even, headline: r.observation, why, limits: m.limits };
+}

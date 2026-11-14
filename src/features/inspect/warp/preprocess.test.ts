@@ -125,7 +125,7 @@ describe('bitmap preprocessing', () => {
     expect(h.resize).not.toHaveBeenCalled();
     expect(h.canvasSizes).toEqual([[3, 2]]);
     expect(h.originalClose).not.toHaveBeenCalled();
-  });
+  }, 20_000); // heavy exact-JS resample; can exceed 5 s when the whole suite runs in parallel
 
   it('closes the temporary cropped bitmap if canvas readback is unavailable', async () => {
     const h = setup(false);
