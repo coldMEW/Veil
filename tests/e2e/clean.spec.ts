@@ -1,4 +1,4 @@
-﻿import { expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 /** Real browser/model round trip; all pixels are generated here, never from a private photo. */
 test('OCR -> glyph mask -> MI-GAN -> exported-byte rescan and private report', async ({ page }) => {
@@ -123,7 +123,7 @@ test('OCR -> glyph mask -> MI-GAN -> exported-byte rescan and private report', a
       engine.dispose();
     }
   });
-  console.log('Clean E2E timing (ms):', JSON.stringify(result.timing));
+  console.log('Clean E2E summary:', JSON.stringify({ ...result, report: undefined }));
   await test.info().attach('clean-summary', {
     body: JSON.stringify({ ...result, report: undefined }, null, 2),
     contentType: 'application/json',
