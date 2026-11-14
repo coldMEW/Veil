@@ -1,19 +1,13 @@
-import { useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentType, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentProps, type ComponentType } from 'react';
 import { MotionConfig, motion } from 'motion/react';
 import {
   Broom,
   Check,
   Copy,
-  Eye,
-  Flask,
   LockSimple,
-  MagnifyingGlass,
-  Scan,
-  ShieldWarning,
-  Sun,
   TextAa,
   Export,
-  ChartLineUp,
+  FilePdf,
   WarningOctagon,
   X,
   type IconProps,
@@ -21,32 +15,45 @@ import {
 import { ImageCanvas } from '../components/canvas/ImageCanvas';
 import { Viewfinder, type Rect } from '../components/canvas/Viewfinder';
 import { ChoosePhotoButton, DropStage, OpenAnotherButton } from '../components/ImagePicker';
-import { ResultCard, rowReveal } from '../components/ResultCard';
-import { TabBar, type TabDef } from '../components/TabBar';
+import { rowReveal } from '../components/ResultCard';
 import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
-import { plannedInspectChecks } from './plannedChecks';
 import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
-import { useModelFocus, type FocusState } from '../features/inspect/model/useModelFocus';
+import { useModelFocus } from '../features/inspect/model/useModelFocus';
 import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas';
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
-import { useShadowAnnotation, type ShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
+import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
 import { CleanFlow } from './clean/CleanPanel';
+import { FaceWarpCard } from './inspect/FaceWarpCard';
+import { widenToTrainingCrop } from './inspect/faceBox';
+import { ProvenanceCard } from './inspect/ProvenanceCard';
+import { useProvenance } from './inspect/useProvenance';
+import { useDocumentAnalysis } from './inspect/useDocumentAnalysis';
+import { DocumentPanel } from './inspect/DocumentPanel';
+import { useWarpDetector } from '../features/inspect/warp/useWarpDetector';
+import { LOW as WARP_LOW, toWarpOverlay } from '../features/inspect/warp/preprocess';
+import type { FaceBox } from '../features/inspect/warp/warpTypes';
 import { useClean, type FillMethod } from './clean/useClean';
+import { HomeScreen } from './home/HomeScreen';
+import { StepBar } from '../components/StepBar';
+import { ResultsPanel } from './results/ResultsPanel';
+import { aiSignalFinding, provenanceFinding, warpFinding, type Finding } from './results/findings';
+import { ReportView } from '../components/report/ReportView';
+import { buildReport } from '../features/report/report';
+import type { CheckResult } from '../contracts';
 
 type TabId = 'inspect' | 'clean' | 'protect';
 type Ready = Extract<ImageSessionState, { status: 'ready' }>;
 
-const TABS: ReadonlyArray<TabDef<TabId>> = [
-  { id: 'inspect', label: 'Inspect', icon: MagnifyingGlass },
-  { id: 'clean', label: 'Clean', icon: Broom },
-  { id: 'protect', label: 'Protect Lab', icon: Flask },
-];
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 const onFile = (file: File) => void openImageFile(file);
 
+type Mode = 'photo' | 'document' | 'clean';
+
 export function App() {
-  const [tab, setTab] = useState<TabId>('inspect');
+  const [mode, setMode] = useState<Mode>('photo');
+  const [showReport, setShowReport] = useState(false);
+  const tab: TabId = mode === 'clean' ? 'clean' : 'inspect';
   const session = useImageSession();
   const ready = session.status === 'ready' ? session : null;
   const focus = useModelFocus(ready?.asset.id ?? null, ready?.bitmap ?? null);
@@ -56,6 +63,52 @@ export function App() {
     [ready?.asset.id],
   );
   const shadow = useShadowAnnotation(ready?.asset.id ?? null, imageSize);
+  const doc = session.status === 'document' ? session : null;
+  const provenance = useProvenance(
+    ready?.asset.id ?? doc?.sha256 ?? null,
+    ready?.bytes ?? doc?.bytes ?? null,
+    ready ? ready.asset.mimeType : doc ? 'application/pdf' : null,
+  );
+  const docAnalysis = useDocumentAnalysis(doc?.sha256 ?? null, doc?.bytes ?? null);
+  const warp = useWarpDetector(ready?.asset.id ?? null, ready?.bitmap ?? null);
+  const [faceMarking, setFaceMarking] = useState(false);
+  const [faceBox, setFaceBox] = useState<FaceBox | null>(null);
+  const [showWarp, setShowWarp] = useState(true);
+  useEffect(() => {
+    setFaceMarking(false);
+    setFaceBox(null);
+  }, [ready?.asset.id]);
+  useEffect(() => {
+    if (shadow.marking) setFaceMarking(false);
+  }, [shadow.marking]);
+  const startFaceMarking = () => {
+    shadow.setMarking(false);
+    setFaceMarking(true);
+    warp.preload?.(); // load and verify the model while the person draws
+  };
+  const onImageRect =
+    faceMarking && tab === 'inspect'
+      ? (tight: FaceBox) => {
+          if (!ready) return;
+          const crop = widenToTrainingCrop(tight, ready.asset.width, ready.asset.height);
+          setFaceMarking(false);
+          setFaceBox(crop);
+          setShowWarp(true);
+          void warp.run(crop);
+        }
+      : null;
+  // Render the predicted-warp heat once per result, not on every paint.
+  const warpHeat = useMemo(() => {
+    if (warp.state.status !== 'done' || !ready) return null;
+    const r = warp.state.result;
+    const c = document.createElement('canvas');
+    c.width = r.width;
+    c.height = r.height;
+    c.getContext('2d')?.putImageData(new ImageData(new Uint8ClampedArray(toWarpOverlay(r.magnitude, r.width, r.height)), r.width, r.height), 0, 0);
+    const W = ready.asset.width;
+    const H = ready.asset.height;
+    return { rect: { x: r.faceRect.x / W, y: r.faceRect.y / H, w: r.faceRect.width / W, h: r.faceRect.height / H }, image: c };
+  }, [warp.state, ready]);
   const onImagePoint = shadow.marking && tab === 'inspect' ? shadow.addPoint : null;
   const clean = useClean(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
   const [fillMethod, setFillMethod] = useState<FillMethod>('migan_inpaint');
@@ -74,7 +127,7 @@ export function App() {
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
-        ? { rect: focus.state.result.crop, grid: focus.state.result.grid, values: focus.state.magnitudes }
+        ? { rect: focus.state.result.crop, grid: focus.state.result.grid, values: focus.state.magnitudes, rgba: focus.state.overlay }
         : null,
     [focus.state, showOverlay],
   );
@@ -91,6 +144,67 @@ export function App() {
     />
   );
 
+  // Keep the mode in step with what was actually opened (a PDF dropped on "Check a photo", etc.).
+  useEffect(() => {
+    if (session.status === 'document' && mode !== 'document') setMode('document');
+    if (session.status === 'ready' && mode === 'document') setMode('photo');
+  }, [session.status, mode]);
+  useEffect(() => setShowReport(false), [ready?.asset.id, doc?.sha256]);
+  // Step 2: the automatic checks start as soon as a photo opens for checking.
+  useEffect(() => {
+    if (mode === 'photo' && ready && focus.state.status === 'idle') {
+      setShowOverlay(true);
+      void focus.run();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, ready?.asset.id]);
+
+  const shadowFinding: Finding = (() => {
+    const r = shadow.result;
+    const base = { id: 'shadows', title: 'Shadow geometry', layer: 'shadow' as const };
+    if (!r) return { ...base, tone: 'idle', headline: 'Optional: mark objects and their shadows.' };
+    if (r.execution !== 'complete' || r.finding === 'inconclusive' || r.finding === 'not_applicable')
+      return { ...base, tone: 'idle', headline: r.reason ? `Needs more: ${r.reason}` : 'Not enough marks yet.' };
+    return r.finding === 'inconsistent'
+      ? { ...base, tone: 'notice', headline: 'Some marked shadows disagree with one light source.' }
+      : { ...base, tone: 'clear', headline: 'The marked shadows fit one light source.' };
+  })();
+  // When a map is switched on but has nothing above its threshold, say so on the photo.
+  const aiMapEmpty =
+    showOverlay && focus.state.status === 'done' && !Array.from(focus.state.overlay).some((v, i) => i % 4 === 3 && v > 0);
+  const warpMapEmpty =
+    showWarp && warp.state.status === 'done' && warp.state.result.maxMagnitude < WARP_LOW;
+  const findings: Finding[] = [provenanceFinding(provenance), aiSignalFinding(focus.state), warpFinding(warp.state), shadowFinding];
+  const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
+  const hasFile = session.status === 'ready' || session.status === 'document';
+  const step: 1 | 2 | 3 | 4 = !hasFile ? 1 : showReport ? 4 : mode === 'photo' && checking ? 2 : 3;
+  const report = useMemo(() => {
+    if (!showReport || !ready) return null;
+    const checks: CheckResult[] = [];
+    if (provenance.status === 'done') checks.push(provenance.checkResult);
+    if (focus.state.status === 'done') checks.push(focus.state.checkResult);
+    if (warp.state.status === 'done') checks.push(warp.state.checkResult);
+    if (shadow.result) checks.push({ ...(shadow.result as unknown as CheckResult), overlays: [] });
+    return buildReport({
+      appVersion: '0.1.0',
+      commit: 'local',
+      generatedAt: new Date().toISOString(),
+      original: ready.asset,
+      checks,
+      candidates: [],
+      transforms: [],
+    });
+  }, [showReport, ready, provenance, focus.state, warp.state, shadow.result]);
+  const pickFile = (m: Mode, file: File) => {
+    setMode(m);
+    setShowReport(false);
+    void openImageFile(file);
+  };
+  const startOver = () => {
+    setShowReport(false);
+    closeImage();
+  };
+
   return (
     <MotionConfig reducedMotion="user">
       <div className="flex h-full flex-col">
@@ -99,20 +213,38 @@ export function App() {
             <img src="/icon.svg" alt="" className="size-8" />
             <span className="text-lg font-semibold tracking-[-0.02em]">Veil</span>
           </div>
-          <TabBar tabs={TABS} active={tab} onChange={setTab} idPrefix="top" variant="pill" className="hidden lg:flex" />
+          <StepBar step={step} />
           <p
             className="flex items-center gap-1.5 justify-self-end text-sm text-muted"
             title="Photos are processed on this device and not uploaded."
           >
             <LockSimple size={16} weight="bold" className="text-gold" aria-hidden />
-            <span>On this device</span>
+            <span className="hidden sm:inline">On this device</span>
           </p>
         </header>
 
+        {session.status === 'empty' ? (
+          <main id="workspace-panel" className="min-h-0 flex-1 overflow-y-auto">
+            <HomeScreen onPick={pickFile} />
+          </main>
+        ) : showReport && report ? (
+          <main id="workspace-panel" className="min-h-0 flex-1 overflow-y-auto bg-panel">
+            <div className="mx-auto w-full max-w-3xl px-4 pb-16 pt-6 sm:px-8">
+              <button
+                type="button"
+                onClick={() => setShowReport(false)}
+                className="mb-4 inline-flex min-h-11 items-center gap-2 text-sm font-medium text-muted hover:text-gold"
+              >
+                ← Back to results
+              </button>
+              <div className="rounded-2xl border border-line bg-night p-6 shadow-sm sm:p-10">
+                <ReportView report={report} />
+              </div>
+            </div>
+          </main>
+        ) : (
         <main
           id="workspace-panel"
-          role="tabpanel"
-          aria-labelledby={`top-tab-${tab}`}
           className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden"
         >
           <section aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
@@ -123,7 +255,22 @@ export function App() {
               boxes={boxes}
               displayBitmap={displayBitmap}
               onImagePoint={onImagePoint}
+              onImageRect={onImageRect}
+              focusBox={tab === 'inspect' && faceBox && !(warpHeat && showWarp) ? faceBox : null}
+              heatImage={tab === 'inspect' && warpHeat && showWarp ? warpHeat : null}
             />
+            {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
+              <div
+                role="status"
+                className="pointer-events-none absolute inset-x-0 bottom-4 z-10 flex justify-center px-4"
+              >
+                <p className="max-w-md rounded-full border border-line bg-night/95 px-4 py-2 text-center text-sm text-muted shadow-sm backdrop-blur">
+                  {aiMapEmpty
+                    ? 'AI heatmap: no area raised the AI signal, so nothing is coloured. Check Content Credentials above.'
+                    : 'Face warp map: no notable warp in the marked face, so nothing is coloured.'}
+                </p>
+              </div>
+            )}
           </section>
           <aside
             aria-label="Evidence"
@@ -135,7 +282,81 @@ export function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
             >
-              {tab === 'inspect' && <InspectPanel session={session} modelCard={modelCard} focus={focus.state} shadow={shadow} />}
+              {tab === 'inspect' && doc && (
+                <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+                  <div className="flex items-center justify-between gap-3 border-b border-line pb-5">
+                    <div className="min-w-0">
+                      <h2 className="truncate text-xl font-semibold tracking-[-0.025em]" title={doc.fileName}>{doc.fileName}</h2>
+                      <p className="mt-1 truncate font-mono text-[13px] text-faint" title={doc.sha256}>SHA-256 {doc.sha256}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={closeImage}
+                      aria-label="Close document"
+                      className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-muted hover:bg-raised hover:text-ink"
+                    >
+                      <X size={18} aria-hidden />
+                    </button>
+                  </div>
+                  <div className="mt-2 divide-y divide-line">
+                    <div data-check="provenance">
+                      <ProvenanceCard state={provenance} />
+                    </div>
+                    <div data-check="document" className="py-4">
+                      {docAnalysis.status === 'done' ? (
+                        <DocumentPanel
+                          fileName={doc.fileName}
+                          sha256={doc.sha256}
+                          byteLength={doc.bytes.length}
+                          analysis={docAnalysis.analysis}
+                          assetId={doc.sha256}
+                        />
+                      ) : docAnalysis.status === 'failed' ? (
+                        <p className="text-sm text-danger" role="alert">{docAnalysis.message}</p>
+                      ) : (
+                        <p className="text-sm text-faint" role="status">Reading the document structure…</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-6">
+                    <OpenAnotherButton onFile={onFile} />
+                  </div>
+                </motion.div>
+              )}
+              {tab === 'inspect' && !doc && ready && (
+                <ResultsPanel
+                  fileName={ready.fileName}
+                  findings={findings}
+                  checking={checking}
+                  layers={{
+                    ai: { visible: showOverlay, available: focus.state.status === 'done', toggle: () => setShowOverlay((v) => !v) },
+                    face: { visible: showWarp, available: warp.state.status === 'done', toggle: () => setShowWarp((v) => !v) },
+                  }}
+                  deeper={
+                    <>
+                      <FaceWarpCard
+                        state={warp.state}
+                        marking={faceMarking}
+                        onMark={startFaceMarking}
+                        onStopMarking={() => setFaceMarking(false)}
+                        onRetry={() => (faceBox ? void warp.run(faceBox) : startFaceMarking())}
+                        onCancel={warp.cancel}
+                        showOverlay={showWarp}
+                        onToggleOverlay={() => setShowWarp((v) => !v)}
+                      />
+                      <ShadowCard a={shadow} />
+                    </>
+                  }
+                  details={
+                    <>
+                      <ProvenanceCard state={provenance} />
+                      {modelCard}
+                    </>
+                  }
+                  onReport={() => setShowReport(true)}
+                  onNew={startOver}
+                />
+              )}
               {tab === 'clean' &&
                 (ready ? (
                   <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
@@ -161,17 +382,13 @@ export function App() {
                 ) : (
                   <CleanPanel session={session} />
                 ))}
-              {tab === 'protect' && <ProtectPanel session={session} />}
+              
             </motion.div>
           </aside>
         </main>
+        )}
 
-        <nav
-          aria-label="Workspace"
-          className="fixed inset-x-0 bottom-0 z-10 border-t border-line bg-night/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl lg:hidden"
-        >
-          <TabBar tabs={TABS} active={tab} onChange={setTab} idPrefix="bottom" variant="dock" />
-        </nav>
+
       </div>
     </MotionConfig>
   );
@@ -204,11 +421,17 @@ function PhotoStage({
   boxes,
   displayBitmap,
   onImagePoint,
+  onImageRect,
+  focusBox,
+  heatImage,
 }: {
   session: ImageSessionState;
   overlay: HeatOverlay | null;
   marks: MarkOverlay | null;
   boxes: ComponentProps<typeof ImageCanvas>['boxes'];
+  onImageRect: ComponentProps<typeof ImageCanvas>['onImageRect'];
+  focusBox: ComponentProps<typeof ImageCanvas>['focusBox'];
+  heatImage: ComponentProps<typeof ImageCanvas>['heatImage'];
   displayBitmap: ImageBitmap | null;
   onImagePoint: ((p: { x: number; y: number }) => void) | null;
 }) {
@@ -235,6 +458,9 @@ function PhotoStage({
   } else if (session.status === 'error') {
     frame = insetRect(size, compact ? 14 : 24);
     tone = 'danger';
+  } else if (session.status === 'document') {
+    frame = insetRect(size, compact ? 14 : 24);
+    tone = 'gold';
   } else if (photoRect) {
     frame = photoRect;
     tone = 'gold';
@@ -278,6 +504,23 @@ function PhotoStage({
             </div>
           </motion.div>
         )}
+        {session.status === 'document' && (
+          <motion.div
+            key={session.sha256}
+            className="absolute inset-0 flex items-center justify-center p-8"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
+          >
+            <div className="flex max-w-md flex-col items-center text-center">
+              <FilePdf size={56} weight="thin" className="text-gold" aria-hidden />
+              <h1 className="mt-4 break-all text-2xl font-semibold tracking-[-0.025em]">{session.fileName}</h1>
+              <p className="tabular mt-1 text-muted">PDF document, {Math.round(session.bytes.length / 1024).toLocaleString()} KiB</p>
+              <p className="mt-4 text-sm text-faint text-pretty">
+                Veil reads this document's structure, save history and Content Credentials on this device. The results are on the right.
+              </p>
+            </div>
+          </motion.div>
+        )}
         {session.status === 'ready' && (
           <motion.div key={session.asset.id} className="absolute inset-0">
             <ImageCanvas
@@ -288,6 +531,9 @@ function PhotoStage({
               marks={marks}
               boxes={boxes}
               onImagePoint={onImagePoint}
+              onImageRect={onImageRect}
+              focusBox={focusBox}
+              heatImage={heatImage}
             />
           </motion.div>
         )}
@@ -395,11 +641,6 @@ function TabIntro({ title, body, features }: { title: string; body: string; feat
   );
 }
 
-const INSPECT_FEATURES: Feature[] = [
-  { icon: Sun, title: 'Shadow and light geometry', body: 'Mark objects and their shadows to test them against one light source.' },
-  { icon: Eye, title: 'Eye highlights', body: 'Compare the bright reflections in both eyes side by side.' },
-  { icon: Scan, title: 'Model-focus map', body: 'Where one classifier looks. Context, kept apart from physical evidence.' },
-];
 
 const CLEAN_FEATURES: Feature[] = [
   { icon: TextAa, title: 'Find private text', body: 'Addresses, plates, emails and phone numbers, found at full resolution.' },
@@ -407,60 +648,6 @@ const CLEAN_FEATURES: Feature[] = [
   { icon: Export, title: 'Fresh export', body: 'New pixels in a new file, with no location or camera metadata copied.' },
 ];
 
-const PROTECT_FEATURES: Feature[] = [
-  { icon: ShieldWarning, title: 'Experimental transforms', body: 'Changes meant to make AI editing harder. Not established to work.' },
-  { icon: ChartLineUp, title: 'Measured results', body: 'Every test outcome is shown, including the ones where nothing changed.' },
-];
-
-function InspectPanel({
-  session,
-  modelCard,
-  focus,
-  shadow,
-}: {
-  session: ImageSessionState;
-  modelCard: ReactNode;
-  focus: FocusState;
-  shadow: ShadowAnnotation;
-}) {
-  const assetId = session.status === 'ready' ? session.asset.id : null;
-  const checks = useMemo(() => (assetId ? plannedInspectChecks(assetId) : []), [assetId]);
-  if (session.status !== 'ready') {
-    return (
-      <TabIntro
-        title="Inspect"
-        body="Evidence about a photo, each with its method, assumptions and what stays unknown. Never a verdict."
-        features={INSPECT_FEATURES}
-      />
-    );
-  }
-  return (
-    <motion.div
-      key={session.asset.id}
-      initial="hidden"
-      animate="show"
-      variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.2 } } }}
-    >
-      <PhotoSummary session={session} />
-      <motion.h2 variants={rowReveal} className="mt-7 text-sm font-semibold text-muted">
-        Checks
-      </motion.h2>
-      <div className="divide-y divide-line">
-        {checks.map((check) =>
-          check.id === 'model-focus' ? (
-            <div key={check.id} data-state={focus.status}>
-              {modelCard}
-            </div>
-          ) : check.id === 'shadow-geometry' ? (
-            <ShadowCard key={check.id} a={shadow} />
-          ) : (
-            <ResultCard key={check.id} result={check} />
-          ),
-        )}
-      </div>
-    </motion.div>
-  );
-}
 
 function NotBuilt() {
   return (
@@ -486,18 +673,3 @@ function CleanPanel({ session }: { session: ImageSessionState }) {
   );
 }
 
-function ProtectPanel({ session }: { session: ImageSessionState }) {
-  return (
-    <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
-      {session.status === 'ready' && <PhotoSummary session={session} />}
-      <div className={session.status === 'ready' ? 'mt-7' : ''}>
-        <TabIntro
-          title="Protect Lab"
-          body="Experimental protection against AI editing. Protection is not established."
-          features={PROTECT_FEATURES}
-        />
-        <NotBuilt />
-      </div>
-    </motion.div>
-  );
-}

@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 import { UploadSimple } from '@phosphor-icons/react';
 import { MAX_INPUT_BYTES, MAX_INPUT_PIXELS } from '../lib/runtime/imageIntake';
 
-const LIMITS = `JPEG or PNG, up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB and ${MAX_INPUT_PIXELS / 1e6} megapixels.`;
+const LIMITS = `JPEG or PNG photos up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB and ${MAX_INPUT_PIXELS / 1e6} megapixels, or PDF documents up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB.`;
 
 function useFilePicker(onFile: (file: File) => void) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -11,7 +11,7 @@ function useFilePicker(onFile: (file: File) => void) {
     <input
       ref={inputRef}
       type="file"
-      accept="image/jpeg,image/png"
+      accept="image/jpeg,image/png,application/pdf"
       className="sr-only"
       tabIndex={-1}
       aria-hidden="true"

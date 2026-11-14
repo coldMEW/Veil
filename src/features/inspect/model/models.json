@@ -10,7 +10,10 @@
     "paper": "https://arxiv.org/abs/2411.04125",
     "io": {
       "input": "pixel_values float32 [N,3,384,384], CLIP-normalized RGB",
-      "output": "logits float32 [N,1]; single logit, uncalibrated"
+      "output": "logits float32 [N,1]; single logit, uncalibrated",
+      "positiveClass": "AI-generated",
+      "signConvention": "Higher logits support AI-generated; baseLogit - occludedLogit > 0 is a positive contribution.",
+      "signConventionSource": "https://huggingface.co/buildborderless/CommunityForensics-DeepfakeDet-ViT/blob/main/README.md"
     },
     "preprocess": {
       "shortestEdge": 440,

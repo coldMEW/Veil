@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CheckResult } from '../../../contracts';
 import models from './models.json';
-import { normalizeMagnitudes } from './preprocess';
+import { AI_HIGH, AI_LOW, aiProbabilityDrops, normalizeMagnitudes, toAiOverlay } from './preprocess';
 import type { FocusResponse, FocusResult } from './focusTypes';
 
 export const MODEL_INFO = models['communityforensics-vit-s-fp32'];
+export { AI_HIGH, AI_LOW, toAiOverlay } from './preprocess';
 
 export type FocusState =
   | { status: 'idle' }
   | { status: 'loading' }
   | { status: 'running'; done: number; total: number }
-  | { status: 'done'; result: FocusResult; magnitudes: Float32Array; checkResult: CheckResult }
+  | { status: 'done'; result: FocusResult; magnitudes: Float32Array; overlay: Uint8ClampedArray; checkResult: CheckResult }
   | { status: 'failed'; message: string };
 
 /** Phones get the smaller occlusion grid: fewer passes, same method. */
@@ -21,26 +22,46 @@ function isCoarse(): boolean {
 const TIMEOUT_MS = 120_000;
 
 export function toCheckResult(assetId: string, r: FocusResult): CheckResult {
+  // Validate the signed contributions before turning them into any observation.
+  toAiOverlay(r.deltas, r.grid, r.logit);
+  if (!Number.isFinite(r.logit)) throw new Error('The model produced a non-finite output.');
+  const drops = aiProbabilityDrops(r.deltas, r.logit);
+  let strongest = 0;
+  let peak = 0;
+  for (let i = 0; i < drops.length; i++) {
+    if (drops[i]! > strongest) { strongest = drops[i]!; peak = i; }
+  }
+  const col = Math.min(2, Math.floor((peak % r.grid) * 3 / r.grid));
+  const row = Math.min(2, Math.floor(Math.floor(peak / r.grid) * 3 / r.grid));
+  const region = ['upper left', 'upper center', 'upper right', 'middle left', 'center', 'middle right', 'lower left', 'lower center', 'lower right'][row * 3 + col];
   return {
     id: 'model-focus',
     assetId,
     kind: 'model',
     execution: 'complete',
     finding: 'inconclusive',
-    title: 'Model-focus map',
-    observation:
-      'Highlighted cells are where covering part of the image changed this model’s output the most. The hatched area was outside the model’s view.',
-    method: `Occlusion. The photo is resized (short edge 440) and center-cropped to 384 × 384, as the model expects. Each of ${r.grid} × ${r.grid} cells is then covered with the average color and the change in the model’s raw output is measured. Model: ${MODEL_INFO.name}, sha256 ${MODEL_INFO.sha256.slice(0, 8)}…, ONNX Runtime Web (${r.backend.toUpperCase()}, ${r.threads} thread${r.threads === 1 ? '' : 's'}).`,
-    assumptions: ['Covering a cell with the average color removes the information in that cell without adding a new cue.'],
+    title: 'AI-signal heatmap',
+    observation: strongest >= AI_LOW
+      ? `Strongest AI-signal area: ${region} of the model crop. Covering it lowers the detector's AI output by ${Math.round(strongest * 100)} points.`
+      : `No area raised this detector's AI output by ${Math.round(AI_LOW * 100)} points or more.`,
+    method: `Occlusion. The photo is resized (short edge 440) and center-cropped to 384 × 384. Each of ${r.grid} × ${r.grid} cells is covered with the training mean color, in batches of up to 8. Each cell's contribution is how much covering it lowers the detector's sigmoid output (positive only); cells lowering it by at least ${Math.round(AI_LOW * 100)} points get colour, reaching red at ${Math.round(AI_HIGH * 100)}. Model: ${MODEL_INFO.name}, sha256 ${MODEL_INFO.sha256.slice(0, 8)}…, ONNX Runtime Web (${r.backend.toUpperCase()}, ${r.threads} thread${r.threads === 1 ? '' : 's'}).`,
+    assumptions: ['Covering a cell with the training mean color probes its contribution but can also change nearby context.'],
     limitations: [
-      'Shows where one classifier responds, not which pixels were edited or generated.',
+      'This is a whole-image classifier: the map shows where its signal comes from, not which pixels were generated.',
+      'Real photos can show colour.',
       'This is not a probability or a verdict about the photo.',
       'Areas outside the center crop were never seen by the model.',
+      'The display thresholds are placeholders and have not been calibrated.',
     ],
+    reason: 'This classifier diagnostic alone cannot establish whether an image or any region was generated.',
     evidence: {
       rawOutput: r.logit,
       grid: r.grid,
       deltas: Array.from(r.deltas),
+      thresholds: { low: AI_LOW, high: AI_HIGH, units: 'probability points (sigmoid drop)', purpose: 'display only' },
+      strongestPositiveDelta: strongest,
+      signConvention: MODEL_INFO.io.signConvention,
+      signConventionSource: MODEL_INFO.io.signConventionSource,
       crop: r.crop,
       backend: r.backend,
       threads: r.threads,
@@ -102,7 +123,8 @@ export function useModelFocus(assetId: string | null, bitmap: ImageBitmap | null
         setState({
           status: 'done',
           result,
-          magnitudes: normalizeMagnitudes(result.deltas),
+          magnitudes: normalizeMagnitudes(result.deltas, result.logit),
+          overlay: toAiOverlay(result.deltas, result.grid, result.logit),
           checkResult: toCheckResult(assetId, result),
         });
         worker.terminate();

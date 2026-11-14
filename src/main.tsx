@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
+import { registerSW } from './lib/runtime/registerSW';
 import '@fontsource-variable/outfit/wght.css';
 import './styles/index.css';
 
@@ -12,3 +13,5 @@ createRoot(root).render(
     <App />
   </StrictMode>,
 );
+
+void registerSW();

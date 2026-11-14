@@ -4,7 +4,7 @@
 
 import { configureOrt, hasWebGpu } from '../../../lib/runtime/ortEnv';
 import models from './models.json';
-import { CROP, cropGeometry, cropRgba, occlude, resizeBicubic, toChw } from './preprocess';
+import { CROP, cropGeometry, cropRgba, occlude, resizeBicubic, selectFocusGrid, toChw } from './preprocess';
 import type { FocusRequest, FocusResponse } from './focusTypes';
 
 const MODEL = models['communityforensics-vit-s-fp32'];
@@ -46,35 +46,44 @@ async function getSession() {
 
 async function logits(s: NonNullable<typeof session>, data: Float32Array, n: number): Promise<Float32Array> {
   const input = new ort.Tensor('float32', data, [n, 3, CROP, CROP]);
-  const out = await s.run({ pixel_values: input });
-  const logitsTensor = out.logits;
-  if (!logitsTensor) throw new Error('Model returned no logits.');
-  const values = logitsTensor.data as Float32Array;
-  input.dispose();
-  logitsTensor.dispose();
-  return values;
+  let outputs: Awaited<ReturnType<typeof s.run>> | undefined;
+  try {
+    outputs = await s.run({ pixel_values: input });
+    const tensor = outputs.logits;
+    if (!tensor || tensor.type !== 'float32' || !(tensor.data instanceof Float32Array) ||
+        tensor.dims.length !== 2 || tensor.dims[0] !== n || tensor.dims[1] !== 1 || tensor.data.length !== n) {
+      throw new Error('Model returned no float32 logits [N,1].');
+    }
+    if (tensor.data.some((value) => !Number.isFinite(value))) throw new Error('The model produced a non-finite output.');
+    return Float32Array.from(tensor.data);
+  } finally {
+    input.dispose();
+    if (outputs) for (const output of Object.values(outputs)) output.dispose();
+  }
 }
 
 async function run(req: FocusRequest) {
   const { id, bitmap } = req;
+  const started = performance.now();
   post({ type: 'progress', id, stage: 'loading', done: 0, total: 0 });
   const s = await getSession();
-  // Measured on a laptop (Intel Xe-LPG): WebGPU ~0.27 s per pass, so 6 x 6 fits
-  // the 10 s budget; WASM is ~0.6 s per pass, so it and phones use 4 x 4.
-  const grid = req.grid ?? (backend === 'webgpu' && !req.coarse ? 6 : 4);
+  // 64 GPU / 36 WASM occlusions in batches of 8; phones use 16 on either backend.
+  // These are workload choices, not a browser/phone performance guarantee.
+  const grid = selectFocusGrid(backend, req.coarse, req.grid);
 
   // Preprocess exactly as the model card: Pillow-style bicubic resize of the
   // short edge to 440, then center-crop 384.
+  const preprocessStart = performance.now();
   const g = cropGeometry(bitmap.width, bitmap.height);
   const full = new OffscreenCanvas(bitmap.width, bitmap.height);
   const fctx = full.getContext('2d', { willReadFrequently: true });
   if (!fctx) throw new Error('2D canvas is not available in this worker.');
   fctx.drawImage(bitmap, 0, 0);
-  bitmap.close();
   const pixels = fctx.getImageData(0, 0, full.width, full.height).data;
   const resized = resizeBicubic(pixels, full.width, full.height, g.resizedWidth, g.resizedHeight);
   const crop = cropRgba(resized, g.resizedWidth, g.left, g.top);
   const base = toChw(crop);
+  const preprocessMs = performance.now() - preprocessStart;
 
   const total = grid * grid + 1;
   const t0 = performance.now();
@@ -110,7 +119,7 @@ async function run(req: FocusRequest) {
       crop: g.source,
       backend,
       threads: ort.env.wasm.numThreads ?? 1,
-      timings: { loadMs, baseMs, occlusionMs },
+      timings: { loadMs, preprocessMs, baseMs, occlusionMs, totalMs: performance.now() - started },
     },
     [deltas.buffer],
   );
@@ -119,5 +128,5 @@ async function run(req: FocusRequest) {
 self.onmessage = (event: MessageEvent<FocusRequest>) => {
   run(event.data).catch((error: unknown) => {
     post({ type: 'error', id: event.data.id, message: error instanceof Error ? error.message : String(error) });
-  });
+  }).finally(() => event.data.bitmap.close());
 };

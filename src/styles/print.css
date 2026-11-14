@@ -1,0 +1,60 @@
+.veil-report {
+  max-width: 72rem;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 1.5rem;
+  overflow-wrap: anywhere;
+  line-height: 1.6;
+}
+.veil-report h1 { font-size: 1.75rem; font-weight: 650; }
+.veil-report h2 { font-size: 1.3rem; font-weight: 600; margin-bottom: 1rem; }
+.veil-report h3 { font-size: 1.05rem; font-weight: 600; margin-block: 1rem .5rem; }
+.veil-report p { margin-block: .75rem; }
+.veil-report .report-section { margin-top: 2rem; padding-top: 1.5rem; border-top: 1px solid var(--color-line-strong, #aaa); }
+.veil-report .report-record { margin-block: 1rem; }
+.veil-report .report-field { display: grid; grid-template-columns: minmax(0, 13rem) minmax(0, 1fr); gap: .5rem 1rem; padding-block: .4rem; }
+.veil-report dt { font-weight: 550; }
+.veil-report dd { min-width: 0; margin: 0; }
+.veil-report ul { list-style: disc; padding-left: 1.25rem; }
+.veil-report .report-hash, .veil-report .report-json { font-family: var(--font-mono, monospace); font-size: .85rem; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+.veil-report .report-json { margin: 0; }
+.veil-report .report-fixture { border-left: 3px solid currentColor; padding-left: .75rem; }
+.veil-report .report-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
+.veil-report button { border: 1px solid currentColor; border-radius: .5rem; padding: .65rem 1rem; min-height: 44px; cursor: pointer; }
+.veil-report button:hover { background: var(--color-raised, #eee); }
+@media screen and (max-width: 40rem) {
+  .veil-report { padding: 1rem; }
+  .veil-report .report-field { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+}
+@media print {
+  @page { margin: 18mm; }
+  /* Hide chrome at any nesting depth while preserving the report's ancestors. */
+  body:has(.veil-report) *:not(.veil-report):not(.veil-report *):not(:has(.veil-report)) { display: none !important; }
+  html:has(.veil-report), body:has(.veil-report), body:has(.veil-report) *:has(.veil-report) {
+    display: block !important;
+    position: static !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: auto !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;
+    contain: none !important;
+  }
+  html:has(.veil-report), body:has(.veil-report), body:has(.veil-report) * {
+    background: white !important;
+    background-image: none !important;
+    color: black !important;
+    color-scheme: light !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+  .veil-report { display: block !important; max-width: none; padding: 0; font: 10pt/1.5 sans-serif; overflow: visible; }
+  .veil-report .report-actions { display: none !important; }
+  .veil-report .report-section { break-before: page; page-break-before: always; border: 0; margin: 0; padding: 0; }
+  .veil-report h1, .veil-report h2, .veil-report h3, .veil-report dt { break-after: avoid; }
+  .veil-report .report-field { break-inside: avoid; }
+  .veil-report .report-hash, .veil-report .report-json { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+}

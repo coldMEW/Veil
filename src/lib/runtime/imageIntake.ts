@@ -10,6 +10,11 @@ export type IntakeResult =
   | { ok: true; mimeType: SupportedMime; width: number; height: number }
   | { ok: false; reason: string };
 
+/** True when the bytes start with a PDF header (%PDF-). Documents take a separate, non-image path. */
+export function isPdf(bytes: Uint8Array): boolean {
+  return bytes.length >= 5 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46 && bytes[4] === 0x2d;
+}
+
 /** Identify JPEG or PNG by magic bytes. File names and browser MIME types are not trusted. */
 export function sniffFormat(bytes: Uint8Array): SupportedMime | null {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {

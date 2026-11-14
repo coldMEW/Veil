@@ -98,3 +98,13 @@ describe('sha256Hex', () => {
     );
   });
 });
+
+describe('isPdf', () => {
+  it('recognises the %PDF- header and nothing else', async () => {
+    const { isPdf } = await import('./imageIntake');
+    expect(isPdf(new TextEncoder().encode('%PDF-1.7\n'))).toBe(true);
+    expect(isPdf(new TextEncoder().encode('%PDX-1.7'))).toBe(false);
+    expect(isPdf(new Uint8Array([0xff, 0xd8, 0xff]))).toBe(false);
+    expect(isPdf(new Uint8Array())).toBe(false);
+  });
+});

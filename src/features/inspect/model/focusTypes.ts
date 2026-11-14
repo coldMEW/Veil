@@ -9,14 +9,14 @@ export interface FocusRequest {
 
 export interface FocusResult {
   logit: number;
-  /** base logit minus occluded logit, one per grid cell, row-major. */
+  /** base minus occluded logit, row-major. Positive supports AI-generated; negative is uncoloured. */
   deltas: Float32Array;
   grid: number;
   /** The model's 384 crop in original image pixels. */
   crop: { x: number; y: number; width: number; height: number };
   backend: 'wasm' | 'webgpu';
   threads: number;
-  timings: { loadMs: number; baseMs: number; occlusionMs: number };
+  timings: { loadMs: number; baseMs: number; occlusionMs: number; preprocessMs?: number; totalMs?: number };
 }
 
 export type FocusResponse =

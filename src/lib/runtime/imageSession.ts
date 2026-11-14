@@ -4,12 +4,26 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ImageAsset } from '../../contracts';
-import { checkIntake, sha256Hex } from './imageIntake';
+import { checkIntake, isPdf, MAX_INPUT_BYTES, sha256Hex } from './imageIntake';
 
 export type ImageSessionState =
   | { status: 'empty' }
   | { status: 'loading'; fileName: string }
-  | { status: 'ready'; fileName: string; asset: ImageAsset; bitmap: ImageBitmap }
+  | {
+      status: 'ready';
+      fileName: string;
+      asset: ImageAsset;
+      bitmap: ImageBitmap;
+      /** The original file bytes, in memory only (C2PA and metadata are read from these, never stored). */
+      bytes: Uint8Array;
+    }
+  | {
+      status: 'document';
+      fileName: string;
+      /** PDF bytes, in memory only. Analysed for structure and Content Credentials; never stored or sent. */
+      bytes: Uint8Array;
+      sha256: string;
+    }
   | { status: 'error'; fileName: string; reason: string };
 
 let state: ImageSessionState = { status: 'empty' };
@@ -38,6 +52,17 @@ export async function openImageFile(file: File): Promise<void> {
     const bytes = new Uint8Array(await file.arrayBuffer());
     if (myGeneration !== generation) return;
 
+    if (isPdf(bytes)) {
+      if (bytes.length > MAX_INPUT_BYTES) {
+        setState({ status: 'error', fileName, reason: 'This PDF is larger than 10 MiB. Veil opens documents up to 10 MiB.' });
+        return;
+      }
+      const sha256 = await sha256Hex(bytes);
+      if (myGeneration !== generation) return;
+      setState({ status: 'document', fileName, bytes, sha256 });
+      return;
+    }
+
     const intake = checkIntake(bytes);
     if (!intake.ok) {
       setState({ status: 'error', fileName, reason: intake.reason });
@@ -64,7 +89,7 @@ export async function openImageFile(file: File): Promise<void> {
       height: bitmap.height,
       parentId: null,
     };
-    setState({ status: 'ready', fileName, asset, bitmap });
+    setState({ status: 'ready', fileName, asset, bitmap, bytes });
   } catch {
     if (myGeneration !== generation) return;
     setState({ status: 'error', fileName, reason: 'This browser could not decode the image. The file may be damaged.' });

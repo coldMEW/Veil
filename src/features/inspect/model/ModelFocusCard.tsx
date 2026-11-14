@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { ArrowClockwise, Eye, EyeSlash, Play, Scan, StopCircle, WarningCircle } from '@phosphor-icons/react';
 import { ResultCard, rowReveal } from '../../../components/ResultCard';
-import { MODEL_INFO, type FocusState } from './useModelFocus';
+import { AI_HIGH, AI_LOW, MODEL_INFO, type FocusState } from './useModelFocus';
 
 interface ModelFocusCardProps {
   state: FocusState;
@@ -21,7 +21,7 @@ function Header({ sub }: { sub: string }) {
         <Scan size={18} aria-hidden />
       </span>
       <div className="min-w-0 flex-1">
-        <h3 className="font-semibold leading-snug">Model-focus map</h3>
+        <h3 className="font-semibold leading-snug">AI-signal heatmap</h3>
         <p className="mt-0.5 text-sm text-faint">{sub}</p>
       </div>
     </div>
@@ -37,6 +37,17 @@ export function ModelFocusCard({ state, onRun, onCancel, showOverlay, onToggleOv
     return (
       <motion.div variants={rowReveal} initial="hidden" animate="show">
         <ResultCard result={state.checkResult} />
+        {showOverlay && (
+          <div className="-mt-1 mb-3 ml-12 rounded-xl bg-raised p-3 text-xs text-muted" aria-label="Colour key">
+            <div className="h-2.5 rounded-full" style={{ background: 'linear-gradient(90deg, transparent 0%, #ffd43b 30%, #ff9f1c 65%, #e5383b 100%)' }} />
+            <div className="mt-1.5 flex justify-between tabular">
+              <span>No colour: under {Math.round(AI_LOW * 100)} pts</span>
+              <span className="text-[#a16207]">Yellow</span>
+              <span className="text-[#b91c1c]">Red: {Math.round(AI_HIGH * 100)} pts or more</span>
+            </div>
+            <p className="mt-1.5">How many points covering that area lowered the detector{'’'}s {'“'}AI-generated{'”'} output. Hatched areas were outside its view.</p>
+          </div>
+        )}
         <div className="-mt-1 flex flex-wrap items-center gap-x-4 gap-y-2 pb-4 pl-12">
           <button type="button" onClick={onToggleOverlay} className={ghostButton} aria-pressed={showOverlay}>
             {showOverlay ? <EyeSlash size={16} aria-hidden /> : <Eye size={16} aria-hidden />}
@@ -57,11 +68,11 @@ export function ModelFocusCard({ state, onRun, onCancel, showOverlay, onToggleOv
           <Header sub="Model diagnostic, not run yet" />
           <div className="pl-12">
             <p className="mt-2 text-sm text-muted text-pretty">
-              Where one classifier responds inside the part of the photo it sees. Context only, never a verdict.
+              Shows which parts of the photo push an AI-image detector toward “AI-generated”. Red is the strongest signal, yellow weaker; no colour means no area moved it. Never a verdict.
             </p>
             <button type="button" onClick={onRun} className={`${ghostButton} mt-3`}>
               <Play size={16} weight="fill" aria-hidden />
-              Run model-focus map
+              Run AI-signal heatmap
             </button>
             <p className="mt-2 text-xs text-faint">
               Downloads a {(MODEL_INFO.bytes / 1e6).toFixed(0)} MB model once, then runs on this device. Nothing is uploaded.

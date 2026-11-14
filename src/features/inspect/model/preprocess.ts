@@ -7,6 +7,37 @@ export const CROP = 384;
 export const MEAN = [0.48145466, 0.4578275, 0.40821073] as const;
 export const STD = [0.26862954, 0.26130258, 0.27577711] as const;
 
+// Display thresholds on the DROP in the detector's sigmoid output when a cell is covered
+// (probability points, 0..1). Measured: a real phone photo (output -7.65) had raw logit deltas
+// up to +1.42 but probability drops below 0.002; an AI-generated kitchen (output +1.51) had
+// drops up to 0.43. Display thresholds only, chosen on a handful of images; not calibrated.
+export const AI_LOW = 0.05;
+export const AI_HIGH = 0.2;
+
+const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
+
+/** How much each cell raises the detector's AI output: sigmoid(base) - sigmoid(base - delta), positive only. */
+export function aiProbabilityDrops(deltas: ArrayLike<number>, baseLogit: number): Float32Array {
+  if (!Number.isFinite(baseLogit)) throw new Error('The model produced a non-finite output.');
+  const base = sigmoid(baseLogit);
+  const out = new Float32Array(deltas.length);
+  for (let i = 0; i < deltas.length; i++) {
+    const delta = deltas[i]!;
+    if (!Number.isFinite(delta)) throw new Error('The model produced a non-finite contribution.');
+    out[i] = Math.max(0, base - sigmoid(baseLogit - delta));
+  }
+  return out;
+}
+
+export function selectFocusGrid(backend: 'webgpu' | 'wasm', coarse: boolean, requested?: number): number {
+  if (requested !== undefined) {
+    if (!Number.isInteger(requested) || requested < 1 || requested > 8) throw new Error('Occlusion grid must be an integer from 1 to 8.');
+    return requested;
+  }
+  // Live-demo budget: 6x6 on WebGPU measured 3.8 s on a plugged-in laptop (about 3x slower on battery); WASM and phones use 4x4.
+  return coarse ? 4 : backend === 'webgpu' ? 6 : 4;
+}
+
 export interface CropGeometry {
   /** Size after the shortest-edge resize. */
   resizedWidth: number;
@@ -179,12 +210,36 @@ export function occlude(base: Float32Array, grid: number, cell: number, out: Flo
   return out;
 }
 
-/** Scale absolute changes to 0..1 for display. All zeros stay zero. */
-export function normalizeMagnitudes(deltas: ArrayLike<number>): Float32Array {
-  let max = 0;
-  for (let i = 0; i < deltas.length; i++) max = Math.max(max, Math.abs(deltas[i] ?? 0));
-  const out = new Float32Array(deltas.length);
-  if (max === 0 || !Number.isFinite(max)) return out;
-  for (let i = 0; i < deltas.length; i++) out[i] = Math.abs(deltas[i] ?? 0) / max;
+/**
+ * Legacy scalar canvas values using the same absolute positive-only thresholds.
+ * Kept for the existing canvas adapter; new colour rendering uses toAiOverlay().
+ * No per-photo min-max normalization or absolute value of negative contributions.
+ */
+export function normalizeMagnitudes(deltas: ArrayLike<number>, baseLogit: number): Float32Array {
+  const drops = aiProbabilityDrops(deltas, baseLogit);
+  const out = new Float32Array(drops.length);
+  for (let i = 0; i < drops.length; i++) if (drops[i]! >= AI_LOW) out[i] = Math.min(1, drops[i]! / AI_HIGH);
   return out;
+}
+
+/**
+ * Positive base-minus-occluded contributions only: higher logits mean generated.
+ * Row-major RGBA grid, for smooth canvas upsampling over the model's source crop.
+ */
+export function toAiOverlay(deltas: ArrayLike<number>, grid: number, baseLogit: number): Uint8ClampedArray {
+  if (!Number.isInteger(grid) || grid < 1 || grid > 8 || deltas.length !== grid * grid) {
+    throw new Error('Contributions must match a square occlusion grid from 1 to 8.');
+  }
+  const drops = aiProbabilityDrops(deltas, baseLogit);
+  const rgba = new Uint8ClampedArray(grid * grid * 4);
+  for (let i = 0; i < drops.length; i++) {
+    const delta = drops[i]!;
+    if (delta < AI_LOW) continue;
+    const t = Math.min(1, (delta - AI_LOW) / (AI_HIGH - AI_LOW));
+    rgba[i * 4] = 255;
+    rgba[i * 4 + 1] = Math.round(220 * (1 - t));
+    rgba[i * 4 + 2] = 0;
+    rgba[i * 4 + 3] = 180;
+  }
+  return rgba;
 }

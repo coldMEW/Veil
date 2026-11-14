@@ -1,0 +1,20 @@
+{
+  "fal-local-drn": {
+    "name": "FALdetector local detector (DRN-C-26 flow), FP32 ONNX",
+    "paper": "https://arxiv.org/abs/1906.05856",
+    "upstream": "https://github.com/PeterWang512/FALdetector",
+    "revision": "64e44e868fcb213da264a616b89d87ec27116049",
+    "license": "Apache-2.0 (repository LICENSE at the pinned revision; weights distributed by the authors with the repository)",
+    "weights": {
+      "url": "https://www.dropbox.com/s/pby9dhpr6cqziyl/local.pth?dl=1",
+      "sha256": "f4413d59e61f6ecb2960263385e3b17e248acd3d1db4575666c0a02d121c7aaa",
+      "bytes": 247495840
+    },
+    "export": "torch.onnx.export opset 17, dynamic H/W, inputs 'image' [1,3,H,W] ImageNet-normalized, output 'flow' [1,2,H,W]; max |torch - onnx| 6e-6 on the upstream examples",
+    "sha256": "2afa8ee616e75593cdeb8ad7df0d5d1f78528979584f836df23c256f49698ec4",
+    "bytes": 82447446,
+    "servedAs": "/models/fal/fal-local-drn.onnx",
+    "io": { "input": "image", "output": "flow", "shorterSide": 400, "mean": [0.485, 0.456, 0.406], "std": [0.229, 0.224, 0.225] },
+    "note": "Trained only on Photoshop Face-Aware Liquify warps of face crops. Not an AI-generation detector."
+  }
+}

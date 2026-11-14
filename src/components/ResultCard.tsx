@@ -41,10 +41,10 @@ export const rowReveal = {
 } as const;
 
 /** One check in the evidence rail: observation first, method and limits on request. */
-export function ResultCard({ result }: { result: CheckResult }) {
+export function ResultCard({ result, badge }: { result: CheckResult; badge?: { label: string; tone: string } }) {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
-  const finding = FINDING[displayedFinding(result)];
+  const finding = badge ? { ...FINDING[displayedFinding(result)], ...badge } : FINDING[displayedFinding(result)];
   const kind = KIND[result.kind];
   const KindIcon = kind.icon;
   const FindingIcon = finding.icon;
