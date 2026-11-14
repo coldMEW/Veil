@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { registerSW } from './lib/runtime/registerSW';
-import '@fontsource-variable/outfit/wght.css';
+import '@fontsource-variable/geist/wght.css';
 import './styles/index.css';
 
 const root = document.getElementById('root');
