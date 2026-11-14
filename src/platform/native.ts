@@ -1,3 +1,4 @@
+import { installCleanDownloadBridge } from './downloads';
 import { consumeUiBack } from './back';
 import { registerPlugin } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
@@ -34,9 +35,11 @@ export function setNativeBackFallback(handler: () => boolean): () => void {
 export async function initializeNative(): Promise<void> {
   if (!isAndroid()) return;
   document.documentElement.classList.add('veil-android');
+  installCleanDownloadBridge(saveCleanCopy);
   window.addEventListener('veil-camera', () => {
     void takePhoto().catch((error) => {
-      if (!/cancel/i.test(String(error))) window.dispatchEvent(new CustomEvent('veil-toast', { detail: String(error) }));
+      if (!/cancel/i.test(String(error)))
+        window.dispatchEvent(new CustomEvent('veil-toast', { detail: String(error) }));
     });
   });
   const consume = async () => {
@@ -46,9 +49,11 @@ export async function initializeNative(): Promise<void> {
       const bytes = Uint8Array.from(atob(image.base64), (c) => c.charCodeAt(0));
       await openImageFile(new File([bytes], image.name ?? 'Shared image', { type: image.mime }));
     } catch (error) {
-      window.dispatchEvent(new CustomEvent('veil-toast', {
-        detail: error instanceof Error ? error.message : 'Could not open the shared image.',
-      }));
+      window.dispatchEvent(
+        new CustomEvent('veil-toast', {
+          detail: error instanceof Error ? error.message : 'Could not open the shared image.',
+        }),
+      );
     }
   };
   await intake.addListener('sharedImage', () => void consume());
@@ -107,6 +112,11 @@ async function openCapture(photo: SharedImage): Promise<void> {
 let captureInFlight: Promise<void> | undefined;
 export function takePhoto(): Promise<void> {
   if (!isAndroid()) return Promise.reject(Error('Camera capture is available in the Android app.'));
-  captureInFlight ??= intake.capturePhoto().then(openCapture).finally(() => { captureInFlight = undefined; });
+  captureInFlight ??= intake
+    .capturePhoto()
+    .then(openCapture)
+    .finally(() => {
+      captureInFlight = undefined;
+    });
   return captureInFlight;
 }

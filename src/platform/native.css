@@ -11,3 +11,12 @@
   top: var(--safe-area-inset-top, 0px);
   bottom: var(--safe-area-inset-bottom, 0px);
 }
+
+/* Body/report bounds already reserve native insets. Avoid applying WebView env() twice. */
+.veil-android header[style*='safe-area-inset-top'],
+.veil-android .report-toolbar {
+  padding-top: 0 !important;
+}
+.veil-android .glass-dock {
+  bottom: 10px !important;
+}

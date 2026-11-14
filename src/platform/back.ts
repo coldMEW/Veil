@@ -11,7 +11,9 @@ export async function consumeUiBack(): Promise<boolean> {
     if (!slider) return false;
     // Full -> half -> peek: let React commit between the semantic key events.
     for (let i = 0; i < 2 && sheet.dataset.snap !== 'peek'; i++) {
-      slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      slider.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }),
+      );
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
     }
     return true;
