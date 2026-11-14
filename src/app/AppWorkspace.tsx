@@ -26,6 +26,8 @@ import type { HeatOverlay, MarkOverlay } from '../components/canvas/ImageCanvas'
 import { ShadowCard } from '../features/inspect/physics/shadow/ShadowCard';
 import { useShadowAnnotation } from '../features/inspect/physics/shadow/useShadowAnnotation';
 import { CleanFlow } from './clean/CleanPanel';
+import { ProtectPanel } from './protect/ProtectPanel';
+import { useProtect } from './protect/useProtect';
 import { FaceWarpCard } from './inspect/FaceWarpCard';
 import { widenToTrainingCrop } from './inspect/faceBox';
 import { ProvenanceCard } from './inspect/ProvenanceCard';
@@ -127,7 +129,28 @@ export function AppWorkspace() {
         : null,
     [tab, cleanCandidates],
   );
-  const displayBitmap = tab === 'clean' && cs.status === 'done' && showAfter ? cs.preview : null;
+  const protectHook = useProtect(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
+  const ps = protectHook.state;
+  const [showProtected, setShowProtected] = useState(true);
+  const displayBitmap =
+    tab === 'clean' && cs.status === 'done' && showAfter
+      ? cs.preview
+      : tab === 'protect' && ps.status === 'done' && showProtected
+        ? ps.preview
+        : null;
+  // Protect: the model downloads by itself as soon as the tab opens.
+  useEffect(() => {
+    if (tab === 'protect' && ready && ps.status === 'idle') void protectHook.load().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ready?.asset.id, ps.status]);
+  // Clean: opening the tab finds private text and removes the confidently found high-risk items straight away.
+  useEffect(() => {
+    if (tab === 'clean' && ready && cs.status === 'idle') {
+      setShowAfter(true);
+      void clean.scan({ auto: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, ready?.asset.id]);
   const overlay = useMemo<HeatOverlay | null>(
     () =>
       focus.state.status === 'done' && showOverlay
@@ -366,25 +389,22 @@ export function AppWorkspace() {
     </div>
   );
 
-  const protectPanel = (
-    <div data-testid="protect-panel" className="flex flex-col gap-4">
-      <header className="px-1">
-        <h2 className="text-xl font-semibold tracking-[-0.015em]">Protect from AI edits</h2>
-        <p className="mt-1 text-sm text-muted text-pretty">
-          Adds a pattern you can’t see that makes AI photo editors produce broken results when someone tries to change your photo.
-        </p>
-      </header>
-      <div className="card p-5">
-        <p className="inline-flex rounded-full bg-idle-bg px-2.5 py-0.5 text-xs font-semibold text-idle-ink">Not in this build yet</p>
-        <p className="mt-3 text-sm text-pretty">
-          The protection model runs on this device and is being connected now. Until it is, nothing on this tab changes your photo.
-        </p>
-        <ul className="mt-4 grid gap-2 text-sm text-muted">
-          <li>Works on the photo you have open, on this device.</li>
-          <li>Downloads the model only after you agree, with its size shown first.</li>
-          <li>Keeps your original; the protected copy is a new file.</li>
-        </ul>
-      </div>
+  const protectPanel = ready ? (
+    <ProtectPanel
+      state={ps}
+      fileName={ready.fileName}
+      onProtect={() => {
+        setShowProtected(true);
+        void protectHook.protect();
+      }}
+      onReset={protectHook.reset}
+      showAfter={showProtected}
+      onShowAfter={setShowProtected}
+    />
+  ) : (
+    <div data-testid="protect-panel" className="card p-5">
+      <h2 className="text-lg font-semibold">Protect works on photos</h2>
+      <p className="mt-1 text-sm text-muted">Open a JPEG or PNG to protect it from AI edits.</p>
     </div>
   );
 
@@ -404,7 +424,7 @@ export function AppWorkspace() {
             <X size={22} aria-hidden />
           </button>
           <div className="hidden items-center gap-2.5 pr-4 lg:flex lg:w-[88px] lg:justify-center lg:pr-0">
-            <img src="/icon.svg" alt="" className="size-8" />
+            <img src="/brand/veil-64.png" alt="" width={32} height={32} className="size-8" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="hidden text-xs font-medium text-faint lg:block">Veil</p>

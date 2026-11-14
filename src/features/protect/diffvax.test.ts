@@ -27,10 +27,11 @@ describe('DiffVax adapter', () => {
     await expect(new DiffVaxImmunizer().load('memory://bad', 'wasm', { fetchBytes: async () => new Uint8Array([1]) })).rejects.toThrow(/SHA-256/);
   });
 
-  it('center-crops/resizes RGB into the normalized 512 tensor', () => {
+  it('resizes the whole frame into the normalized 512 tensor (same mapping the output uses)', () => {
     const prepared = inputTensor(src(8, 4));
     expect(prepared.tensor).toHaveLength(3 * DIFFVAX_SIZE * DIFFVAX_SIZE);
-    expect(prepared.crop).toEqual({ x: 2, y: 0, width: 4, height: 4 });
+    // Full frame, not a centre crop: the perturbation is mapped back over the full frame in immunize().
+    expect(prepared.crop).toEqual({ x: 0, y: 0, width: 8, height: 4 });
     expect(prepared.tensor[0]).toBeGreaterThan(-1);
     expect(prepared.tensor[0]).toBeLessThan(1);
   });

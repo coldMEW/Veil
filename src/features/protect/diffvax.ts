@@ -61,15 +61,17 @@ function sampleMask(mask: Mask, x: number, y: number) {
   return (at(x0, y0) * (1 - tx) + at(x1, y0) * tx) * (1 - ty) + (at(x0, y1) * (1 - tx) + at(x1, y1) * tx) * ty;
 }
 
-/** Center-crop the original to a square, then resize only that crop for the network. */
+/**
+ * Resize the whole photo to the network's 512 × 512 input. The output is mapped back with the same
+ * full-frame mapping in `immunize`, so every pixel receives the perturbation computed for it.
+ */
 export function inputTensor(px: Pixels): { tensor: Float32Array; crop: { x: number; y: number; width: number; height: number } } {
   assertPixels(px);
-  const side = Math.min(px.width, px.height);
-  const crop = { x: (px.width - side) / 2, y: (px.height - side) / 2, width: side, height: side };
+  const crop = { x: 0, y: 0, width: px.width, height: px.height };
   const tensor = new Float32Array(3 * DIFFVAX_SIZE * DIFFVAX_SIZE);
   for (let y = 0; y < DIFFVAX_SIZE; y++) for (let x = 0; x < DIFFVAX_SIZE; x++) {
-    const sx = crop.x + (x + .5) * side / DIFFVAX_SIZE - .5;
-    const sy = crop.y + (y + .5) * side / DIFFVAX_SIZE - .5;
+    const sx = (x + .5) * px.width / DIFFVAX_SIZE - .5;
+    const sy = (y + .5) * px.height / DIFFVAX_SIZE - .5;
     const offset = y * DIFFVAX_SIZE + x;
     for (let c = 0; c < 3; c++) tensor[c * DIFFVAX_SIZE * DIFFVAX_SIZE + offset] = sampleRgb(px, sx, sy, c) / 127.5 - 1;
   }
