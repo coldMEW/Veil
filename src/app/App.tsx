@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useRef, useState, type ComponentType, type ReactNode } from 'react';
 import { MotionConfig, motion } from 'motion/react';
 import {
   Broom,
@@ -25,6 +25,9 @@ import { ResultCard, rowReveal } from '../components/ResultCard';
 import { TabBar, type TabDef } from '../components/TabBar';
 import { closeImage, openImageFile, useImageSession, type ImageSessionState } from '../lib/runtime/imageSession';
 import { plannedInspectChecks } from './plannedChecks';
+import { ModelFocusCard } from '../features/inspect/model/ModelFocusCard';
+import { useModelFocus, type FocusState } from '../features/inspect/model/useModelFocus';
+import type { HeatOverlay } from '../components/canvas/ImageCanvas';
 
 type TabId = 'inspect' | 'clean' | 'protect';
 type Ready = Extract<ImageSessionState, { status: 'ready' }>;
@@ -41,6 +44,28 @@ const onFile = (file: File) => void openImageFile(file);
 export function App() {
   const [tab, setTab] = useState<TabId>('inspect');
   const session = useImageSession();
+  const ready = session.status === 'ready' ? session : null;
+  const focus = useModelFocus(ready?.asset.id ?? null, ready?.bitmap ?? null);
+  const [showOverlay, setShowOverlay] = useState(true);
+  const overlay = useMemo<HeatOverlay | null>(
+    () =>
+      focus.state.status === 'done' && showOverlay
+        ? { rect: focus.state.result.crop, grid: focus.state.result.grid, values: focus.state.magnitudes }
+        : null,
+    [focus.state, showOverlay],
+  );
+  const modelCard = (
+    <ModelFocusCard
+      state={focus.state}
+      onRun={() => {
+        setShowOverlay(true);
+        void focus.run();
+      }}
+      onCancel={focus.cancel}
+      showOverlay={showOverlay}
+      onToggleOverlay={() => setShowOverlay((v) => !v)}
+    />
+  );
 
   return (
     <MotionConfig reducedMotion="user">
@@ -67,7 +92,7 @@ export function App() {
           className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:grid lg:grid-cols-[minmax(0,1fr)_420px] lg:overflow-hidden"
         >
           <section aria-label="Photo" className="lightbox relative h-[56dvh] shrink-0 lg:h-auto">
-            <PhotoStage session={session} />
+            <PhotoStage session={session} overlay={overlay} />
           </section>
           <aside
             aria-label="Evidence"
@@ -79,7 +104,7 @@ export function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE } }}
             >
-              {tab === 'inspect' && <InspectPanel session={session} />}
+              {tab === 'inspect' && <InspectPanel session={session} modelCard={modelCard} focus={focus.state} />}
               {tab === 'clean' && <CleanPanel session={session} />}
               {tab === 'protect' && <ProtectPanel session={session} />}
             </motion.div>
@@ -117,7 +142,7 @@ function insetRect(size: { w: number; h: number }, pad: number): Rect {
   return { x: pad, y: pad, w: size.w - pad * 2, h: size.h - pad * 2 };
 }
 
-function PhotoStage({ session }: { session: ImageSessionState }) {
+function PhotoStage({ session, overlay }: { session: ImageSessionState; overlay: HeatOverlay | null }) {
   const [ref, size] = useElementSize<HTMLDivElement>();
   const [dragging, setDragging] = useState(false);
   const [photoRect, setPhotoRect] = useState<Rect | null>(null);
@@ -186,7 +211,7 @@ function PhotoStage({ session }: { session: ImageSessionState }) {
         )}
         {session.status === 'ready' && (
           <motion.div key={session.asset.id} className="absolute inset-0">
-            <ImageCanvas bitmap={session.bitmap} label={`Photo: ${session.fileName}`} onFit={setPhotoRect} />
+            <ImageCanvas bitmap={session.bitmap} label={`Photo: ${session.fileName}`} onFit={setPhotoRect} overlay={overlay} />
           </motion.div>
         )}
       <Viewfinder rect={frame} tone={tone} gap={gap} breathing={session.status === 'empty' && !dragging} />
@@ -310,7 +335,7 @@ const PROTECT_FEATURES: Feature[] = [
   { icon: ChartLineUp, title: 'Measured results', body: 'Every test outcome is shown, including the ones where nothing changed.' },
 ];
 
-function InspectPanel({ session }: { session: ImageSessionState }) {
+function InspectPanel({ session, modelCard, focus }: { session: ImageSessionState; modelCard: ReactNode; focus: FocusState }) {
   const assetId = session.status === 'ready' ? session.asset.id : null;
   const checks = useMemo(() => (assetId ? plannedInspectChecks(assetId) : []), [assetId]);
   if (session.status !== 'ready') {
@@ -334,9 +359,15 @@ function InspectPanel({ session }: { session: ImageSessionState }) {
         Checks
       </motion.h2>
       <div className="divide-y divide-line">
-        {checks.map((check) => (
-          <ResultCard key={check.id} result={check} />
-        ))}
+        {checks.map((check) =>
+          check.id === 'model-focus' ? (
+            <div key={check.id} data-state={focus.status}>
+              {modelCard}
+            </div>
+          ) : (
+            <ResultCard key={check.id} result={check} />
+          ),
+        )}
       </div>
     </motion.div>
   );
