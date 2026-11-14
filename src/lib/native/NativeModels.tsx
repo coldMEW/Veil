@@ -1,3 +1,4 @@
+import { useImageSession } from '../runtime/imageSession';
 import { useEffect, useRef, useState } from 'react';
 import { isAndroid, takePhoto } from './platform';
 import { downloadModel, optionalModels, type OptionalModel } from './modelStore';
@@ -5,6 +6,7 @@ import { ensureOptionalModel, type ConsentRequest } from './modelConsent';
 
 /** Android-only, explicit consent and cancellable progress; no photo data enters this flow. */
 export function NativeModels() {
+  const session = useImageSession();
   const [request, setRequest] = useState<ConsentRequest | null>(null);
   const [model, setModel] = useState<OptionalModel | null>(null);
   const [loaded, setLoaded] = useState<number | null>(null);
@@ -64,6 +66,11 @@ export function NativeModels() {
   };
   return (
     <>
+      {session.status === 'ready' && <button
+        className="fixed bottom-3 left-1/2 z-40 -translate-x-1/2 rounded-full border bg-white px-3 py-2 text-xs"
+        style={{ bottom: 'calc(12px + var(--safe-area-inset-bottom, 0px))' }}
+        onClick={() => window.dispatchEvent(new Event('veil-clean'))}>Clean photo</button>}
+
       <button
         className="fixed bottom-3 left-3 z-40 rounded-full border bg-white px-3 py-2 text-xs"
         style={{ bottom: 'calc(12px + var(--safe-area-inset-bottom, 0px))' }}

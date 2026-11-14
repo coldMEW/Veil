@@ -67,7 +67,7 @@ export async function saveCleanCopy(bytes: Uint8Array, name: string): Promise<vo
   // Native MediaStore is scoped Pictures/Veil on Android 10+; older devices use the share chooser.
   try {
     await intake.saveCleanPng({ base64: btoa(base64), name });
-    alert('Clean copy saved to Pictures/Veil.');
+    window.dispatchEvent(new CustomEvent('veil-toast', { detail: 'Saved to Pictures/Veil' }));
     return;
   } catch (error) {
     if (!String(error).includes('older Android')) throw error;

@@ -178,6 +178,11 @@ export function App() {
   const checking = provenance.status !== 'done' || focus.state.status === 'loading' || focus.state.status === 'running';
   const hasFile = session.status === 'ready' || session.status === 'document';
   useEffect(() => {
+    const cleanPhoto = () => { setShowReport(false); setMode('clean'); };
+    window.addEventListener('veil-clean', cleanPhoto);
+    return () => window.removeEventListener('veil-clean', cleanPhoto);
+  }, []);
+  useEffect(() => {
     const back = (event: Event) => {
       if (showReport) { event.preventDefault(); setShowReport(false); }
       else if (hasFile) { event.preventDefault(); clean.cancel(); closeImage(); }
