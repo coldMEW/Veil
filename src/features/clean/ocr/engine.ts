@@ -1,7 +1,7 @@
 import type { CapabilityState } from '../../../contracts';
 import { validateImage } from './image';
 import type { WorkerRequest, WorkerResponse } from './protocol';
-import type { OcrBox, ScanOptions, ScanProgress } from './types';
+import type { OcrBox, ScanOptions, ScanProgress, RgbaImage } from './types';
 
 export type { OcrBox, ScanOptions, ScanProgress } from './types';
 interface RequestOptions { signal?: AbortSignal; timeoutMs?: number }
@@ -48,7 +48,7 @@ export class OcrEngine {
     }
   }
 
-  async scan(imageData: ImageData, opts: EngineScanOptions = {}): Promise<OcrBox[]> {
+  async scan(imageData: RgbaImage, opts: EngineScanOptions = {}): Promise<OcrBox[]> {
     if (this.pending) throw new Error('OCR engine is busy.');
     if (this.capability !== 'ready') throw new Error('Load OCR models before scanning.');
     validateImage(imageData);

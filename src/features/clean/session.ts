@@ -1,4 +1,4 @@
-import type { PrivacyCandidate, Rect, TransformMethod, TransformRecord } from '../../contracts';
+import type { PrivacyCandidate, Point, Rect, TransformMethod, TransformRecord } from '../../contracts';
 import { DEFAULT_SELECTED, classifyText } from './filter';
 import { dilate, emptyMask, fillRect, type Mask, type Pixels } from './mask';
 import { solidRedact, type RGB } from './redact';
@@ -9,6 +9,7 @@ import { encodePng, verifyExport, type ExportVerification } from './export';
 export interface OcrBox {
   rect: Rect; // normalized to the orientation-corrected original
   text: string;
+  quad?: Point[];
   detScore?: number;
   recScore?: number;
 }
@@ -26,6 +27,8 @@ export function candidatesFromOcr(assetId: string, boxes: OcrBox[]): PrivacyCand
       category,
       sourceMethod: 'ocr',
       region: b.rect,
+      quad: b.quad?.map(p => ({...p})),
+      removal: 'glyph',
       text: b.text,
       score: b.recScore,
       selected: DEFAULT_SELECTED.has(category),
@@ -154,3 +157,8 @@ export function compareRescan(selected: PrivacyCandidate[], rescan: OcrBox[], mi
 }
 
 export { sha256Hex };
+
+/** Scan decoded exported pixels; scanner failures propagate and never imply a clean result. */
+export async function rescanExport(engine: {scan(pixels: Pixels): Promise<OcrBox[]>}, decodedPixels: Pixels, selected: PrivacyCandidate[]): Promise<RescanResult> {
+  return compareRescan(selected, await engine.scan(decodedPixels));
+}
