@@ -5,3 +5,9 @@
     var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px))
     var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 }
+
+/* A fixed report is outside body flow, so reserve the same native system-bar areas. */
+.veil-android .report-root {
+  top: var(--safe-area-inset-top, 0px);
+  bottom: var(--safe-area-inset-bottom, 0px);
+}

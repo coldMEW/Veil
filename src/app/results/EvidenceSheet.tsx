@@ -1,151 +1,126 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { animate, cubicBezier } from 'animejs';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { animate } from 'animejs';
 
-type SnapPoint = 'peek' | 'half' | 'full';
+type Snap = 'peek' | 'half' | 'full';
+const PEEK = 176; // handle, title and the first row
 
-const SNAP_ORDER: readonly SnapPoint[] = ['peek', 'half', 'full'];
-const SNAP_VH: Record<SnapPoint, number> = { peek: 35, half: 55, full: 90 };
-const DRAG_VELOCITY_PX_PER_MS = 0.45;
-const SHEET_EASE = cubicBezier(.2, .8, .2, 1);
-
-function prefersReducedMotion() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function viewportHeight() {
-  return window.visualViewport?.height ?? window.innerHeight;
-}
-
-function pointHeight(point: SnapPoint) {
-  return Math.round((viewportHeight() * SNAP_VH[point]) / 100);
-}
-
-function closestPoint(height: number): SnapPoint {
-  return SNAP_ORDER.reduce((closest, point) =>
-    Math.abs(pointHeight(point) - height) < Math.abs(pointHeight(closest) - height) ? point : closest,
-  );
-}
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 /**
- * The phone evidence rail. It deliberately owns only positioning and drag behaviour;
- * callers supply the same EvidenceRows used by the desktop rail so keyboard and touch
- * users see identical observations.
+ * Phone bottom sheet (Material modal-less standard sheet): peeks above the navigation bar,
+ * drags to half or full height, and snaps with the drag's velocity. Content scrolls inside.
  */
-export function EvidenceSheet({ count, children }: { count: number; children: ReactNode }) {
-  const sheetRef = useRef<HTMLElement>(null);
-  const dragRef = useRef({ pointerId: -1, startY: 0, startHeight: 0, previousY: 0, previousAt: 0, velocity: 0 });
-  const didDragRef = useRef(false);
-  const snapRef = useRef<SnapPoint>('peek');
-  const [snap, setSnap] = useState<SnapPoint>('peek');
+export function EvidenceSheet({ title, subtitle, children, testId = 'evidence-sheet', resetKey, bottomInset = 0, accent }: { title: string; subtitle?: string; children: ReactNode; testId?: string; resetKey?: string; bottomInset?: number; accent?: string }) {
+  const sheet = useRef<HTMLElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const [snap, setSnap] = useState<Snap>('peek');
+  const drag = useRef<{ y: number; h: number; t: number; lastY: number; lastT: number } | null>(null);
 
-  const setHeight = (height: number) => {
-    const sheet = sheetRef.current;
-    if (sheet) sheet.style.height = `${height}px`;
-  };
+  const heights = useCallback(() => {
+    const avail = (sheet.current?.parentElement?.clientHeight ?? window.innerHeight) - 8;
+    return { peek: Math.min(PEEK + bottomInset, avail), half: Math.round(avail * 0.55) + bottomInset / 2, full: avail };
+  }, [bottomInset]);
 
-  const settle = (next: SnapPoint) => {
-    const sheet = sheetRef.current;
-    snapRef.current = next;
-    setSnap(next);
-    if (!sheet) return;
-
-    const target = pointHeight(next);
-    if (prefersReducedMotion()) {
-      setHeight(target);
-      return;
-    }
-    animate(sheet, { height: target, duration: 240, ease: SHEET_EASE });
-  };
+  const goTo = useCallback(
+    (next: Snap, from?: number) => {
+      const el = sheet.current;
+      if (!el) return;
+      const target = heights()[next];
+      setSnap(next);
+      if (reduced() || from === undefined) {
+        el.style.height = `${target}px`;
+        return;
+      }
+      animate(el, { height: [from, target], duration: 320, ease: 'outExpo' });
+    },
+    [heights],
+  );
 
   useEffect(() => {
-    setHeight(pointHeight('peek'));
-    const onResize = () => setHeight(pointHeight(snapRef.current));
-    window.visualViewport?.addEventListener('resize', onResize);
+    goTo('peek');
+    scroller.current?.scrollTo({ top: 0 });
+  }, [goTo, resetKey]);
+
+  useEffect(() => {
+    const onResize = () => goTo(snap);
     window.addEventListener('resize', onResize);
-    return () => {
-      window.visualViewport?.removeEventListener('resize', onResize);
-      window.removeEventListener('resize', onResize);
-    };
-  }, []);
+    return () => window.removeEventListener('resize', onResize);
+  }, [goTo, snap]);
 
-  const beginDrag = (event: PointerEvent<HTMLButtonElement>) => {
-    const sheet = sheetRef.current;
-    if (!sheet || event.button !== 0) return;
-    const height = sheet.getBoundingClientRect().height;
-    dragRef.current = {
-      pointerId: event.pointerId,
-      startY: event.clientY,
-      startHeight: height,
-      previousY: event.clientY,
-      previousAt: event.timeStamp,
-      velocity: 0,
-    };
-    didDragRef.current = false;
-    event.currentTarget.setPointerCapture(event.pointerId);
+  const onPointerDown = (e: React.PointerEvent) => {
+    const el = sheet.current;
+    if (!el) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const now = performance.now();
+    drag.current = { y: e.clientY, h: el.offsetHeight, t: now, lastY: e.clientY, lastT: now };
   };
-
-  const drag = (event: PointerEvent<HTMLButtonElement>) => {
-    const active = dragRef.current;
-    if (active.pointerId !== event.pointerId) return;
-    const deltaY = event.clientY - active.startY;
-    if (Math.abs(deltaY) > 3) didDragRef.current = true;
-    const next = Math.max(pointHeight('peek'), Math.min(pointHeight('full'), active.startHeight - deltaY));
-    const elapsed = Math.max(1, event.timeStamp - active.previousAt);
-    active.velocity = (event.clientY - active.previousY) / elapsed;
-    active.previousY = event.clientY;
-    active.previousAt = event.timeStamp;
-    setHeight(next);
+  const onPointerMove = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const el = sheet.current;
+    if (!d || !el) return;
+    const { peek, full } = heights();
+    const h = Math.min(full, Math.max(peek - 40, d.h + (d.y - e.clientY)));
+    el.style.height = `${h}px`;
+    d.lastY = e.clientY;
+    d.lastT = performance.now();
   };
-
-  const endDrag = (event: PointerEvent<HTMLButtonElement>) => {
-    const active = dragRef.current;
-    if (active.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
-    const height = sheetRef.current?.getBoundingClientRect().height ?? pointHeight(snap);
-    let next = closestPoint(height);
-    if (Math.abs(active.velocity) >= DRAG_VELOCITY_PX_PER_MS) {
-      const current = SNAP_ORDER.indexOf(next);
-      // A fast upward drag (negative page Y) opens the next position; a downward one closes it.
-      const index = Math.max(0, Math.min(SNAP_ORDER.length - 1, current + (active.velocity < 0 ? 1 : -1)));
-      next = SNAP_ORDER[index] ?? next;
-    }
-    dragRef.current.pointerId = -1;
-    settle(next);
-  };
-
-  const cycleSnap = () => {
-    if (didDragRef.current) {
-      didDragRef.current = false;
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = drag.current;
+    const el = sheet.current;
+    drag.current = null;
+    if (!d || !el) return;
+    const moved = Math.abs(e.clientY - d.y);
+    const h = el.offsetHeight;
+    const hs = heights();
+    if (moved < 6) {
+      // A tap on the handle steps through the sizes.
+      goTo(snap === 'peek' ? 'half' : snap === 'half' ? 'full' : 'peek', h);
       return;
     }
-    const index = SNAP_ORDER.indexOf(snap);
-    settle(SNAP_ORDER[(index + 1) % SNAP_ORDER.length] ?? 'peek');
+    const velocity = (d.lastY - e.clientY) / Math.max(1, performance.now() - d.lastT + 16); // px/ms, + = up
+    const projected = h + velocity * 180;
+    const order: Snap[] = ['peek', 'half', 'full'];
+    const next = order.reduce((best, s) => (Math.abs(hs[s] - projected) < Math.abs(hs[best] - projected) ? s : best), 'peek' as Snap);
+    goTo(next, h);
   };
 
   return (
-    <aside
-      ref={sheetRef}
-      data-testid="evidence-sheet"
-      aria-label="Evidence"
-      className="fixed inset-x-0 bottom-0 z-40 flex min-h-0 flex-col overflow-hidden rounded-t-panel border border-line bg-panel shadow-[0_-8px_24px_rgb(0_0_0/0.12)] md:hidden"
-      style={{ paddingBottom: 'max(16px, env(safe-area-inset-bottom))' }}
+    <section
+      ref={sheet}
+      data-testid={testId}
+      data-snap={snap}
+      aria-label={title}
+      className="absolute inset-x-0 bottom-0 z-30 flex flex-col overflow-hidden rounded-t-sheet bg-night shadow-[var(--shadow-sheet)] lg:hidden"
+      style={{ height: PEEK + bottomInset }}
     >
-      <button
-        type="button"
-        aria-label={`Resize evidence sheet, currently ${snap}`}
-        className="flex h-11 w-full shrink-0 touch-none items-center justify-center"
-        onClick={cycleSnap}
-        onPointerDown={beginDrag}
-        onPointerMove={drag}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
+      <div
+        role="slider"
+        tabIndex={0}
+        aria-label={`Resize ${title.toLowerCase()}`}
+        aria-valuetext={snap === 'peek' ? 'Collapsed' : snap === 'half' ? 'Half height' : 'Full height'}
+        aria-valuemin={0}
+        aria-valuemax={2}
+        aria-valuenow={snap === 'peek' ? 0 : snap === 'half' ? 1 : 2}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onKeyDown={(e) => {
+          const h = sheet.current?.offsetHeight;
+          if (e.key === 'ArrowUp') goTo(snap === 'peek' ? 'half' : 'full', h);
+          if (e.key === 'ArrowDown') goTo(snap === 'full' ? 'half' : 'peek', h);
+        }}
+        className="shrink-0 cursor-grab touch-none select-none px-5 pb-2 pt-3 active:cursor-grabbing"
       >
-        <span className="h-1 w-10 rounded-full bg-line-strong" aria-hidden />
-      </button>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-1">
-        <p className="mb-3 text-sm font-medium tabular">{count} finding{count === 1 ? '' : 's'}</p>
+        <span className="mx-auto block h-1 w-8 rounded-full bg-control" aria-hidden />
+        <div className="mt-3 flex items-baseline justify-between gap-3">
+          <h2 className="flex items-center gap-2 text-lg font-semibold tracking-[-0.01em]"><span className="size-2.5 rounded-full" style={{ background: accent ?? 'var(--color-gold)' }} aria-hidden />{title}</h2>
+          {subtitle && <p className="text-sm text-muted">{subtitle}</p>}
+        </div>
+      </div>
+      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3" style={{ paddingBottom: bottomInset + 24 }}>
         {children}
       </div>
-    </aside>
+    </section>
   );
 }

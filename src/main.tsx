@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './app/App';
 import { registerSW } from './lib/runtime/registerSW';
-import '@fontsource-variable/geist/wght.css';
+import '@fontsource-variable/figtree/wght.css';
 import './styles/index.css';
 import { initializeNative } from './platform/native';
 import { NativeModels } from './platform/NativeModels';

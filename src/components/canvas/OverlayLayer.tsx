@@ -1,85 +1,82 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
-import type { CheckResult, Overlay, Point } from '../../contracts';
+import { useEffect, useRef } from 'react';
+import { animate } from 'animejs';
+import type { Rect } from './Viewfinder';
+import type { EvidenceItem } from '../../app/results/evidence';
 
-type Rect = { x: number; y: number; width: number; height: number };
-
-export interface OverlayLayerProps {
-  checks: CheckResult[];
+interface Props {
+  items: EvidenceItem[];
+  /** Where the photo is drawn inside the canvas well, in CSS pixels. */
+  photo: Rect | null;
   selected: string | null;
-  onSelect: (checkId: string) => void;
-  /** The element whose content box is the displayed, orientation-corrected image. */
-  imageElement: HTMLElement | null;
-  width: number;
-  height: number;
-  rasterOpacity?: number;
+  onSelect: (id: string) => void;
 }
 
-function useImageRect(element: HTMLElement | null): Rect | null {
-  const [rect, setRect] = useState<Rect | null>(null);
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * The areas each check looked at, drawn on the photo and keyed by the row number.
+ * Every outline is a real, focusable control: selecting one opens its evidence row, and the reverse.
+ */
+export function OverlayLayer({ items, photo, selected, onSelect }: Props) {
+  if (!photo || photo.w < 1) return null;
+  const placed = items.filter((i) => i.region);
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10" aria-label="Areas each check looked at">
+      {placed.map((item) => (
+        <Mark key={item.id} item={item} photo={photo} active={selected === item.id} dim={selected !== null && selected !== item.id} onSelect={onSelect} />
+      ))}
+    </div>
+  );
+}
+
+function Mark({ item, photo, active, dim, onSelect }: { item: EvidenceItem; photo: Rect; active: boolean; dim: boolean; onSelect: (id: string) => void }) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const r = item.region!;
+  // A whole-image region sits just inside the photo edge so its outline stays visible.
+  const whole = r.w > 0.98 && r.h > 0.98;
+  const inset = whole ? 6 : 0;
+  const style = {
+    left: photo.x + r.x * photo.w + inset,
+    top: photo.y + r.y * photo.h + inset,
+    width: Math.max(16, r.w * photo.w - inset * 2),
+    height: Math.max(16, r.h * photo.h - inset * 2),
+  };
+
   useEffect(() => {
-    if (!element) return;
-    const update = () => {
-      setRect({ x: element.offsetLeft, y: element.offsetTop, width: element.offsetWidth, height: element.offsetHeight });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(element);
-    window.addEventListener('resize', update);
-    return () => { observer.disconnect(); window.removeEventListener('resize', update); };
-  }, [element]);
-  return rect;
-}
+    if (!active || !ref.current || reduced()) return;
+    const a = animate(ref.current, { scale: [0.985, 1], duration: 240, ease: 'outExpo' });
+    return () => void a.cancel();
+  }, [active]);
 
-function pointPath(points: Point[]) { return points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' '); }
-function extendRay(ray: { x1: number; y1: number; x2: number; y2: number }, w: number, h: number) {
-  const dx = ray.x2 - ray.x1 || 0.0001; const dy = ray.y2 - ray.y1 || 0.0001;
-  const scale = Math.max(w / Math.abs(dx), h / Math.abs(dy)) * 2;
-  return { x1: ray.x1 - dx * scale, y1: ray.y1 - dy * scale, x2: ray.x1 + dx * scale, y2: ray.y1 + dy * scale };
-}
-
-function rasterUrl(overlay: Extract<Overlay, { type: 'raster' }>) {
-  const canvas = document.createElement('canvas'); canvas.width = overlay.width; canvas.height = overlay.height;
-  const image = canvas.getContext('2d')!.createImageData(overlay.width, overlay.height);
-  overlay.values.forEach((v, i) => { const n = i * 4; image.data[n] = 220; image.data[n + 1] = Math.round(40 + v * 170); image.data[n + 2] = 35; image.data[n + 3] = Math.round(v * 210); });
-  canvas.getContext('2d')!.putImageData(image, 0, 0); return canvas.toDataURL();
-}
-
-function OverlayShape({ overlay, width, height, opacity }: { overlay: Overlay; width: number; height: number; opacity: number }) {
-  if (overlay.type === 'box') return <rect x={overlay.x * width} y={overlay.y * height} width={overlay.width * width} height={overlay.height * height} fill="currentColor" fillOpacity=".08" />;
-  if (overlay.type === 'points') return <>{overlay.points.map((p, i) => <circle key={i} cx={p.x * width} cy={p.y * height} r="5" fill="currentColor" />)}</>;
-  if (overlay.type === 'lines') return <>{overlay.lines.map((l, i) => <line key={i} x1={l.x1 * width} y1={l.y1 * height} x2={l.x2 * width} y2={l.y2 * height} />)}</>;
-  if (overlay.type === 'rays') return <>{overlay.rays.map((r, i) => { const q = extendRay({ x1:r.x1*width,y1:r.y1*height,x2:r.x2*width,y2:r.y2*height }, width, height); return <line key={i} {...q} />; })}</>;
-  if (overlay.type === 'polygon') return <path d={`${pointPath(overlay.points.map((p) => ({ x:p.x*width, y:p.y*height })))} Z`} fill="currentColor" fillOpacity=".08" />;
-  const url = rasterUrl(overlay); const r = overlay.rect;
-  return <image href={url} x={r.x * width} y={r.y * height} width={r.width * width} height={r.height * height} opacity={opacity} preserveAspectRatio="none" />;
-}
-
-/** Contract-driven SVG overlay layer aligned to the actual displayed photo rectangle. */
-export function OverlayLayer({ checks, selected, onSelect, imageElement, width, height, rasterOpacity = .7 }: OverlayLayerProps) {
-  const rect = useImageRect(imageElement);
-  const flattened = useMemo(() => checks.flatMap((check, checkIndex) => {
-    // Some evidence is file-level (for example Content Credentials), so it has no
-    // region to draw. Give it an honest, visible image-boundary target instead.
-    const fallback = [
-      { x: .06, y: .06, width: .4, height: .38 }, { x: .54, y: .06, width: .4, height: .38 },
-      { x: .06, y: .56, width: .4, height: .38 }, { x: .54, y: .56, width: .4, height: .38 },
-    ][checkIndex % 4]!;
-    const overlays = check.overlays.length ? check.overlays : [{ type: 'box' as const, ...fallback, label: 'Image region for this file-level check' }];
-    return overlays.map((overlay, index) => ({ check, overlay, index }));
-  }), [checks]);
-  if (!rect || !width || !height) return null;
-  return <svg aria-label="Evidence overlays" className="absolute z-20 overflow-visible" style={{ left: rect.x, top: rect.y, width: rect.width, height: rect.height }} viewBox={`0 0 ${width} ${height}`}>
-    {flattened.map(({ check, overlay, index }) => {
-      const active = selected === check.id; const dim = selected !== null && !active;
-      const choose = () => onSelect(check.id);
-      return <Fragment key={`${check.id}-${index}`}>
-        <g className="pointer-events-none text-[#1d5fbf]" opacity={dim ? .4 : 1}>
-          <g stroke="currentColor" strokeWidth={active ? 2.5 : 1.5} vectorEffect="non-scaling-stroke" fill="none"><OverlayShape overlay={overlay} width={width} height={height} opacity={rasterOpacity} /></g>
-        </g>
-        <foreignObject x={overlay.type === 'box' ? overlay.x * width : 0} y={overlay.type === 'box' ? overlay.y * height : 0} width={overlay.type === 'box' ? overlay.width * width : width} height={overlay.type === 'box' ? overlay.height * height : height} className="pointer-events-auto">
-          <button data-testid="overlay" data-check-id={check.id} data-selected={active ? 'true' : 'false'} type="button" aria-label={`Select ${check.title} overlay`} onClick={choose} className="block h-full w-full cursor-pointer bg-transparent outline-none" style={{ border: active ? '2px solid #1d5fbf' : '1px solid transparent' }} />
-        </foreignObject>
-      </Fragment>;
-    })}
-  </svg>;
+  return (
+    <button
+      ref={ref}
+      type="button"
+      data-testid="overlay"
+      data-check-id={item.id}
+      data-selected={active ? 'true' : 'false'}
+      aria-pressed={active}
+      aria-label={`${item.number}. ${item.title}: ${item.regionLabel.toLowerCase()}`}
+      onClick={() => onSelect(item.id)}
+      className={[
+        'pointer-events-auto absolute rounded-[10px] transition-[opacity,box-shadow,background-color] duration-200',
+        active
+          ? 'bg-[rgb(43_68_214/0.08)] shadow-[0_0_0_2.5px_var(--overlay),0_0_0_6px_rgb(255_255_255/0.55)]'
+          : 'shadow-[0_0_0_1.5px_rgb(255_255_255/0.9),0_0_0_3px_rgb(43_68_214/0.55)] hover:bg-[rgb(43_68_214/0.06)]',
+        dim ? 'opacity-35' : 'opacity-100',
+      ].join(' ')}
+      style={style}
+    >
+      <span
+        aria-hidden
+        className={[
+          'tabular absolute left-2 top-2 inline-flex h-6 min-w-6 items-center justify-center gap-1 rounded-full px-1.5 text-xs font-bold shadow-sm',
+          active ? 'bg-[var(--overlay)] text-white' : 'bg-white text-[var(--overlay)]',
+        ].join(' ')}
+      >
+        {item.number}
+        {active && <span className="pr-1 font-semibold">{item.regionLabel}</span>}
+      </span>
+    </button>
+  );
 }

@@ -1,8 +1,18 @@
 // Image intake: decide from the file's own bytes whether Veil will open it.
 // Pure functions only, so the rules are unit-tested without a browser.
 
-export const MAX_INPUT_BYTES = 10 * 1024 * 1024; // 10 MiB compressed
-export const MAX_INPUT_PIXELS = 12_000_000; // 12 megapixels decoded
+export const MAX_INPUT_BYTES = 80 * 1024 * 1024; // safety ceiling for what a phone can hold in memory
+export const MAX_INPUT_PIXELS = 150_000_000; // safety ceiling before decoding (larger than any camera photo)
+/** Larger photos are scaled down to this many pixels when they open; the original bytes and hash are kept. */
+export const WORKING_PIXELS = 12_000_000;
+
+/** The size a photo is worked on at: unchanged up to WORKING_PIXELS, otherwise scaled down evenly. */
+export function workingSize(width: number, height: number): { width: number; height: number; scaled: boolean } {
+  const pixels = width * height;
+  if (pixels <= WORKING_PIXELS) return { width, height, scaled: false };
+  const k = Math.sqrt(WORKING_PIXELS / pixels);
+  return { width: Math.max(1, Math.floor(width * k)), height: Math.max(1, Math.floor(height * k)), scaled: true };
+}
 
 export type SupportedMime = 'image/jpeg' | 'image/png';
 

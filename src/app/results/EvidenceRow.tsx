@@ -1,156 +1,135 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import { animate } from 'animejs';
 import { CaretDown, Eye, EyeSlash } from '@phosphor-icons/react';
-import { animate, cubicBezier } from 'animejs';
-import { useLayoutEffect, useRef } from 'react';
-import { displayedFinding, type CheckResult } from '../../contracts';
+import type { FindingTone } from './findings';
+import type { EvidenceItem } from './evidence';
 
-type EvidenceStatus = 'positive' | 'negative' | 'neutral' | 'not-run';
-
-const STATUS: Record<EvidenceStatus, { label: string; className: string }> = {
-  positive: { label: 'Compatible', className: 'bg-[#dcfae5] text-[#04250e]' },
-  negative: { label: 'Difference found', className: 'bg-[#ffedea] text-[#831c1e]' },
-  neutral: { label: 'Inconclusive', className: 'bg-[#eeeeee] text-[#3d3d3d]' },
-  'not-run': { label: 'Not run', className: 'bg-[#eeeeee] text-[#3d3d3d]' },
+const PILL: Record<FindingTone, string> = {
+  alert: 'bg-alert-bg text-alert-ink',
+  notice: 'bg-notice-bg text-notice-ink',
+  clear: 'bg-clear-bg text-clear-ink',
+  pending: 'bg-idle-bg text-idle-ink',
+  idle: 'bg-idle-bg text-idle-ink',
 };
 
-function statusFor(check: CheckResult): EvidenceStatus {
-  if (check.execution !== 'complete') return 'not-run';
-  switch (displayedFinding(check)) {
-    case 'consistent': return 'positive';
-    case 'inconsistent': return 'negative';
-    default: return 'neutral';
-  }
-}
+const reduced = () => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function evidenceValue(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (value === null || value === undefined) return 'Unavailable';
-  try { return JSON.stringify(value); } catch { return String(value); }
-}
-
-export interface EvidenceRowProps {
-  check: CheckResult;
-  /** Controlled expansion makes the selected evidence unambiguous to the canvas overlay. */
-  open: boolean;
-  onToggle: () => void;
-  /** Whether this check's visual evidence is currently shown on the photo. */
-  showOnPhoto?: boolean;
-  onShowOnPhoto?: (show: boolean) => void;
-}
-
-/** A keyboard-accessible, contract-backed record of one local evidence check. */
-export function EvidenceRow({ check, open, onToggle, showOnPhoto = false, onShowOnPhoto }: EvidenceRowProps) {
-  const details = useRef<HTMLDivElement>(null);
-  const initialized = useRef(false);
-  const detailsId = `evidence-details-${check.id}`;
-  const status = STATUS[statusFor(check)];
-  // Checks without localized geometry still select the displayed-image boundary. That
-  // makes the relation to the canvas explicit without inventing evidence regions.
-  const hasOverlay = true;
+/** One check: a pill, a title and one plain sentence. Opens in place to show how it works and its limits. */
+export function EvidenceRow({ item, open, onToggle }: { item: EvidenceItem; open: boolean; onToggle: () => void }) {
+  const body = useRef<HTMLDivElement>(null);
+  const first = useRef(true);
+  const [shown, setShown] = useState(open);
 
   useLayoutEffect(() => {
-    const element = details.current;
-    if (!element) return;
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const from = element.getBoundingClientRect().height;
-    const to = open ? element.scrollHeight : 0;
-    const applyFinalState = () => {
-      element.style.height = open ? 'auto' : '0px';
-      element.style.opacity = open ? '1' : '0';
-    };
-
-    if (!initialized.current || reduceMotion) {
-      initialized.current = true;
-      applyFinalState();
+    const el = body.current;
+    if (!el) return;
+    if (first.current || reduced()) {
+      first.current = false;
+      el.style.height = open ? 'auto' : '0px';
+      el.style.opacity = open ? '1' : '0';
+      if (!open) setShown(false);
       return;
     }
-
-    const animation = animate(element, {
-      height: [from, to],
+    if (open) setShown(true);
+    const full = el.scrollHeight;
+    const a = animate(el, {
+      height: open ? [el.offsetHeight, full] : [el.offsetHeight, 0],
       opacity: open ? [0, 1] : [1, 0],
-      duration: 180,
-      ease: cubicBezier(.2, .8, .2, 1),
-      onComplete: applyFinalState,
+      duration: open ? 260 : 200,
+      ease: 'outExpo',
+      onComplete: () => {
+        if (open) el.style.height = 'auto';
+        else setShown(false);
+      },
     });
-    return () => { animation.cancel(); };
+    return () => void a.cancel();
   }, [open]);
 
+  const panelId = `evidence-${item.id}`;
   return (
-    <article className="border-b border-line last:border-b-0" data-check-id={check.id}>
-      <div className="flex min-h-11 items-start gap-2 py-2">
+    <article
+      className={`rounded-panel transition-[background-color,box-shadow] duration-200 ${open ? 'bg-panel shadow-[var(--shadow-card)]' : 'hover:bg-panel/70'}`}
+      data-tone={item.tone}
+    >
+      <div className="flex items-start gap-1 p-1.5">
         <button
-          data-testid="evidence-row"
-          data-check-id={check.id}
           type="button"
+          data-testid="evidence-row"
+          data-check-id={item.id}
           aria-expanded={open}
-          aria-controls={detailsId}
+          aria-controls={panelId}
           onClick={onToggle}
-          className="flex min-w-0 flex-1 items-start gap-2 rounded-[var(--radius-control)] py-1 text-left transition-colors duration-120 hover:bg-raised focus-visible:outline-offset-2"
+          className="flex min-h-14 flex-1 items-start gap-3 rounded-[12px] px-2.5 py-2.5 text-left"
         >
+          <span
+            aria-hidden
+            className={`tabular mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${open ? 'bg-gold text-gold-ink' : 'bg-raised text-muted'}`}
+          >
+            {item.number}
+          </span>
           <span className="min-w-0 flex-1">
-            <span className="flex flex-wrap items-center gap-2">
-              <strong className="text-sm font-medium leading-5 text-ink">{check.title}</strong>
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span>
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold leading-snug">{item.title}</span>
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold ${PILL[item.tone]}`}>
+                {item.tone === 'pending' && <span className="pulse-dot size-1.5 rounded-full bg-current" aria-hidden />}
+                {item.label}
+              </span>
             </span>
-            <span className="mt-0.5 block truncate text-sm leading-5 text-muted">{check.observation}</span>
+            <span className="mt-1 block text-sm text-muted text-pretty">{item.headline}</span>
           </span>
           <CaretDown
-            size={16}
+            size={18}
             aria-hidden
-            className={`mt-0.5 shrink-0 text-muted transition-transform duration-180 ${open ? 'rotate-180' : ''}`}
+            className={`mt-1 shrink-0 text-faint transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
           />
         </button>
-        <button
-          type="button"
-          aria-pressed={showOnPhoto}
-          aria-label={`${showOnPhoto ? 'Hide' : 'Show'} ${check.title} on the photo`}
-          title={hasOverlay ? `${showOnPhoto ? 'Hide from' : 'Show on'} photo` : 'This check has no photo overlay'}
-          disabled={!hasOverlay || !onShowOnPhoto}
-          onClick={() => onShowOnPhoto?.(!showOnPhoto)}
-          className="inline-flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] text-muted transition-colors duration-120 hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {showOnPhoto ? <Eye size={16} aria-hidden /> : <EyeSlash size={16} aria-hidden />}
-          <span className="sr-only">Show on photo</span>
-        </button>
+        {item.layer?.available && (
+          <button
+            type="button"
+            onClick={item.layer.toggle}
+            aria-pressed={item.layer.visible}
+            aria-label={`${item.layer.visible ? 'Hide' : 'Show'} the ${item.title} map on the photo`}
+            className="icon-btn shrink-0"
+          >
+            {item.layer.visible ? <Eye size={20} aria-hidden /> : <EyeSlash size={20} aria-hidden />}
+          </button>
+        )}
       </div>
 
-      <div
-        ref={details}
-        id={detailsId}
-        data-testid={open ? 'evidence-details' : undefined}
-        aria-hidden={!open}
-        className="overflow-hidden"
-        style={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
-      >
-        <div className="grid gap-3 border-t border-line pb-3 pt-3 text-sm text-muted">
-          <section>
-            <h4 className="font-medium text-ink">Method</h4>
-            <p className="mt-0.5">{check.method}</p>
-          </section>
-          <section>
-            <h4 className="font-medium text-ink">Assumptions</h4>
-            <p className="mt-0.5">{check.assumptions.length ? check.assumptions.join(' ') : 'None recorded.'}</p>
-          </section>
-          <section>
-            <h4 className="font-medium text-ink">Limitations</h4>
-            <p className="mt-0.5">{check.limitations.length ? check.limitations.join(' ') : 'None recorded.'}</p>
-          </section>
-          <section>
-            <h4 className="font-medium text-ink">Evidence</h4>
-            {Object.keys(check.evidence).length > 0 ? (
-              <dl className="mt-1 divide-y divide-line border-y border-line">
-                {Object.entries(check.evidence).map(([key, value]) => (
-                  <div key={key} className="grid min-h-8 grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)] items-center gap-2 py-1.5">
-                    <dt className="truncate text-xs">{key}</dt>
-                    <dd className="break-words text-right font-mono text-xs tabular text-ink">{evidenceValue(value)}</dd>
-                  </div>
-                ))}
-              </dl>
-            ) : <p className="mt-0.5">No key measurements were recorded.</p>}
-          </section>
-        </div>
+      <div ref={body} id={panelId} className="overflow-hidden" style={{ height: 0, opacity: 0 }}>
+        {(open || shown) && (
+          <div data-testid="evidence-details" className="grid gap-4 px-4 pb-4 pl-[3.25rem] text-sm">
+            <Section label="Method">{item.method}</Section>
+            {item.assumptions.length > 0 && <Section label="Assumptions">{item.assumptions.join(' ')}</Section>}
+            <Section label="Limitations">{item.limitations.join(' ')}</Section>
+            {item.numbers.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-faint">Measured</p>
+                <dl className="mt-1.5 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+                  {item.numbers.map(([k, v]) => (
+                    <div key={k} className="contents">
+                      <dt className="text-muted first-letter:uppercase">{k}</dt>
+                      <dd className="tabular truncate text-right font-medium">{v}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            )}
+            <p className="text-xs text-faint">
+              {item.region ? `Outlined on the photo as ${item.number}: ${item.regionLabel.toLowerCase()}.` : 'Nothing to outline on the photo yet.'}
+            </p>
+          </div>
+        )}
       </div>
     </article>
+  );
+}
+
+function Section({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs font-semibold text-faint">{label}</p>
+      <p className="mt-0.5 text-ink/90 text-pretty">{children}</p>
+    </div>
   );
 }

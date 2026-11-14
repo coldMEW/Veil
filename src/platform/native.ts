@@ -1,3 +1,4 @@
+import { consumeUiBack } from './back';
 import { registerPlugin } from '@capacitor/core';
 import { App as NativeApp } from '@capacitor/app';
 import { StatusBar, Style } from '@capacitor/status-bar';
@@ -56,11 +57,11 @@ export async function initializeNative(): Promise<void> {
     if (result.pluginId === 'VeilIntake' && result.methodName === 'capturePhoto' && result.success)
       void openCapture(result.data as SharedImage);
   });
-  await NativeApp.addListener('backButton', () => {
-    const event = new Event('veil-back', { cancelable: true });
-    if (window.dispatchEvent(event) && !backFallback()) void NativeApp.exitApp();
+  await NativeApp.addListener('backButton', async () => {
+    if (!(await consumeUiBack()) && !backFallback()) await NativeApp.exitApp();
   });
   await StatusBar.setStyle({ style: Style.Light });
+  await StatusBar.setBackgroundColor({ color: '#f5f1eb' });
   await SplashScreen.hide();
 }
 
