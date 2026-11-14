@@ -75,6 +75,14 @@ describe('checkIntake', () => {
     if (!result.ok) expect(result.reason).toBe('This file is 10.1 MiB. Veil opens files up to 10 MiB.');
   });
 
+  it('names the format, not the size, for a large raw file with a .jpg name', () => {
+    const dng = new Uint8Array(MAX_INPUT_BYTES + 3_000_000);
+    dng.set([0x49, 0x49, 0x2a, 0x00]); // TIFF / DNG little-endian magic
+    const result = checkIntake(dng);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain('neither');
+  });
+
   it('rejects empty, unsupported and damaged files', () => {
     expect(checkIntake(new Uint8Array()).ok).toBe(false);
     expect(checkIntake(new TextEncoder().encode('not an image')).ok).toBe(false);

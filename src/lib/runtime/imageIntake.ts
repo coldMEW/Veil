@@ -73,15 +73,16 @@ export function checkIntake(bytes: Uint8Array): IntakeResult {
   if (bytes.length === 0) {
     return { ok: false, reason: 'This file is empty.' };
   }
+  // Format first, so a large raw file (e.g. a phone DNG named .jpg) gets the accurate reason.
+  const mimeType = sniffFormat(bytes);
+  if (!mimeType) {
+    return { ok: false, reason: 'Veil opens JPEG and PNG photos. This file is neither, whatever its name says.' };
+  }
   if (bytes.length > MAX_INPUT_BYTES) {
     return {
       ok: false,
       reason: `This file is ${formatMiB(bytes.length)}. Veil opens files up to ${MAX_INPUT_BYTES / (1024 * 1024)} MiB.`,
     };
-  }
-  const mimeType = sniffFormat(bytes);
-  if (!mimeType) {
-    return { ok: false, reason: 'Veil opens JPEG and PNG photos. This file is neither, whatever its name says.' };
   }
   const size = mimeType === 'image/png' ? readPngSize(bytes) : readJpegSize(bytes);
   if (!size || size.width === 0 || size.height === 0) {
