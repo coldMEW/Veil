@@ -20,10 +20,24 @@ const intake = registerPlugin<{
   addListener(event: 'sharedImage', callback: () => void): Promise<unknown>;
 }>('VeilIntake');
 
+let backFallback: () => boolean = () => false;
+/** Called by the platform React bridge; shared UI gets first refusal through veil-back. */
+export function setNativeBackFallback(handler: () => boolean): () => void {
+  backFallback = handler;
+  return () => {
+    if (backFallback === handler) backFallback = () => false;
+  };
+}
+
 /** Native intake stays in memory and uses the same validation as the web picker. */
 export async function initializeNative(): Promise<void> {
   if (!isAndroid()) return;
   document.documentElement.classList.add('veil-android');
+  window.addEventListener('veil-camera', () => {
+    void takePhoto().catch((error) => {
+      if (!/cancel/i.test(String(error))) window.dispatchEvent(new CustomEvent('veil-toast', { detail: String(error) }));
+    });
+  });
   const consume = async () => {
     try {
       const image = await intake.takeSharedImage();
@@ -31,7 +45,9 @@ export async function initializeNative(): Promise<void> {
       const bytes = Uint8Array.from(atob(image.base64), (c) => c.charCodeAt(0));
       await openImageFile(new File([bytes], image.name ?? 'Shared image', { type: image.mime }));
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Could not open the shared image.');
+      window.dispatchEvent(new CustomEvent('veil-toast', {
+        detail: error instanceof Error ? error.message : 'Could not open the shared image.',
+      }));
     }
   };
   await intake.addListener('sharedImage', () => void consume());
@@ -42,7 +58,7 @@ export async function initializeNative(): Promise<void> {
   });
   await NativeApp.addListener('backButton', () => {
     const event = new Event('veil-back', { cancelable: true });
-    if (window.dispatchEvent(event)) void NativeApp.exitApp();
+    if (window.dispatchEvent(event) && !backFallback()) void NativeApp.exitApp();
   });
   await StatusBar.setStyle({ style: Style.Light });
   await SplashScreen.hide();
@@ -87,6 +103,9 @@ async function openCapture(photo: SharedImage): Promise<void> {
   await openImageFile(new File([bytes], photo.name ?? 'Camera photo.jpg', { type: 'image/jpeg' }));
 }
 /** Open Veil's own camera surface, rather than leaving the app for a system camera. */
-export async function takePhoto(): Promise<void> {
-  await openCapture(await intake.capturePhoto());
+let captureInFlight: Promise<void> | undefined;
+export function takePhoto(): Promise<void> {
+  if (!isAndroid()) return Promise.reject(Error('Camera capture is available in the Android app.'));
+  captureInFlight ??= intake.capturePhoto().then(openCapture).finally(() => { captureInFlight = undefined; });
+  return captureInFlight;
 }

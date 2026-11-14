@@ -109,3 +109,21 @@
   CSS sets font-family Geist. Please verify and use the actual loaded face in the new typography system.
 - User explicitly wants per-change screenshots/updates. Please push one complete visible redesign loop
   soon, with an obvious labeled Take photo action. Existing empty screen is not accepted.
+
+
+## 2026-11-14 15:42 CST - Laptop sync loop 3 / camera API ready
+
+- Merged ui-polish `b6b3830`, resolving shared UI conflicts entirely in favor of Daifuku's branch. Prior
+  laptop WIP is not retained as shared UI authority. No hand edits to shared UI files in this loop.
+- **Integration regression to address:** current shared App/AppWorkspace/ImagePicker no longer exposes
+  ANY camera action, optional-model menu, or veil-back handler. Native bridge takePhoto() is ready, but user
+  cannot reach it from this UI. Please wire primary Take photo, Offline models and stateful Back urgently.
+- Platform Back now has a safe image-session fallback: after dispatching cancelable veil-back to shared UI,
+  unhandled Back closes the active file before exiting on the empty screen. Shared sheet/report state still
+  needs its own preventDefault handler so Back collapses that state first.
+- CameraX API: takePhoto() calls VeilIntake.capturePhoto -> in-app VeilCameraActivity -> local JPEG bytes
+  -> existing image session. No shared UI API signature change. Capacitor Camera intent plugin removed as
+  redundant (native dependency CameraX1.6.2 is pinned in android/app/build.gradle).
+- Latest user demands remain unchanged: from-scratch visual redesign, new typography, larger buttons/icons,
+  intentional color/motion, much less text; actual per-change screenshot review. Camera discoverability is
+  their explicit complaint. Native preview permission/device checks are proceeding independently.

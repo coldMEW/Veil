@@ -1,3 +1,5 @@
+import { closeImage, useImageSession } from '../lib/runtime/imageSession';
+import { setNativeBackFallback } from './native';
 import { useEffect, useRef, useState } from 'react';
 import { isAndroid } from './environment';
 import { downloadModel, optionalModels, MODEL_CACHE, type OptionalModel } from './modelStore';
@@ -5,6 +7,15 @@ import { ensureOptionalModel, type ConsentRequest } from './modelConsent';
 
 /** Android-only, explicit consent and cancellable progress; no photo data enters this flow. */
 export function NativeModels() {
+  const hasOpenSession = useImageSession().status !== 'empty';
+  useEffect(() => {
+    if (!isAndroid()) return;
+    return setNativeBackFallback(() => {
+      if (!hasOpenSession) return false;
+      closeImage();
+      return true;
+    });
+  }, [hasOpenSession]);
   const [toast, setToast] = useState('');
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
