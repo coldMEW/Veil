@@ -4,7 +4,7 @@
 
 import { useSyncExternalStore } from 'react';
 import type { ImageAsset } from '../../contracts';
-import { checkIntake, isPdf, MAX_INPUT_BYTES, sha256Hex } from './imageIntake';
+import { checkIntake, isPdf, MAX_INPUT_BYTES, sha256Hex, workingSize } from './imageIntake';
 
 export type ImageSessionState =
   | { status: 'empty' }
@@ -70,9 +70,16 @@ export async function openImageFile(file: File): Promise<void> {
     }
 
     const sha256 = await sha256Hex(bytes);
-    const bitmap = await createImageBitmap(new Blob([bytes], { type: intake.mimeType }), {
+    const decoded = await createImageBitmap(new Blob([bytes], { type: intake.mimeType }), {
       imageOrientation: 'from-image',
     });
+    // Very large photos are scaled down to the working size; the original bytes and hash stay untouched.
+    const target = workingSize(decoded.width, decoded.height);
+    let bitmap = decoded;
+    if (target.scaled) {
+      bitmap = await createImageBitmap(decoded, { resizeWidth: target.width, resizeHeight: target.height, resizeQuality: 'high' });
+      decoded.close();
+    }
     if (myGeneration !== generation) {
       bitmap.close();
       return;

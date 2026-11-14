@@ -12,3 +12,6 @@ coverage/
 public/models/
 test-results/
 playwright-report/
+.impeccable/review/
+.impeccable/shots.mjs
+ui-shots/

@@ -20,8 +20,9 @@
 .veil-report .report-json { margin: 0; }
 .veil-report .report-fixture { border-left: 3px solid currentColor; padding-left: .75rem; }
 .veil-report .report-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.5rem; }
-.veil-report button { border: 1px solid currentColor; border-radius: .5rem; padding: .65rem 1rem; min-height: 44px; cursor: pointer; }
-.veil-report button:hover { background: var(--color-raised, #eee); }
+.veil-report button { border: 0; border-radius: 12px; padding: .65rem 1.1rem; min-height: 44px; cursor: pointer; font-weight: 600; background: var(--color-raised, #efe9e1); color: var(--color-ink, #1f1c17); transition: background-color 160ms, transform 160ms; }
+.veil-report button:hover { background: #e6dfd4; }
+.veil-report button:active { transform: scale(.97); }
 @media screen and (max-width: 40rem) {
   .veil-report { padding: 1rem; }
   .veil-report .report-field { grid-template-columns: minmax(0, 1fr); gap: .15rem; }
@@ -57,4 +58,7 @@
   .veil-report h1, .veil-report h2, .veil-report h3, .veil-report dt { break-after: avoid; }
   .veil-report .report-field { break-inside: avoid; }
   .veil-report .report-hash, .veil-report .report-json { white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
+}
+@media screen {
+  .report-paper .veil-report { padding: 0; max-width: none; }
 }

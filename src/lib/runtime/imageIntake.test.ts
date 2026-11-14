@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_INPUT_BYTES,
   checkIntake,
+  workingSize,
+  WORKING_PIXELS,
   readJpegSize,
   readPngSize,
   sha256Hex,
@@ -56,23 +58,27 @@ describe('header size readers', () => {
 });
 
 describe('checkIntake', () => {
-  it('accepts a 12 MP image at the limit', () => {
+  it('accepts a 12 MP image', () => {
     const result = checkIntake(pngHeader(4000, 3000));
     expect(result).toEqual({ ok: true, mimeType: 'image/png', width: 4000, height: 3000 });
   });
 
-  it('rejects images over 12 megapixels with the measured size', () => {
-    const result = checkIntake(jpegHeader(4032, 3024));
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toContain('4032 × 3024');
+  it('accepts large camera photos; they are scaled when opened', () => {
+    expect(checkIntake(jpegHeader(8064, 6048)).ok).toBe(true);
+    expect(workingSize(4000, 3000)).toEqual({ width: 4000, height: 3000, scaled: false });
+    const s = workingSize(8064, 6048);
+    expect(s.scaled).toBe(true);
+    expect(s.width * s.height).toBeLessThanOrEqual(WORKING_PIXELS);
+    expect(s.width / s.height).toBeCloseTo(8064 / 6048, 2);
   });
 
-  it('rejects files over 10 MiB before reading them', () => {
+  it('still refuses absurd sizes that would exhaust memory', () => {
+    const result = checkIntake(jpegHeader(20000, 20000));
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toContain('20000 × 20000');
     const big = new Uint8Array(MAX_INPUT_BYTES + 1);
     big.set(pngHeader(10, 10));
-    const result = checkIntake(big);
-    expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.reason).toBe('This file is 10.1 MiB. Veil opens files up to 10 MiB.');
+    expect(checkIntake(big).ok).toBe(false);
   });
 
   it('names the format, not the size, for a large raw file with a .jpg name', () => {
