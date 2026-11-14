@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react';
-import { animate } from 'animejs';
+import { animate, cubicBezier } from 'animejs';
 
 type SnapPoint = 'peek' | 'half' | 'full';
 
 const SNAP_ORDER: readonly SnapPoint[] = ['peek', 'half', 'full'];
 const SNAP_VH: Record<SnapPoint, number> = { peek: 35, half: 55, full: 90 };
 const DRAG_VELOCITY_PX_PER_MS = 0.45;
-const SHEET_EASE = 'cubicBezier(.2, .8, .2, 1)';
+const SHEET_EASE = cubicBezier(.2, .8, .2, 1);
 
 function prefersReducedMotion() {
   return typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;

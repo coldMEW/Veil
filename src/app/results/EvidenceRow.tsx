@@ -1,5 +1,5 @@
 import { CaretDown, Eye, EyeSlash } from '@phosphor-icons/react';
-import { animate } from 'animejs';
+import { animate, cubicBezier } from 'animejs';
 import { useLayoutEffect, useRef } from 'react';
 import { displayedFinding, type CheckResult } from '../../contracts';
 
@@ -44,7 +44,9 @@ export function EvidenceRow({ check, open, onToggle, showOnPhoto = false, onShow
   const initialized = useRef(false);
   const detailsId = `evidence-details-${check.id}`;
   const status = STATUS[statusFor(check)];
-  const hasOverlay = check.overlays.length > 0;
+  // Checks without localized geometry still select the displayed-image boundary. That
+  // makes the relation to the canvas explicit without inventing evidence regions.
+  const hasOverlay = true;
 
   useLayoutEffect(() => {
     const element = details.current;
@@ -68,7 +70,7 @@ export function EvidenceRow({ check, open, onToggle, showOnPhoto = false, onShow
       height: [from, to],
       opacity: open ? [0, 1] : [1, 0],
       duration: 180,
-      ease: 'cubicBezier(.2, .8, .2, 1)',
+      ease: cubicBezier(.2, .8, .2, 1),
       onComplete: applyFinalState,
     });
     return () => { animation.cancel(); };
@@ -116,7 +118,7 @@ export function EvidenceRow({ check, open, onToggle, showOnPhoto = false, onShow
       <div
         ref={details}
         id={detailsId}
-        data-testid="evidence-details"
+        data-testid={open ? 'evidence-details' : undefined}
         aria-hidden={!open}
         className="overflow-hidden"
         style={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}

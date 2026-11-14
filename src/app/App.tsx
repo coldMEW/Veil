@@ -13,8 +13,8 @@ export function App() {
   }
   return (
     <div className="flex h-full flex-col">
-      <header className="flex h-11 shrink-0 items-center justify-between px-4"><span className="text-base font-semibold">Veil</span><span className="text-sm text-muted">On this device</span></header>
-      <main className="relative min-h-0 flex-1 overflow-hidden lightbox"><MotionEntrance>
+      <header className="flex h-11 shrink-0 items-center justify-between bg-night px-4"><span className="text-base font-semibold">Veil</span><span className="text-sm text-muted">On this device</span></header>
+      <main className="relative min-h-0 flex-1 overflow-hidden lightbox m-2 rounded-panel"><MotionEntrance>
         <DropStage onFile={(file) => void openImageFile(file)} onDragChange={() => undefined} />
         <p data-enter className="absolute inset-x-0 bottom-10 text-center text-sm text-muted">Check a photo <span aria-hidden>·</span> Check a PDF <span aria-hidden>·</span> Remove private details</p>
       </MotionEntrance></main>

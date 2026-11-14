@@ -27,7 +27,7 @@ function useFilePicker(onFile: (file: File) => void) {
 }
 
 export const primaryButton =
-  'lift inline-flex h-12 items-center gap-2.5 rounded-full bg-gold px-7 text-[15px] font-semibold text-gold-ink transition-[filter,transform,box-shadow] duration-200 hover:brightness-105 active:scale-[0.97]';
+  'lift inline-flex h-9 items-center gap-2 rounded-control bg-gold px-4 text-sm font-medium text-gold-ink transition-[filter,transform] duration-120 hover:brightness-105 active:scale-[0.98]';
 
 /** Secondary action used beside an open photo. */
 export function OpenAnotherButton({ onFile }: { onFile: (file: File) => void }) {
@@ -37,7 +37,7 @@ export function OpenAnotherButton({ onFile }: { onFile: (file: File) => void }) 
       <button
         type="button"
         onClick={open}
-        className="inline-flex h-11 items-center gap-2 rounded-full border border-line-strong px-4 text-sm font-medium text-ink transition-[color,border-color,transform] duration-200 hover:border-gold/60 hover:text-gold active:scale-[0.97]"
+        className="inline-flex h-9 items-center gap-2 rounded-control bg-[#e5e5e5] px-3 text-sm font-medium text-ink transition-[color,background-color,transform] duration-120 hover:bg-[#dcdcdc] active:scale-[0.98]"
       >
         <UploadSimple size={16} aria-hidden />
         Open another
@@ -106,7 +106,7 @@ export function DropStage({ onFile, onDragChange }: { onFile: (file: File) => vo
           {dragging ? 'Drop a photo' : 'Drop a photo or a PDF'}
         </motion.h1>
         <motion.p variants={rise} className="mt-4 max-w-sm text-base text-muted text-pretty sm:text-lg">
-          See what can be observed about it, then choose what to remove before you share it.
+          Everything runs on this device. Nothing is uploaded.
         </motion.p>
         <motion.div variants={rise} className="mt-8">
           <button type="button" onClick={open} className={primaryButton}>
