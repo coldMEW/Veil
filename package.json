@@ -8,11 +8,11 @@
   },
   "scripts": {
     "models": "node scripts/fetch-models.mjs",
-    "predev": "node scripts/fetch-models.mjs",
+    "predev": "node scripts/fetch-models.mjs && node scripts/export/fetch-models.mjs",
     "dev": "vite",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "prebuild": "node scripts/fetch-models.mjs",
+    "prebuild": "node scripts/fetch-models.mjs && node scripts/export/fetch-models.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

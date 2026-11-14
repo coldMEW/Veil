@@ -7,4 +7,6 @@ coverage/
 !.env.example
 *.log
 .DS_Store
+
+# model weights are fetched at build time (scripts/export/fetch-models.mjs), never committed
 public/models/
