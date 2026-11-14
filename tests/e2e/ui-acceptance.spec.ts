@@ -1,6 +1,6 @@
 /**
  * UI acceptance contract for UI/UX-01 (written by Claude, the head). Do NOT weaken or delete these tests.
- * Implement the UI until every test passes. Add the data-testid attributes named here to the real components.
+ * Implement the UI until every test passes. Satisfying a test with a fake, hidden, empty or zero-size element is a FAILURE of the task. Add the data-testid attributes named here to the real components.
  */
 import { test, expect, type Page } from '@playwright/test';
 import { deflateSync } from 'node:zlib';
@@ -63,13 +63,39 @@ test.describe('desktop 1440', () => {
     await expect(page.getByTestId('evidence-details').first()).toBeVisible();
     const id = await row.getAttribute('data-check-id');
     expect(id).toBeTruthy();
-    await expect(page.locator(`[data-testid="overlay"][data-check-id="${id}"]`)).toHaveAttribute('data-selected', 'true');
+    // The overlay must be a REAL visible element drawn on the canvas well (not sr-only / zero-size).
+    const ov = page.getByTestId('canvas-well').locator(`[data-testid="overlay"][data-check-id="${id}"]`);
+    await expect(ov).toBeVisible();
+    await expect(ov).toHaveAttribute('data-selected', 'true');
+    const ob = await ov.boundingBox();
+    expect(ob && ob.width > 8 && ob.height > 8).toBeTruthy();
+    expect(await ov.evaluate((e) => getComputedStyle(e).clip === 'rect(0px, 0px, 0px, 0px)' || e.classList.contains('sr-only'))).toBeFalsy();
+    // Details show the check's real method and limitations, not a placeholder.
+    const det = page.getByTestId('evidence-details').first();
+    await expect(det).toContainText(/method/i);
+    await expect(det).toContainText(/limitation/i);
+    await expect(det).not.toContainText(/available in the evidence details below/i);
+    // Reverse sync: clicking an overlay selects/expands its row.
+    await row.click();
+    await expect(row).toHaveAttribute('aria-expanded', 'false');
+    await ov.click({ force: true });
+    await expect(row).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('tools rail switches tools', async ({ page }) => {
+    await openPhoto(page);
+    await page.getByTestId('tools-rail').getByRole('button', { name: /clean|find private text/i }).first().click();
+    await expect(page.getByTestId('clean-panel')).toBeVisible();
   });
 
   test('report opens as a printable sheet', async ({ page }) => {
     await openPhoto(page);
     await page.getByTestId('open-report').click();
-    await expect(page.getByTestId('report-sheet')).toBeVisible();
+    const rep = page.getByTestId('report-sheet');
+    await expect(rep).toBeVisible();
+    await expect(rep).toContainText(/SHA-256/i);
+    const rb = await rep.boundingBox();
+    expect(rb && rb.height > 400).toBeTruthy();
     await page.screenshot({ path: 'ui-shots/acceptance/report-1440.png' });
   });
 });
@@ -82,7 +108,8 @@ test.describe('phone 390', () => {
     const sheet = page.getByTestId('evidence-sheet');
     await expect(sheet).toBeVisible();
     const box = await sheet.boundingBox();
-    expect(box && box.width <= 390).toBeTruthy();
+    expect(box && box.width <= 390 && box.height >= 120).toBeTruthy(); // a real peeking sheet, not a 1px strip
+    await expect(sheet.getByTestId('evidence-row').first()).toBeVisible({ timeout: 60000 });
     expect(box && box.y > 300).toBeTruthy(); // peeks from the bottom
     const sw = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(sw).toBeLessThanOrEqual(390);

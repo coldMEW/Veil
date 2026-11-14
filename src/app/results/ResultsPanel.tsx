@@ -35,12 +35,13 @@ interface Props {
   details: ReactNode;
   onReport: () => void;
   onNew: () => void;
+  selected: string | null;
+  onSelect: (id: string | null) => void;
 }
 
 /** Step 3: a plain-language summary first, layers on the photo, tools and details below. */
-export function ResultsPanel({ fileName, findings, layers, checking, deeper, details, onReport, onNew }: Props) {
+export function ResultsPanel({ fileName, findings, layers, checking, deeper, details, onReport, onNew, selected, onSelect }: Props) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<string | null>(null);
   const flagged = findings.filter((f) => f.tone === 'alert').length;
   return (
     <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.05 } } }}>
@@ -59,7 +60,7 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
           const layer = f.layer ? layers[f.layer] : undefined;
           return (
             <li key={f.id} className="px-4 py-3.5" data-finding={f.id} data-tone={f.tone}>
-              <button data-testid="evidence-row" data-check-id={f.id} type="button" aria-expanded={selected === f.id} onClick={() => setSelected(selected === f.id ? null : f.id)} className="flex w-full items-start gap-3 text-left">
+              <button data-testid="evidence-row" data-check-id={f.id} type="button" aria-expanded={selected === f.id} onClick={() => onSelect(selected === f.id ? null : f.id)} className="flex w-full items-start gap-3 text-left">
               <span className={`mt-1.5 size-2.5 shrink-0 rounded-full ${DOT[f.tone]}`} aria-hidden />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -80,8 +81,7 @@ export function ResultsPanel({ fileName, findings, layers, checking, deeper, det
                 </button>
               )}
               </button>
-              {selected === f.id && <div data-testid="evidence-details" className="mt-3 border-t border-line pt-3 text-sm text-muted">Observation: {f.headline}<br />Method, assumptions and limitations are available in the evidence details below.</div>}
-              <span data-testid="overlay" data-check-id={f.id} data-selected={selected === f.id ? 'true' : 'false'} className="sr-only" />
+              {selected === f.id && <div data-testid="evidence-details" className="mt-3 border-t border-line pt-3 text-sm text-muted"><p><strong>Method:</strong> local evidence check.</p><p><strong>Assumptions:</strong> this file is the supplied original.</p><p><strong>Limitations:</strong> this observation is not a verdict.</p></div>}
             </li>
           );
         })}

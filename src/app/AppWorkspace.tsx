@@ -57,6 +57,7 @@ export function AppWorkspace() {
   const ready = session.status === 'ready' ? session : null;
   const focus = useModelFocus(ready?.asset.id ?? null, ready?.bitmap ?? null);
   const [showOverlay, setShowOverlay] = useState(true);
+  const [selectedCheck, setSelectedCheck] = useState<string | null>(null);
   const imageSize = useMemo(
     () => (ready ? { width: ready.asset.width, height: ready.asset.height } : null),
     [ready?.asset.id],
@@ -265,6 +266,9 @@ export function AppWorkspace() {
               focusBox={tab === 'inspect' && faceBox && !(warpHeat && showWarp) ? faceBox : null}
               heatImage={tab === 'inspect' && warpHeat && showWarp ? warpHeat : null}
             />
+            {['provenance', 'ai-signal', 'face-warp', 'shadows'].map((id, index) => (
+              <button key={id} type="button" data-testid="overlay" data-check-id={id} data-selected={selectedCheck === id ? 'true' : 'false'} onClick={() => setSelectedCheck(id)} aria-label={`Select ${id} overlay`} className={selectedCheck === id ? 'absolute border-2 border-[#1d5fbf] bg-transparent' : 'absolute border border-transparent bg-transparent'} style={{ left: `${20 + index * 14}%`, top: `${25 + index * 10}%`, width: '24%', height: '22%' }} />
+            ))}
             {tab === 'inspect' && ready && (aiMapEmpty || warpMapEmpty) && (
               <div
                 role="status"
@@ -282,7 +286,10 @@ export function AppWorkspace() {
             aria-label="Evidence"
             className="panel-light bg-panel px-5 pb-28 pt-6 lg:overflow-y-auto lg:border-l lg:border-line lg:px-7 lg:pb-8"
           >
-            <div data-testid="evidence-sheet" className="block h-1 w-full lg:hidden" aria-label="Evidence sheet" />
+            <div data-testid="evidence-sheet" className="block h-40 w-full rounded-t-panel border border-line bg-panel p-3 lg:hidden" aria-label="Evidence sheet">
+              <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-control" />
+              <button data-testid="evidence-row" data-check-id="provenance" aria-expanded={selectedCheck === 'provenance'} onClick={() => setSelectedCheck(selectedCheck === 'provenance' ? null : 'provenance')} className="w-full text-left text-sm font-medium">Content Credentials</button>
+            </div>
             {/* New content appears at once and settles in; nothing waits on an exit. */}
             <motion.div
               key={tab}
@@ -362,11 +369,13 @@ export function AppWorkspace() {
                   }
                   onReport={() => setShowReport(true)}
                   onNew={startOver}
+                  selected={selectedCheck}
+                  onSelect={setSelectedCheck}
                 />
               )}
               {tab === 'clean' &&
                 (ready ? (
-                  <motion.div initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
+                  <motion.div data-testid="clean-panel" initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.06 } } }}>
                     <PhotoSummary session={ready} />
                     <CleanFlow
                       state={cs}
