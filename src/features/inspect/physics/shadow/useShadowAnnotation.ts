@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { runShadowCheck } from './shadowCheck';
+import { reflectionCheck } from './reflectionCheck';
+import type { GeometryMode } from './lineGeometryCheck';
 import type { CheckResult, HomogeneousPoint, ShadowPair } from './shadowTypes';
 
 export interface NormPoint {
@@ -40,6 +42,7 @@ export const MIN_PAIRS = 3;
 export function useShadowAnnotation(
   assetId: string | null,
   imageSize: { width: number; height: number } | null,
+  mode: GeometryMode = 'shadow',
 ): ShadowAnnotation {
   const [marking, setMarking] = useState(false);
   const [pairs, setPairs] = useState<ShadowPair[]>([]);
@@ -51,7 +54,7 @@ export function useShadowAnnotation(
     setPairs([]);
     setPending(null);
     setNextId(1);
-  }, [assetId]);
+  }, [assetId, mode]);
 
   const addPoint = useCallback(
     (p: NormPoint) => {
@@ -85,17 +88,18 @@ export function useShadowAnnotation(
   const result = useMemo(() => {
     if (!assetId || pairs.length === 0) return null;
     const opts = width && height ? { imageSize: { width, height } } : {};
-    return runShadowCheck(pairs, assetId, opts);
-  }, [assetId, pairs, width, height]);
+    return mode === 'reflection' ? reflectionCheck(pairs, assetId, opts) : runShadowCheck(pairs, assetId, opts);
+  }, [assetId, pairs, width, height, mode]);
 
   const drawing = useMemo<ShadowDrawing | null>(() => {
     if (!assetId || (pairs.length === 0 && !pending)) return null;
-    const ev = (result?.evidence ?? {}) as { offendingPairIds?: unknown; lightPoint?: unknown };
+    const ev = result?.evidence ?? {};
     const offending = Array.isArray(ev.offendingPairIds) ? (ev.offendingPairIds as string[]) : [];
     const fitted = result?.execution === 'complete' && (result.finding === 'consistent' || result.finding === 'inconsistent');
-    const light = fitted && Array.isArray(ev.lightPoint) ? (ev.lightPoint as HomogeneousPoint) : null;
+    const point = mode === 'reflection' ? ev.vanishingPoint : ev.lightPoint;
+    const light = fitted && Array.isArray(point) ? (point as HomogeneousPoint) : null;
     return { pairs, pending, offending, light };
-  }, [assetId, pairs, pending, result]);
+  }, [assetId, pairs, pending, result, mode]);
 
   return { marking, setMarking, pairs, pending, addPoint, undo, clear, result, drawing };
 }
