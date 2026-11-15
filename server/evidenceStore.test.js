@@ -60,6 +60,22 @@ test('seals a video receipt, verifies it, and records review observations', asyn
 
     const duplicate = await store.appendAnalysis('case-12345678', analysis);
     assert.equal(duplicate.payload.analysisRuns.length, 1);
+    const comparison = await store.appendAnalysis('case-12345678', {
+      ...analysis,
+      syntheticMedia: {
+        status: 'partial',
+        agreementFrames: 0,
+        detectors: [
+          { ...analysis.syntheticMedia, predictions: [{ time: 2, syntheticScore: 0.81, image: 'omit-me' }, { time: 3, syntheticScore: null }] },
+          { status: 'unavailable', reason: 'Download failed.' },
+        ],
+      },
+    });
+    const savedVisual = comparison.payload.analysisRuns[1].analysis.syntheticMedia;
+    assert.equal(savedVisual.agreementFrames, 0);
+    assert.deepEqual(savedVisual.detectors[0].predictions, [{ time: 2, syntheticScore: 0.81 }]);
+    assert.equal(savedVisual.detectors[1].status, 'unavailable');
+    assert.equal(await store.verifyEnvelope(comparison), true);
     await assert.rejects(
       () => store.appendAnalysis('case-12345678', { ...analysis, sourceSha256: '0'.repeat(64) }),
       /does not match the original sealed video/,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { summarizeSyntheticScores } from './syntheticMediaModel.js';
+import { compareDetectorResults, summarizeSyntheticScores } from './syntheticMediaModel.js';
 
 test('summarizes sampled synthetic-media scores without making a binary verdict', () => {
   const summary = summarizeSyntheticScores([
@@ -24,4 +24,26 @@ test('ignores malformed model scores instead of manufacturing a result', () => {
   assert.equal(summary.unscoredFrames, 2);
   assert.equal(summary.medianSyntheticScore, null);
   assert.equal(summary.flaggedFrames, 0);
+});
+
+test('counts agreement only at shared timestamps and prioritizes it over earlier isolated flags', () => {
+  const frames = [{ time: 1 }, { time: 1.5 }, { time: 3 }];
+  const detectors = [
+    {
+      engine: { id: 'one', threshold: 0.65 },
+      predictions: [{ time: 1, syntheticScore: 0.9 }, { time: 1.5, syntheticScore: 0.8 }],
+    },
+    {
+      engine: { id: 'two', threshold: 0.8 },
+      predictions: [{ time: 1.5, syntheticScore: 0.81 }, { time: 3, syntheticScore: 0.75 }],
+    },
+  ];
+  const comparison = compareDetectorResults(frames, detectors);
+  assert.equal(comparison.agreementFrames, 1);
+  assert.equal(comparison.flaggedFrames, 2);
+  assert.equal(comparison.scoredFrames, 3);
+  assert.deepEqual(comparison.signals.map(({ timeStart }) => timeStart), [1.5]);
+  const partial = compareDetectorResults(frames, [detectors[0], { ...detectors[1], predictions: [] }]);
+  assert.equal(partial.agreementFrames, 0);
+  assert.equal(partial.flaggedFrames, 2);
 });

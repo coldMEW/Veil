@@ -154,7 +154,7 @@ function frameHeader() {
 function emptyScreen() {
   return `
     <section class="hero" id="top">
-      <div class="eyebrow">VIDEO EVIDENCE PASSPORT / 0.3</div>
+      <div class="eyebrow">VIDEO EVIDENCE PASSPORT / 0.4</div>
       <h1>Preserve the record.<br /><em>Separate fact from suspicion.</em></h1>
       <p class="hero-copy">Veil helps claims teams and people document what is known about a video—its exact bytes, provenance signals, technical facts, and timestamped review notes—without claiming to decide whether a video is true.</p>
       <div class="principles" aria-label="Core principles">
@@ -249,57 +249,53 @@ function technicalDetails(facts) {
 
 function analysisStatus() {
   if (state.analysis.status === 'running') {
-    const progress = state.analysis.progress;
-    const completed = progress?.completed ?? 0;
-    const total = progress?.total ?? 1;
-    const phase = progress?.phase === 'frames' ? 'Sampling frames' : progress?.phase === 'model' ? 'Loading trained local model' : 'Reviewing audio';
-    return { label: 'Scanning original video', tone: 'review', detail: `${phase} · ${completed}/${total}` };
+    return { label: 'Checking your video', tone: 'unknown', detail: 'Looking through sampled moments.' };
   }
   if (state.analysis.status === 'failed') return { label: 'Scan did not complete', tone: 'danger', detail: state.analysis.error || 'The browser could not complete the scan.' };
   if (state.analysis.status === 'complete') {
-    const count = state.analysis.result?.signals?.length ?? 0;
-    return { label: count ? `${count} review signal${count === 1 ? '' : 's'} found` : 'No review signals found', tone: count ? 'review' : 'verified', detail: count ? 'Each signal is a timestamped prompt for human review, not a verdict.' : 'The model and sampled checks did not flag a moment; this does not prove authenticity.' };
+    const result = state.analysis.result;
+    const visual = result.syntheticMedia;
+    if (visual.agreementFrames) {
+      const label = visual.agreementFrames === 1
+        ? 'Both AI detectors flagged the same frame'
+        : 'Both AI detectors flagged some of the same frames';
+      return { label, tone: 'review', detail: 'Start with the suggested timestamps and check what happens just before and after each one.' };
+    }
+    if (visual.flaggedFrames) {
+      return { label: 'Some frames need a closer look', tone: 'review', detail: 'At the flagged moments, only one detector raised a flag. The video’s origin is still uncertain.' };
+    }
+    if (result.signals.length) {
+      return { label: 'Review changes in the video or sound', tone: 'review', detail: 'Ordinary cuts, camera motion and lighting can trigger these checks. The timeline shows where to look.' };
+    }
+    if (visual.status !== 'complete') {
+      return { label: 'The AI checks were incomplete', tone: 'unknown', detail: 'The checks that finished found no moments to flag. See check details for what was missed.' };
+    }
+    return { label: 'No moments flagged in the sampled frames', tone: 'unknown', detail: 'The video’s origin is still uncertain.' };
   }
-  return { label: 'Evidence scan not started', tone: 'unknown', detail: 'Run the browser-local scan to produce timestamped visual and audio review signals.' };
-}
-
-function analysisCheck(label, status, detail) {
-  const tone = status === 'complete' ? 'complete' : status === 'running' ? 'running' : status === 'failed' ? 'failed' : 'unavailable';
-  return `<div class="scan-check ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(status === 'complete' ? 'Complete' : status === 'running' ? 'Running' : status === 'failed' ? 'Failed' : 'Unavailable')}</strong><p>${escapeHtml(detail)}</p></div>`;
+  return { label: 'Ready to check your video', tone: 'unknown', detail: 'Two AI detectors check sample frames. Veil also looks for sudden changes in the picture and sound.' };
 }
 
 function scanSection() {
   const scan = state.analysis;
   const result = scan.result;
-  const temporalStatus = scan.status === 'running' ? 'running' : result?.temporal ? 'complete' : scan.status === 'failed' ? 'failed' : 'unavailable';
-  const syntheticStatus = scan.status === 'running' && scan.progress?.phase === 'model' ? 'running' : result?.syntheticMedia?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
-  const audioStatus = scan.status === 'running' && scan.progress?.phase === 'audio' ? 'running' : result?.audio?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
-  const faceStatus = result?.face?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
-  const audioMetrics = result?.audio?.metrics;
-  const audioDetail = result?.audio?.reason ?? (audioMetrics ? `${known(audioMetrics.channels, '?')} channel(s), ${Number.isFinite(audioMetrics.sampleRate) ? `${audioMetrics.sampleRate.toLocaleString()} Hz` : 'sample rate unavailable'}.` : 'Requires browser audio decoding.');
-  const syntheticMetrics = result?.syntheticMedia?.metrics;
-  const syntheticEngine = result?.syntheticMedia?.engine;
-  const syntheticDetail = syntheticMetrics
-    ? `${syntheticEngine?.id ?? 'trained model'}${syntheticEngine?.integrityVerified ? ' · pinned model fingerprint verified' : ''} · ${syntheticMetrics.sampledFrames}/${syntheticMetrics.requestedFrames ?? syntheticMetrics.sampledFrames} sampled frames · median model score ${Math.round((syntheticMetrics.medianSyntheticScore ?? 0) * 100)} / 100.${result?.syntheticMedia?.reason ? ` ${result.syntheticMedia.reason}` : ''}`
-    : result?.syntheticMedia?.reason ?? 'Loads the pinned local trained classifier before scoring sampled frames.';
+  const visual = result?.syntheticMedia;
+  const highlights = (visual?.signals.length ? visual.signals : result?.signals ?? []).slice(0, 3);
   const status = analysisStatus();
   return `
     <section class="scan-section">
-      <div class="section-heading"><div><span class="eyebrow">AUTOMATED REVIEW</span><h2>Evidence signal scan</h2></div><p>Frames and audio stay local. The first model run downloads its model file only; it generates review prompts, never a final real/fake decision.</p></div>
-      <div class="scan-layout">
+      <div class="section-heading"><h2>Video review</h2></div>
         <div class="scan-lead ${status.tone}">
-          <div><span class="eyebrow">SCAN STATUS</span><h3>${escapeHtml(status.label)}</h3><p data-scan-progress>${escapeHtml(status.detail)}</p></div>
-          <button class="button primary no-print" data-action="run-scan" ${scan.status === 'running' ? 'disabled' : ''}>${scan.status === 'complete' ? 'Run scan again' : scan.status === 'running' ? 'Scanning original…' : 'Scan original video'}</button>
+          <div><h3>${escapeHtml(status.label)}</h3><p data-scan-progress>${escapeHtml(status.detail)}</p>
+          ${visual && visual.status !== 'complete' && result.signals.length ? '<p>Some AI checks could not finish. See check details for coverage.</p>' : ''}
+          ${highlights.length ? `<ul class="scan-highlights no-print">${highlights.map((item) => `<li><button type="button" class="button quiet" data-action="seek" data-time="${item.timeStart}">${escapeHtml(formatTimestamp(item.timeStart))}</button> ${escapeHtml(item.title)}</li>`).join('')}</ul>` : ''}</div>
+          <button class="button primary no-print" data-action="run-scan" ${scan.status === 'running' ? 'disabled' : ''}>${scan.status === 'complete' ? 'Check again' : scan.status === 'running' ? 'Checking video…' : 'Check video'}</button>
         </div>
-        <div class="scan-check-grid">
-          ${analysisCheck('Trained synthetic-media model', syntheticStatus, syntheticDetail)}
-          ${analysisCheck('Temporal continuity', temporalStatus, result?.temporal ? `${result.temporal.metrics.sampledFrames} sampled frames; detects abrupt and localized changes.` : 'Requires a completed frame scan.')}
-          ${analysisCheck('Audio transitions', audioStatus, audioDetail)}
-          ${analysisCheck('Face track', faceStatus, result?.face?.reason ?? (result?.face?.metrics ? `${result.face.metrics.framesWithFaces} sampled frames with detected faces.` : 'Uses the optional browser FaceDetector API.'))}
-          ${analysisCheck('Lip sync / voice authenticity', 'unavailable', 'Requires separately validated audiovisual and voice models; Veil does not fabricate these results.')}
-        </div>
-      </div>
-      ${result?.unavailableChecks?.length ? `<details class="unavailable-details"><summary>${result.unavailableChecks.length} intentionally unavailable checks</summary><ul>${result.unavailableChecks.map((check) => `<li><b>${escapeHtml(check.id.replaceAll('_', ' '))}:</b> ${escapeHtml(check.reason)}</li>`).join('')}</ul></details>` : ''}
+      <p class="source-check no-print">Suspect Gemini or Veo? <a href="https://deepmind.google/models/synthid/" target="_blank" rel="noopener noreferrer">Check with Google SynthID</a>. It looks for Google’s watermark and requires sharing the clip with Google.</p>
+      ${result ? `<details class="unavailable-details"><summary>Check details</summary><ul>
+        ${visual.detectors.map(({ engine, metrics, reason }) => `<li><b>${escapeHtml(engine.id)}</b> · ${metrics ? `${metrics.sampledFrames} of ${metrics.requestedFrames} frames checked, ${metrics.flaggedFrames} flagged` : 'Could not check frames'}${reason ? `. ${escapeHtml(reason)}` : ''}</li>`).join('')}
+        <li>${result.temporal.metrics.sampledFrames} frames checked for sudden picture changes.</li>
+        <li>Sound changes ${result.audio.status === 'complete' ? 'checked' : 'could not be checked'}.</li>
+      </ul></details>` : ''}
     </section>`;
 }
 
@@ -345,6 +341,14 @@ function evidenceScreen() {
             <div class="video-caption"><span>Original local file</span><span data-current-time>00:00.0</span></div>
           </article>
 
+          ${scanSection()}
+          <section class="analysis-section">
+            <div class="section-heading"><h2>Review timeline</h2></div>
+            ${observationsList()}
+            ${observationForm()}
+          </section>
+          <details class="unavailable-details">
+            <summary>File history and verification</summary>
           <section class="verification-section">
             <div class="section-heading"><div><span class="eyebrow">VERIFICATION POSTURE</span><h2>What this case can support</h2></div><p>Evidence facts are kept separate from model or reviewer observations.</p></div>
             <div class="verification-grid">
@@ -354,25 +358,16 @@ function evidenceScreen() {
               ${statusCard(4, { label: state.vault.verification?.valid ? 'Receipt signature verified' : receipt?.signature?.algorithm ? `${receipt.signature.algorithm} receipt signature` : 'Receipt signature pending', tone: state.vault.verification?.valid ? 'verified' : receipt?.signature?.algorithm ? 'review' : 'review', detail: receipt?.signature?.publicKeyFingerprintSha256 ? `Public-key fingerprint: ${shortHash(receipt.signature.publicKeyFingerprintSha256)}` : 'The receipt signature will appear after the vault seals the original.' })}
             </div>
           </section>
-
           ${technicalDetails(facts)}
-
-          ${scanSection()}
-
-          <section class="analysis-section">
-            <div class="section-heading"><div><span class="eyebrow">REVIEW TIMELINE</span><h2>Moments needing review</h2></div><p>${timelineItems().length ? `${timelineItems().length} documented item${timelineItems().length === 1 ? '' : 's'}` : 'No signals or notes yet'}</p></div>
-            ${observationForm()}
-            ${observationsList()}
-          </section>
+          </details>
         </div>
 
         <aside class="sidebar">
-          <section class="passport-card">
-            <div class="passport-top"><span class="eyebrow">ASSET PASSPORT</span><span class="status-dot">${receipt ? 'SEALED' : 'LOCAL'}</span></div>
+          <details class="passport-card">
+            <summary>File and evidence details</summary>
             <dl class="facts">${mediaFacts}</dl>
-            <div class="hash-block"><span>SHA-256 / stored original bytes</span><code title="${escapeHtml(receipt?.originalAsset?.serverSha256 ?? state.sha256 ?? '')}">${escapeHtml(shortHash(receipt?.originalAsset?.serverSha256 ?? state.sha256))}</code></div>
             <div class="brand-block"><span>Compatible brands</span><p>${escapeHtml(brands)}</p></div>
-          </section>
+          </details>
           <section class="workflow-card no-print">
             <span class="eyebrow">REPORT ROUTE</span>
             <label for="workflow">Case type</label>
@@ -383,14 +378,6 @@ function evidenceScreen() {
             <label for="source-url">Source link <span>(optional)</span></label>
             <input id="source-url" data-source-url type="url" placeholder="https://…" value="${escapeHtml(state.sourceUrl)}" />
             <p>${state.workflow === 'personal' ? 'The export contains a consented incident package that another reporting tool can consume.' : 'The export separates integrity facts, review notes, and unresolved questions for an adjuster.'}</p>
-          </section>
-          <section class="limits-card">
-            <span class="eyebrow">LIMITS OF THIS RESULT</span>
-            <ul>
-              <li>Hashing proves identity of these bytes, not the event depicted.</li>
-              <li>No credentials is an unknown state—not a finding of AI generation.</li>
-              <li>Reviewer observations require independent corroboration.</li>
-            </ul>
           </section>
         </aside>
       </section>
@@ -419,11 +406,19 @@ function observationForm() {
 }
 
 function timelineItems() {
+  const plainNotes = {
+    temporal_edit: 'The picture changes suddenly. Check whether this is a normal cut.',
+    localized_temporal_change: 'One part of the picture changes faster than the rest. Look for movement or something passing in front of the camera.',
+    lighting_transition: 'The picture gets noticeably brighter or darker. Check for a change in lighting or camera exposure.',
+    repeated_frame_pattern: 'The picture briefly stops changing. Check for a pause, a freeze, or an edit.',
+    audio_transition: 'The sound changes suddenly. Listen just before and after this timestamp.',
+    face_track_discontinuity: 'The face moves suddenly or drops out of view. Check for camera movement or something blocking it.',
+  };
   const automated = (state.analysis.result?.signals ?? []).map((entry) => ({
     ...entry,
     time: Number.isFinite(Number(entry.timeStart)) ? Number(entry.timeStart) : 0,
     category: entry.check,
-    text: entry.observation,
+    text: plainNotes[entry.check] ?? entry.observation,
     createdAt: entry.timeStart,
     source: 'automated',
   }));
@@ -434,7 +429,7 @@ function timelineItems() {
 function observationsList() {
   const items = timelineItems();
   if (!items.length) {
-    return `<div class="empty-observations"><span>＋</span><p>Run the evidence scan or add a timestamped observation while you review the original video. Veil exports both the automated signals and your notes.</p></div>`;
+    return `<div class="empty-observations"><p>No flagged moments or notes to show. You can add a note at any point in the video.</p></div>`;
   }
   return `<ol class="observations">${items
     .map(
@@ -442,7 +437,7 @@ function observationsList() {
         <li class="${item.source === 'automated' ? 'automated-observation' : ''}">
           <div class="timeline-marker"><span>${typeIcon(item.category)}</span></div>
           <button class="observation-time" type="button" data-action="seek" data-time="${escapeHtml(item.time.toFixed(3))}" aria-label="Jump to ${escapeHtml(formatTimestamp(item.time))}">${escapeHtml(formatTimestamp(item.time))}</button>
-          <div class="observation-body">${item.thumbnail ? `<img class="timeline-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="Sampled frame at ${escapeHtml(formatTimestamp(item.time))}" />` : ''}<span class="tag">${escapeHtml(item.source === 'automated' ? 'automated signal' : item.category)}</span><h3>${escapeHtml(item.title || 'Reviewer observation')}</h3><p>${escapeHtml(item.text)}</p><small>${item.source === 'automated' ? `${escapeHtml(item.check.replaceAll('_', ' '))} · ${item.check === 'synthetic_media_model' ? 'trained-model review signal' : 'heuristic review signal'}` : `Added ${escapeHtml(formatDate(item.createdAt))}`}</small></div>
+          <div class="observation-body">${item.thumbnail ? `<img class="timeline-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="Sampled frame at ${escapeHtml(formatTimestamp(item.time))}" />` : ''}<span class="tag">${item.source === 'reviewer' ? 'Your note' : item.check === 'synthetic_media_model' ? 'AI detector' : 'Picture or sound change'}</span><h3>${escapeHtml(item.title || 'Reviewer note')}</h3><p>${escapeHtml(item.text)}</p></div>
           ${item.source === 'automated' ? '<span class="observation-sealed">signal</span>' : receiptPayload() ? '<span class="observation-sealed" title="This observation is retained in the local evidence record">sealed</span>' : `<button class="icon-button no-print" data-action="remove-observation" data-id="${escapeHtml(item.id)}" aria-label="Remove observation ${index + 1}">×</button>`}
         </li>`,
     )
@@ -452,14 +447,14 @@ function observationsList() {
 function reportPreview() {
   const reportTitle = state.workflow === 'personal' ? 'Personal deepfake incident package' : 'Insurance video evidence package';
   const receipt = receiptPayload();
-  const automatedSignalCount = state.analysis.result?.signals?.length ?? 0;
+  const review = analysisStatus();
   return `
     <section class="report-preview print-only-content">
       <div class="report-heading"><div><span class="eyebrow">EXPORT PREVIEW</span><h2>${reportTitle}</h2></div><div class="report-signature">VEIL / ${escapeHtml(state.caseId.slice(0, 8).toUpperCase())}</div></div>
       <div class="report-grid">
         <div><h3>Preservation record</h3><p><b>Original file:</b> ${escapeHtml(state.file?.name || '')}<br /><b>Vault SHA-256:</b> <code>${escapeHtml(receipt?.originalAsset?.serverSha256 || state.sha256 || 'Not completed')}</code><br /><b>Received:</b> ${escapeHtml(formatDate(receipt?.case?.receivedAt ?? state.createdAt))}</p></div>
         <div><h3>Provenance posture</h3><p>${escapeHtml(provenanceStatus().detail)}</p></div>
-        <div><h3>Receipt & review</h3><p>${receipt?.signature?.algorithm ? `${escapeHtml(receipt.signature.algorithm)} receipt · ${escapeHtml(shortHash(receipt.signature.publicKeyFingerprintSha256))}<br />` : 'No vault receipt available.<br />'}${automatedSignalCount ? `${automatedSignalCount} automated review signal${automatedSignalCount === 1 ? '' : 's'} included.<br />` : 'No automated review signals were included.<br />'}${state.observations.length ? `${state.observations.length} timestamped reviewer observation${state.observations.length === 1 ? '' : 's'} included.` : 'No reviewer observations were recorded.'}</p></div>
+        <div><h3>What Veil found</h3><p><b>${escapeHtml(review.label)}</b><br />${escapeHtml(review.detail)}</p></div>
       </div>
       <p class="report-disclaimer">This package records technical facts and observations. It does not determine whether the depicted event happened, whether a claim is valid, or whether a video is AI-generated.</p>
       <div class="report-buttons no-print"><button class="button quiet" data-action="print-report">Print / save PDF</button><button class="button primary" data-action="export-report">Download JSON package</button></div>
@@ -585,12 +580,13 @@ function updateScanProgress(progress) {
   const status = app.querySelector('[data-scan-progress]');
   if (!status) return;
   if (progress.phase === 'model') {
+    const check = progress.detector ? `AI check ${progress.detector} of ${progress.detectorCount}` : 'AI checks';
     if (progress.stage === 'frames') {
-      status.textContent = `Scoring sampled frames with the local model · ${progress.completed}/${progress.total}`;
+      status.textContent = `${check} · ${progress.completed} of ${progress.total} frames`;
       return;
     }
-    const percent = progress.total > 0 ? Math.min(100, Math.round((progress.completed / progress.total) * 100)) : 0;
-    status.textContent = `Loading trained local model · ${percent}%`;
+    const percent = Math.round(progress.completed / progress.total * 100);
+    status.textContent = progress.stage === 'download' ? `${check} · Downloading detector (${percent}%)` : `${check} · Getting ready…`;
     return;
   }
   const phase = progress.phase === 'frames' ? 'Sampling frames' : 'Reviewing audio';
@@ -609,9 +605,11 @@ function analysisForVault(result) {
     syntheticMedia: result.syntheticMedia
       ? {
           status: result.syntheticMedia.status,
-          reason: result.syntheticMedia.reason,
-          engine: result.syntheticMedia.engine,
-          metrics: result.syntheticMedia.metrics,
+          requestedFrames: result.syntheticMedia.requestedFrames,
+          scoredFrames: result.syntheticMedia.scoredFrames,
+          flaggedFrames: result.syntheticMedia.flaggedFrames,
+          agreementFrames: result.syntheticMedia.agreementFrames,
+          detectors: result.syntheticMedia.detectors,
           signalCount: result.syntheticMedia.signals?.length ?? 0,
         }
       : null,
@@ -686,7 +684,9 @@ async function runEvidenceScan() {
   state.analysis = { status: 'running', result: null, error: null, progress: { phase: 'frames', completed: 0, total: 1 }, persisted: false, syncPromise: null };
   render();
   try {
-    const result = await analyzeVideoFile(state.file, updateScanProgress);
+    const result = await analyzeVideoFile(state.file, (progress) => {
+      if (run === scanGeneration) updateScanProgress(progress);
+    });
     if (run !== scanGeneration) return;
     state.analysis = { status: 'complete', result, error: null, progress: null, persisted: false, syncPromise: null };
     addCustodyEvent('automated_evidence_scan_completed', `Completed ${ANALYSIS_ENGINE.id} with ${result.signals.length} timestamped review signal${result.signals.length === 1 ? '' : 's'}.`);
@@ -759,7 +759,7 @@ function buildEvidencePackage() {
   const provenance = provenanceStatus();
   const receipt = receiptPayload();
   return {
-    schema: 'veil-evidence-package/v0.3',
+    schema: 'veil-evidence-package/v0.4',
     generatedAt: new Date().toISOString(),
     workflow: state.workflow === 'personal' ? 'personal_deepfake_incident' : 'insurance_evidence_review',
     case: {
@@ -794,9 +794,9 @@ function buildEvidencePackage() {
       'A file hash identifies exact bytes but does not establish who recorded the video or whether the depicted event occurred.',
       'Credential absence is not evidence of AI generation or manipulation.',
       'Reviewer observations are hypotheses requiring independent corroboration.',
-      'The trained synthetic-media model is a sampled-frame review signal, not a universal AI-generated-video detector or a fraud conclusion.',
+      'The AI detectors assess sampled frame crops. The origin and context of the video require independent verification.',
     ],
-    software: { product: 'Veil Evidence Passport', version: '0.3.0', mode: receipt ? 'local evidence vault' : 'browser-local fallback' },
+    software: { product: 'Veil Evidence Passport', version: '0.4.0', mode: receipt ? 'local evidence vault' : 'browser-local fallback' },
   };
 }
 

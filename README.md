@@ -13,7 +13,7 @@ It is designed around a simple principle: preserve the original file, make techn
 - Issues an Ed25519-signed local receipt containing the server hash, receipt time, public-key fingerprint, and custody events.
 - Inspects detailed container facts: MP4/MOV brands, top-level box layout, fast-start position, fragmentation, data payload, duration, average data rate, metadata boxes, tracks, codecs, video dimensions, and audio sample details when declared.
 - Detects a C2PA UUID container marker as a **candidate only**. It does not validate a Content Credential signature or trust chain yet.
-- Runs the pinned, MIT-licensed [Detectra v3](https://huggingface.co/TensorFold/detectra-v1) trained synthetic-image classifier locally over up to 12 evenly selected video frames. Veil verifies the downloaded model against its published SHA-256 before inference, then records the exact model revision, fingerprint, sampled scores, and timestamped high-score review signals.
+- Runs [Detectra v3](https://huggingface.co/TensorFold/detectra-v1) and [imdet PE-Small](https://huggingface.co/Deckard618/imdet) locally on up to 16 sampled frames. The scan highlights same-frame agreement and records each detector's revision, SHA-256, threshold, coverage, and frame scores.
 - Scans the original locally for timestamped review signals: abrupt full-frame transitions, localized changes, exposure shifts, possible held frames, abrupt audio transitions, and (when the browser supports it) face-track discontinuities.
 - Places each signal on a review timeline with a sampled-frame thumbnail and a one-click jump back to the original moment.
 - Keeps the scan explicitly non-conclusive: normal edits, motion, compression, lighting, and detector limitations can create the same patterns.
@@ -30,7 +30,7 @@ It is designed around a simple principle: preserve the original file, make techn
 - The local receipt is signed by a key on this computer. It is not an independent server timestamp, cloud WORM archive, or C2PA signature validation.
 - The scan generates human-review prompts; it does not make a deepfake, fraud, lip-sync, voice-clone, or claim-validity decision.
 - The trained model is a frame-level synthetic-media classifier aggregated across sampled frames. Its score is a review signal, not a calibrated probability that the entire video is AI-generated.
-- On first use, the browser downloads the public, pinned 43.7 MB model artifact from Hugging Face and loads the model runtime locally. The original video and its sampled frames remain in the browser and are not sent to those hosts. If the model cannot load or its fingerprint differs from the pinned one, Veil records that it was unavailable rather than fabricating a result.
+- On first use, the browser downloads around 91 MB of public model files from Hugging Face. It verifies the pinned hashes and runs both checks locally. The optional Google SynthID link opens Google's verification instructions for users who choose to share a clip with Google.
 - To keep a browser-local review stable, audio decoding is skipped for files above 120 MiB; the rest of the evidence record and frame sampling still proceed.
 
 ## Run locally
