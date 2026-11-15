@@ -4,10 +4,10 @@ const config: CapacitorConfig = {
   appName: 'Veil',
   webDir: 'dist',
   server: { androidScheme: 'https', hostname: 'localhost' },
-  android: { backgroundColor: '#f5f1eb', allowMixedContent: false },
+  android: { backgroundColor: '#141414', allowMixedContent: false },
   plugins: {
-    SplashScreen: { launchShowDuration: 500, backgroundColor: '#f5f1eb', showSpinner: false },
-    StatusBar: { style: 'LIGHT', backgroundColor: '#f5f1eb' },
+    SplashScreen: { launchShowDuration: 500, backgroundColor: '#141414', showSpinner: false },
+    StatusBar: { style: 'DARK', backgroundColor: '#141414' },
     CapacitorHttp: { enabled: false },
   },
 };

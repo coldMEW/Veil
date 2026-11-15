@@ -1,34 +1,56 @@
-import { lazy, Suspense } from 'react';
-import { DropStage } from '../components/ImagePicker';
-import { openImageFile, useImageSession } from '../lib/runtime/imageSession';
-import { MotionEntrance } from '../components/MotionEntrance';
-import { LockSimple } from '@phosphor-icons/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { useRoute } from './router';
+import { Home } from './home/Home';
+import { Shell } from './shell/Shell';
+import './app.css';
 
-const Workspace = lazy(() => import('./AppWorkspace').then(({ AppWorkspace }) => ({ default: AppWorkspace })));
+const CheckScreen = lazy(() => import('./check/CheckScreen'));
+const TraceScreen = lazy(() => import('./trace/TraceScreen'));
+const TicketsScreen = lazy(() => import('./tickets/TicketsScreen'));
+const ShieldScreen = lazy(() => import('./shield/ShieldScreen'));
 
-/** Keep the empty workspace lean: feature and runtime modules load only after a file opens. */
-export function App() {
-  const session = useImageSession();
-  if (session.status !== 'empty') {
-    return <Suspense fallback={<main className="h-full bg-night" aria-label="Opening workspace" />}><Workspace /></Suspense>;
-  }
+function Toasts() {
+  const [items, setItems] = useState<Array<{ id: number; text: string }>>([]);
+  useEffect(() => {
+    let n = 0;
+    const on = (e: Event) => {
+      const id = ++n;
+      setItems((list) => [...list.slice(-2), { id, text: String((e as CustomEvent).detail) }]);
+      window.setTimeout(() => setItems((list) => list.filter((t) => t.id !== id)), 4200);
+    };
+    window.addEventListener('veil-toast', on);
+    return () => window.removeEventListener('veil-toast', on);
+  }, []);
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex h-14 shrink-0 items-center justify-between px-4 sm:h-16 sm:px-6" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
-        <span className="flex items-center gap-2.5">
-          <img src="/brand/veil-64.png" alt="" width={32} height={32} className="size-8" />
-          <span className="text-lg font-bold tracking-[-0.02em]">Veil</span>
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-raised px-3 py-1.5 text-sm font-medium text-muted">
-          <LockSimple size={15} weight="bold" aria-hidden />
-          Nothing leaves this device
-        </span>
-      </header>
-      <main className="relative min-h-0 flex-1">
-        <MotionEntrance>
-          <DropStage onFile={(file) => void openImageFile(file)} onDragChange={() => undefined} />
-        </MotionEntrance>
-      </main>
+    <div className="toasts" role="status" aria-live="polite">
+      {items.map((t) => (
+        <p key={t.id} className="toast">{t.text}</p>
+      ))}
     </div>
   );
+}
+
+export function App() {
+  const { route, param } = useRoute();
+  return (
+    <>
+      {route === 'home' ? (
+        <Home />
+      ) : (
+        <Shell route={route}>
+          <Suspense fallback={<div className="screen-loading" aria-busy="true" />}>
+            {route === 'check' && <CheckScreen />}
+            {route === 'trace' && <TraceScreen />}
+            {route === 'tickets' && <TicketsScreen ticketId={param} />}
+            {route === 'shield' && <ShieldScreen />}
+          </Suspense>
+        </Shell>
+      )}
+      <Toasts />
+    </>
+  );
+}
+
+export function toast(text: string) {
+  window.dispatchEvent(new CustomEvent('veil-toast', { detail: text }));
 }

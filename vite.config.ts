@@ -2,6 +2,7 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { veilApi } from './server/vitePlugin';
 
 // Cross-origin isolation lets multithreaded WASM run later. The deployed site
 // sends the same two headers (see vercel.json), so dev and prod behave alike.
@@ -11,7 +12,7 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), veilApi()],
   server: { headers: isolationHeaders },
   preview: { headers: isolationHeaders },
   build: {
@@ -32,6 +33,6 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['src/**/*.test.ts'],
+    include: ['src/**/*.test.ts', 'server/**/*.test.ts'],
   },
 });

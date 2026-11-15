@@ -65,8 +65,8 @@ export async function initializeNative(): Promise<void> {
   await NativeApp.addListener('backButton', async () => {
     if (!(await consumeUiBack()) && !backFallback()) await NativeApp.exitApp();
   });
-  await StatusBar.setStyle({ style: Style.Light });
-  await StatusBar.setBackgroundColor({ color: '#f5f1eb' });
+  await StatusBar.setStyle({ style: Style.Dark });
+  await StatusBar.setBackgroundColor({ color: '#141414' });
   await SplashScreen.hide();
 }
 

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { modelResponse } from '../../../lib/native/modelStore';
+import { modelResponse } from '../../../platform/modelStore';
 // Runs the model-focus diagnostic off the main thread. The page cancels a run
 // by terminating this worker, which also stops any computation in flight.
 

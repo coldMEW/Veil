@@ -43,7 +43,7 @@ export function NativeModels() {
       const ids = await Promise.all(
         optionalModels.map(async (m) => ((await cache.match(m.path)) ? m.id : null)),
       );
-      if (!stale) setCached(ids.filter((id): id is 'focus' | 'diffvax' => id !== null));
+      if (!stale) setCached(ids.filter((id): id is 'focus' => id !== null));
     });
     return () => {
       stale = true;

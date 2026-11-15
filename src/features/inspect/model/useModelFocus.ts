@@ -1,5 +1,5 @@
-import { isAndroid } from '../../../lib/native/environment';
-import { ensureOptionalModel } from '../../../lib/native/modelConsent';
+import { isAndroid } from '../../../platform/environment';
+import { ensureOptionalModel } from '../../../platform/modelConsent';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CheckResult } from '../../../contracts';
 import models from './models.json';

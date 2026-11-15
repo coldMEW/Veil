@@ -1,25 +1,15 @@
 import focusModels from '../features/inspect/model/models.json';
-import artifactManifest from '../../scripts/export/models.json';
 
 export const MODEL_CACHE = 'veil-optional-models-v1';
 const focus = focusModels['communityforensics-vit-s-fp32'];
-const diffvax = artifactManifest.artifacts.find((m) => m.id === 'diffvax-immunizer')!;
 export const optionalModels = [
   {
     id: 'focus',
-    title: 'Model focus',
+    title: 'AI-image detector',
     bytes: focus.bytes,
     sha256: focus.sha256,
     path: focus.servedAs,
     url: `${focus.upstream}/resolve/${focus.revision}/${focus.path}`,
-  },
-  {
-    id: 'diffvax',
-    title: 'Experimental protection',
-    bytes: diffvax.bytes,
-    sha256: diffvax.sha256,
-    path: `/models/${diffvax.dir}/${diffvax.file}`,
-    url: diffvax.url,
   },
 ] as const;
 export type OptionalModel = (typeof optionalModels)[number];
