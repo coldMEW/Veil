@@ -33,10 +33,12 @@ try {
   await openPhoto(page, 'check', join(out, 'shielded-reposted.jpg'));
   await page
     .getByRole('heading', { name: 'Made from your photo', exact: true })
+    .first()
     .waitFor({ timeout: 60000 })
     .catch(() => {});
   const madeFromYourPhoto = await page
     .getByRole('heading', { name: 'Made from your photo', exact: true })
+    .first()
     .isVisible();
   await page.screenshot({ path: join(out, 'e2e-check-reposted.png') });
   let tested12mp = false;
@@ -53,7 +55,7 @@ try {
     ms: Date.now() - started,
   });
 } catch (error) {
-  emit('mark', { ok: false, error: error.name, ms: Date.now() - started });
+  emit("mark", { ok: false, error: error.name, message: String(error.message).slice(0, 300), ms: Date.now() - started });
 } finally {
   await browser?.close();
 }

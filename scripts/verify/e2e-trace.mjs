@@ -8,7 +8,7 @@ try {
   browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(base + '#/trace', { waitUntil: 'networkidle' });
-  await page.locator('input[type=file]').setInputFiles('public/demo/source/selfie-1.jpg');
+  await page.locator('.vault input[type=file]').setInputFiles('public/demo/source/selfie-1.jpg');
   await page.waitForSelector('.vault-list li', { timeout: 90000 });
   const t = Date.now();
   await page.getByRole('tab', { name: 'Check a page I know' }).click();
