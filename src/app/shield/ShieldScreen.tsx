@@ -80,7 +80,8 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
 
       setStep('Adding it to your vault');
       const fp = await engines.fingerprint();
-      const pdq = fp ? (await fp.pdqHash(bitmapToImageData(bitmap, 512))).hash : null;
+      const print = fp ? await fp.pdqHash(bitmapToImageData(bitmap, 512)) : null;
+      const pdq = print && print.quality >= 50 ? print.hash : null;
       const name = ready.fileName.replace(/\.[^.]+$/, '');
       const entry = { id: uid('P'), name, addedAt: Date.now(), pdq, mark: markHex, sha256: await sha256Hex(bytes), thumb: await thumbnail(bitmap, 160) };
       vaultPhotos.set((list) => [...list, entry]);

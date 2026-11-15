@@ -20,7 +20,8 @@ export function persisted<T>(key: string, initial: T) {
       try {
         localStorage.setItem(key, JSON.stringify(value));
       } catch {
-        /* quota or blocked: keep in memory */
+        // Kept for this visit only: tell the person instead of pretending it was saved.
+        window.dispatchEvent(new CustomEvent('veil-toast', { detail: 'This device could not save that (storage is full or blocked). It will be lost when you close Veil.' }));
       }
       listeners.forEach((l) => l());
     },

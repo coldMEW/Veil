@@ -21,6 +21,8 @@ export interface VaultPhoto {
 }
 
 export const vaultFaces = persisted<VaultFace[]>('veil.vault.faces.v1', []);
+// Earlier builds kept a small face crop; the vault keeps numbers only.
+if (vaultFaces.get().some((f) => f.thumb)) vaultFaces.set((list) => list.map((f) => ({ ...f, thumb: '' })));
 export const vaultPhotos = persisted<VaultPhoto[]>('veil.vault.photos.v1', []);
 
 export function encodeEmbedding(e: Float32Array): string {

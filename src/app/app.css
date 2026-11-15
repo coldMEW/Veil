@@ -365,3 +365,4 @@
 .maybe summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 600; font-size: 15px; color: var(--on-dark-soft); }
 .maybe[open] { padding-bottom: 12px; }
 .maybe .choice { background: var(--char-3); }
+.vault-avatar { width: 56px; height: 56px; border-radius: 50%; background: rgba(17,17,17,0.1); display: grid; place-items: center; overflow: hidden; color: var(--ink); } .vault-avatar .art { width: 90%; }

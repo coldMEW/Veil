@@ -9,22 +9,6 @@ import { toast } from '../App';
 import { pendingTrace } from './pending';
 import { ArtFace, ArtTrace } from '../shared/Art';
 
-async function thumbOf(bitmap: ImageBitmap, face: Face): Promise<string> {
-  const pad = 0.35;
-  const x = Math.max(0, (face.box.x - face.box.w * pad) * bitmap.width);
-  const y = Math.max(0, (face.box.y - face.box.h * pad) * bitmap.height);
-  const w = Math.min(bitmap.width - x, face.box.w * (1 + 2 * pad) * bitmap.width);
-  const h = Math.min(bitmap.height - y, face.box.h * (1 + 2 * pad) * bitmap.height);
-  const c = new OffscreenCanvas(96, 96);
-  c.getContext('2d')!.drawImage(bitmap, x, y, w, h, 0, 0, 96, 96);
-  const blob = await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
-  return await new Promise((r) => {
-    const fr = new FileReader();
-    fr.onload = () => r(String(fr.result));
-    fr.readAsDataURL(blob);
-  });
-}
-
 async function enrol(bitmap: ImageBitmap, face?: Face): Promise<string | null> {
   const fe = await engines.face();
   if (!fe) return 'The face engine is not in this build yet.';
@@ -32,7 +16,7 @@ async function enrol(bitmap: ImageBitmap, face?: Face): Promise<string | null> {
   if (!faces.length) return 'No face found in that picture. Try a clear, front-facing selfie.';
   if (faces.length > 1 && !face) return 'That picture has more than one face. Use a selfie with only you in it.';
   const f = faces[0]!;
-  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), await thumbOf(bitmap, f));
+  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), '');
   return null;
 }
 
@@ -115,7 +99,7 @@ export default function TraceScreen() {
           <ul className="vault-list">
             {faces.map((f) => (
               <li key={f.id}>
-                <img src={f.thumb} alt="" width="56" height="56" />
+                <span className="vault-avatar" aria-hidden="true"><ArtFace /></span>
                 <span>
                   <strong>{f.label}</strong>
                   <span className="num">added {new Date(f.addedAt).toLocaleDateString()}</span>

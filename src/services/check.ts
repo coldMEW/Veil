@@ -33,7 +33,11 @@ const AI_TYPES = new Set(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgori
 export function provenanceEvidence(r: ProvenanceResult): Evidence[] {
   const out: Evidence[] = [];
   const c = r.credentials;
-  const aiTypes = [...new Set([...c.sourceTypes, ...r.hints.sourceTypes])].filter((t) => AI_TYPES.has(t));
+  // Signed declarations (inside the manifest) and loose metadata hints are kept apart.
+  const signedAi = c.sourceTypes.filter((t) => AI_TYPES.has(t));
+  const hintedAi = r.hints.sourceTypes.filter((t) => AI_TYPES.has(t));
+  // Trust lists are not checked on the device, so an 'untrusted signer' code is expected; anything else is a real failure.
+  const realFailures = c.failures.filter((f) => !/untrusted/i.test(f.code));
   if (c.present && c.contentChanged) {
     out.push({
       id: 'credentials',
@@ -42,32 +46,33 @@ export function provenanceEvidence(r: ProvenanceResult): Evidence[] {
       says: `This picture carries Content Credentials${c.signer ? ` signed by ${c.signer}` : ''}, but its pixels no longer match what was signed.`,
       how: 'C2PA signature check with the official Content Authenticity SDK, on this device.',
     });
-  } else if (c.present && aiTypes.length) {
+  } else if (c.present && signedAi.length && !realFailures.length) {
     out.push({
       id: 'credentials',
       tone: 'fake',
       title: 'Made with AI, by its own label',
-      says: `${AI_SOURCE_TYPES[aiTypes[0]!] ?? aiTypes[0]}${c.generator ? ` (${c.generator})` : ''}. The label is signed${c.signer ? ` by ${c.signer}` : ''} and still matches the picture.`,
-      how: 'C2PA Content Credentials, read and verified on this device.',
+      says: `${AI_SOURCE_TYPES[signedAi[0]!] ?? signedAi[0]}${c.generator ? ` (${c.generator})` : ''}. The label is signed${c.signer ? ` in the name of ${c.signer}` : ''} and still matches the picture.`,
+      how: 'C2PA Content Credentials: the signature matches the picture. The signer was not checked against a trust list on this device.',
     });
-  } else if (c.present && c.sourceTypes.includes('digitalCapture') && !c.contentChanged) {
+  } else if (c.present && c.sourceTypes.includes('digitalCapture') && !c.contentChanged && !realFailures.length && c.validationState !== 'Invalid') {
     out.push({
       id: 'credentials',
       tone: 'real',
-      title: 'Signed by the camera, unchanged',
-      says: `The camera${c.signer ? ` (${c.signer})` : ''} signed this picture when it was taken, and not a pixel has changed since.`,
-      how: 'C2PA Content Credentials, read and verified on this device.',
+      title: 'Camera credentials intact',
+      says: `Content Credentials${c.signer ? ` in the name of ${c.signer}` : ''} say a camera took this picture, and the picture still matches what was signed.`,
+      how: 'C2PA signature check on this device. The signer was not checked against a trust list, so this is not proof of which camera.',
     });
   }
-  if (!out.length && (r.hints.toolNames.length || aiTypes.length)) {
+  if (!out.length && (r.hints.toolNames.length || hintedAi.length)) {
     const names = [...new Set(r.hints.toolNames)].slice(0, 3);
     out.push({
       id: 'metadata',
       tone: 'fake',
+      strength: 'signal',
       title: 'The file names an AI tool',
       says: names.length
-        ? `Hidden file data says it was made or edited with ${names.join(', ')}.`
-        : `Hidden file data declares it as ${AI_SOURCE_TYPES[aiTypes[0]!] ?? 'AI-made'}.`,
+        ? `Hidden file data names ${names.join(', ')}. Anyone can edit this data, so it is a lead, not proof.`
+        : `Hidden file data declares it as ${AI_SOURCE_TYPES[hintedAi[0]!] ?? 'AI-made'}. Anyone can edit this data, so it is a lead, not proof.`,
       how: 'Read from the XMP, EXIF and PNG text inside the original file.',
     });
   }
@@ -80,8 +85,9 @@ export function previewEvidence(cmp: ThumbnailComparison): Evidence | null {
   return {
     id: 'preview',
     tone: 'fake',
-    title: 'The hidden preview shows something else',
-    says: 'Cameras store a small preview inside each photo. This one no longer matches the picture: the picture was edited after it was taken.',
+    strength: 'signal',
+    title: 'The hidden preview differs',
+    says: 'Cameras store a small preview inside each photo. This one does not match the picture. Editing causes that, but so can an app that crops or rotates without updating the preview.',
     how: 'The embedded EXIF preview compared with the full image, cell by cell.',
   };
 }

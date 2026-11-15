@@ -14,9 +14,9 @@ import { pendingTrace } from '../trace/pending';
 const VERDICT: Record<Verdict, { title: string; line: string; tone: string }> = {
   checking: { title: 'Checking', line: 'Veil is looking at this picture on your device.', tone: 'char' },
   fake: { title: 'Signs it was faked', line: 'The file itself shows it: a signed AI label, an edit trace, or a change from your original. Details below.', tone: 'alarm' },
-  suspect: { title: 'A model flags it', line: 'Our AI-image model scores this picture as likely AI-made. That is a lead, not proof: no label, edit trace or mark was found in the file.', tone: 'paper' },
+  suspect: { title: 'Worth a closer look', line: 'Veil found a lead, not proof. Add your original photo to compare, or look at the details below.', tone: 'paper' },
   derived: { title: 'Made from your photo', line: 'Your invisible Veil mark is inside this picture: it was made from a photo you shielded. If you did not post it, report it.', tone: 'sky' },
-  signed: { title: 'Signed and unchanged', line: 'The camera that took it signed it, and it has not been changed since.', tone: 'lime' },
+  signed: { title: 'Credentials intact', line: 'The picture still matches its signed Content Credentials. That shows it was not changed after signing.', tone: 'lime' },
   unclear: { title: 'Nothing decisive', line: 'None of the checks found strong evidence either way. That does not prove the picture is real: add your original photo to compare.', tone: 'char' },
 };
 
