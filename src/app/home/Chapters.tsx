@@ -268,6 +268,85 @@ export function RulesChapter() {
   );
 }
 
+/* ---------------- Pricing ---------------- */
+
+const PLANS = [
+  {
+    name: 'Free',
+    price: '$0',
+    per: 'forever',
+    colour: 'paper',
+    line: 'Everything a person needs the day they find a fake.',
+    gets: ['Check any picture, as often as you like', 'Shield and clean photos before posting', 'One face in your vault', 'Web search for your face: 3 a month', 'Unlimited tickets, notices and evidence files'],
+    why: 'Checks, Shield and face matching run on your own phone, so they cost us nothing to offer. Nobody should pay to defend themselves.',
+    cta: 'Start free',
+  },
+  {
+    name: 'Guard',
+    price: '$6',
+    per: 'a month, or $60 a year',
+    colour: 'lime',
+    line: 'Veil keeps looking so you do not have to.',
+    gets: ['Everything in Free', 'Automatic web search every day', 'Alerts when a new match appears', 'Send from your Gmail and track every reply', 'Watchlist re-checked every 6 hours', 'Up to 3 faces'],
+    why: 'Each web search costs us about a cent in search fees; daily monitoring is roughly $0.40 a month per person. The rest pays for the service.',
+    cta: 'Coming after the hackathon',
+  },
+  {
+    name: 'Family',
+    price: '$14',
+    per: 'a month, or $140 a year',
+    colour: 'sky',
+    line: 'For parents, and for people whose face is their work.',
+    gets: ['Everything in Guard', 'Up to 6 faces, each with its own vault', 'Search every hour, plus Google Lens results', 'Bulk takedowns: one notice to every host at once', 'Escalation letters when a site ignores the 48-hour window'],
+    why: 'Hourly search and Google Lens results cost us about $4 a month for a family of six.',
+    cta: 'Coming after the hackathon',
+  },
+];
+
+export function Pricing() {
+  return (
+    <section id="pricing" className="chapter ch-night ch-pricing" aria-labelledby="pricing-title">
+      <div className="pricing-head">
+        <h2 id="pricing-title">Free to defend yourself</h2>
+        <p className="chapter-lede">Protection is free. You pay only if you want Veil to keep watch for you. Paid plans open after the hackathon; today every feature in the app is free.</p>
+      </div>
+      <div className="plans">
+        {PLANS.map((p) => (
+          <article key={p.name} className="plan" data-colour={p.colour}>
+            <h3>{p.name}</h3>
+            <p className="plan-price">
+              <strong className="num">{p.price}</strong> <span>{p.per}</span>
+            </p>
+            <p className="plan-line">{p.line}</p>
+            <ul>
+              {p.gets.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+            <p className="plan-why">
+              <strong>Why this price.</strong> {p.why}
+            </p>
+            {p.name === 'Free' ? (
+              <a className="btn btn-ink" href={href('app')}>{p.cta}</a>
+            ) : (
+              <p className="plan-soon">{p.cta}</p>
+            )}
+          </article>
+        ))}
+      </div>
+      <div className="plan-schools">
+        <div>
+          <h3>Schools and teams</h3>
+          <p>$2 per student a year, from $500. A safeguarding lead gets one inbox for reports, takedowns filed on a student’s behalf, and a record for parents and police. Built for the incidents schools now face every term.</p>
+        </div>
+        <p className="plan-price">
+          <strong className="num">$2</strong> <span>per student, per year</span>
+        </p>
+      </div>
+    </section>
+  );
+}
+
 /* ---------------- Questions ---------------- */
 
 const QUESTIONS = [
@@ -277,7 +356,7 @@ const QUESTIONS = [
   ['What if the fake is not explicit?', 'Use the copyright route when it was made from a photo you took, or the GDPR route if you are in the EU or UK. Impersonation and scam ads break every big platform’s rules too.'],
   ['Can Veil stop AI from editing my photos?', 'Nothing reliably stops today’s large models from editing a picture. Veil does what does work: it marks your photo so a fake made from it can be traced and proved, and removes what gives away where you live.'],
   ['Does it work on videos?', 'Not yet. Veil checks still pictures today, including frames you screenshot from a video.'],
-  ['What does it cost?', 'Nothing. Veil is free for people protecting themselves.'],
+  ['What does it cost?', 'Checking, shielding, face matching and takedown tickets are free. Paid plans, opening after the hackathon, add automatic daily monitoring and reply tracking.'],
 ];
 
 export function Faq() {
