@@ -111,7 +111,7 @@ export default function CheckScreen() {
   const face = check.faces?.[0];
 
   return (
-    <div className="tool tool-split">
+    <div className="tool tool-split tool-check">
       <section className="stage" aria-label="The picture">
         <PhotoView bitmap={session.bitmap} label={session.fileName} />
         <div className="stage-bar">

@@ -9,6 +9,8 @@ import {
   tickets,
   timeLeft,
   updateTicket,
+  matchLabel,
+  statusLabel,
   type Destination,
   type Law,
   type Ticket,
@@ -32,20 +34,6 @@ function useNow(ms = 30000) {
   return now;
 }
 
-function statusOf(t: Ticket, now: number): { label: string; tone: string } {
-  if (t.status === 'removed') return { label: 'Removed', tone: 'lime' };
-  if (t.status === 'rejected') return { label: 'Rejected', tone: 'alarm' };
-  if (t.status === 'needs_info') return { label: 'Needs more info', tone: 'alarm' };
-  if (t.status === 'acknowledged') {
-    const left = timeLeft(t, now) ?? 0;
-    return { label: left < 0 ? `Received · ${formatLeft(left)}` : 'Received by them', tone: 'paper' };
-  }
-  if (t.status === 'sent') {
-    const left = timeLeft(t, now) ?? 0;
-    return left < 0 ? { label: formatLeft(left), tone: 'alarm' } : { label: formatLeft(left), tone: 'paper' };
-  }
-  return { label: 'Ready to send', tone: 'alarm' };
-}
 
 /** While Tickets is open: read replies (Gmail) and re-check whether pictures are gone, on their own. */
 function useAutoChecks(list: Ticket[]) {
@@ -119,14 +107,15 @@ export default function TicketsScreen({ ticketId }: { ticketId: string | null })
         ) : (
           <ul>
             {list.map((t) => {
-              const s = statusOf(t, now);
+              const s = statusLabel(t, now);
               return (
                 <li key={t.id}>
                   <a href={href('tickets', t.id)} aria-current={t.id === ticketId ? 'true' : undefined}>
                     {t.thumb ? <img src={t.thumb} alt="" width="64" height="64" /> : <span className="thumb-blank" />}
                     <span className="tl-main">
                       <strong>{t.site}</strong>
-                      <span className="num">{t.id}</span>
+                      <span>{matchLabel(t)}</span>
+                      <span className="num tl-meta">Found {new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {t.id}</span>
                     </span>
                     <span className="pill num" data-colour={s.tone}>
                       {s.label}
@@ -155,7 +144,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
   const me = profile.use();
   const [finding, setFinding] = useState(false);
   const [checking, setChecking] = useState(false);
-  const s = statusOf(t, now);
+  const s = statusLabel(t, now);
 
   // Find who to tell, automatically, the first time a ticket is opened.
   useEffect(() => {
@@ -275,7 +264,8 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
           <p className="num small">
             {t.id} · opened {new Date(t.createdAt).toLocaleString()}
           </p>
-          <p>{t.match.detail}</p>
+          <p className="td-what">{matchLabel(t)}</p>
+          <p className="small">{t.match.detail}</p>
           <a className="link-quiet small td-url" href={t.pageUrl} target="_blank" rel="noreferrer noopener">
             {t.pageUrl}
           </a>

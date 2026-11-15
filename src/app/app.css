@@ -343,3 +343,20 @@
 .replies li[data-verdict='rejected'], .replies li[data-verdict='needs_info'] { border-left-color: var(--alarm); }
 .replies li p { margin-top: 4px; color: var(--ink-soft); }
 .verdict[data-tone='sky'] { background: var(--sky); color: var(--ink); }
+
+/* ---------- Check v2: verdict first, photo as a preview ---------- */
+.tool-check { grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); max-width: 1180px; margin: 0 auto; }
+.tool-check .stage { order: 2; }
+.tool-check .panel { order: 1; }
+.tool-check .photo { height: auto; max-height: 62vh; aspect-ratio: auto; border-radius: 28px; padding: 12px; }
+.tool-check .photo canvas { max-height: calc(62vh - 24px); border-radius: 18px; }
+.tool-check .verdict h1 { font-size: clamp(44px, 4.6vw, 76px); }
+.tl-main span { color: var(--on-dark-soft); font-size: 14px; }
+.tl-main .tl-meta { font-size: 12px; opacity: 0.8; }
+.td-what { font-family: var(--display); font-weight: 700; font-size: 24px; text-transform: uppercase; line-height: 1; }
+@media (max-width: 860px) {
+  .tool-check { grid-template-columns: 1fr; }
+  .tool-check .stage { order: 0; }
+  .tool-check .photo { max-height: 34svh; }
+  .tool-check .photo canvas { max-height: calc(34svh - 24px); }
+}

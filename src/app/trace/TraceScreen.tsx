@@ -294,16 +294,16 @@ function HuntResults({ p }: { p: HuntProgress }) {
         {p.engines.map((e) => (
           <li key={e.engine} data-ok={e.ok || undefined}>
             <strong>{{ yandex: 'Yandex', bing: 'Bing', lens: 'Google Lens', web: 'Web' }[e.engine] ?? e.engine}</strong>
-            <span className="num">{e.ok ? `${e.hits.length} results` : `no results (${e.error ?? 'unavailable'})`}</span>
+            <span className="num">{e.ok ? `${e.hits.length} candidates, not yet checked` : `no usable results (${e.error ?? 'unavailable'})`}</span>
           </li>
         ))}
       </ul>
       <div className="results-head">
         <p>
-          {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> pictures for your face</>}
+          {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> candidates against your face, on this device</>}
           {p.stage === 'done' && (p.hits.length
-            ? <><strong className="num">{p.hits.length}</strong> {p.hits.length === 1 ? 'picture on the web shows' : 'pictures on the web show'} you. Tickets are open.</>
-            : <>Checked {p.candidates} pictures from the web: none of them is you{p.faces ? ` (${p.faces} other faces seen)` : ''}.</>)}
+            ? <><strong className="num">{p.hits.length}</strong> of {p.candidates} candidates are confirmed as your face on this device. Tickets are open.</>
+            : <>None of the {p.candidates} candidates is your face{p.faces ? ` (${p.faces} other faces checked)` : ''}. Similar-looking pictures are not counted.</>)}
           {p.stage === 'failed' && <>The search failed: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}

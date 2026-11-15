@@ -166,3 +166,40 @@ export function formatLeft(ms: number): string {
   const text = h > 0 ? `${h} h ${m} min` : `${m} min`;
   return sign < 0 ? `${text} overdue` : `${text} left`;
 }
+
+/** What was found, in words a person understands at a glance. */
+export function matchLabel(t: Ticket): string {
+  if (t.match.kind === 'face') return t.match.score !== null ? `Your face · ${Math.round(t.match.score * 100)}% match` : 'Your face';
+  if (t.match.kind === 'copy') return 'A copy of your photo';
+  if (t.match.kind === 'mark') return 'Made from your photo (Veil mark)';
+  return 'You reported it from Check';
+}
+
+function hours(ms: number): string {
+  const h = Math.round(ms / 3600000);
+  return h < 1 ? `${Math.max(1, Math.round(ms / 60000))} min` : `${h} h`;
+}
+
+/** Where the ticket stands, as a concrete sentence for the list and the header. */
+export function statusLabel(t: Ticket, now = Date.now()): { label: string; tone: 'alarm' | 'paper' | 'lime' } {
+  const via = t.sentVia === 'gmail' ? 'from your Gmail' : t.sentVia === 'mail-app' ? 'from your mail app' : '';
+  switch (t.status) {
+    case 'ready':
+      return { label: 'Not sent yet', tone: 'alarm' };
+    case 'removed':
+      return { label: `Removed after ${hours((t.removedAt ?? now) - (t.sentAt ?? t.createdAt))}`, tone: 'lime' };
+    case 'rejected':
+      return { label: 'Rejected: escalate it', tone: 'alarm' };
+    case 'needs_info':
+      return { label: 'They asked for more info', tone: 'alarm' };
+    case 'acknowledged': {
+      const left = timeLeft(t, now);
+      return { label: left !== null && left < 0 ? `Received, ${formatLeft(left)}` : 'They confirmed receipt', tone: 'paper' };
+    }
+    default: {
+      const left = timeLeft(t, now);
+      if (left === null) return { label: `Sent ${via}`.trim(), tone: 'paper' };
+      return left < 0 ? { label: `No reply, ${formatLeft(left)}`, tone: 'alarm' } : { label: `Waiting for reply · ${formatLeft(left)}`, tone: 'paper' };
+    }
+  }
+}
