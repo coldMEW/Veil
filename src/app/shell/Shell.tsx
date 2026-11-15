@@ -4,6 +4,7 @@ import { MagnifyingGlass } from '@phosphor-icons/react/dist/ssr/MagnifyingGlass'
 import { UserFocus } from '@phosphor-icons/react/dist/ssr/UserFocus';
 import { PaperPlaneTilt } from '@phosphor-icons/react/dist/ssr/PaperPlaneTilt';
 import { ShieldCheck } from '@phosphor-icons/react/dist/ssr/ShieldCheck';
+import { Eraser } from '@phosphor-icons/react/dist/ssr/Eraser';
 import { href, type Route } from '../router';
 import { tickets } from '../../services/tickets';
 
@@ -12,6 +13,7 @@ export const CHAPTERS: Array<{ route: Exclude<Route, 'home' | 'app'>; label: str
   { route: 'trace', label: 'Find my face', short: 'Trace', colour: 'sky' },
   { route: 'tickets', label: 'Take down', short: 'Tickets', colour: 'alarm' },
   { route: 'shield', label: 'Shield', short: 'Shield', colour: 'paper' },
+  { route: 'clean', label: 'Remove details', short: 'Clean', colour: 'paper' },
 ];
 
 const TAB_ICON = {
@@ -19,6 +21,7 @@ const TAB_ICON = {
   trace: (p: object) => <UserFocus {...p} />,
   tickets: (p: object) => <PaperPlaneTilt {...p} />,
   shield: (p: object) => <ShieldCheck {...p} />,
+  clean: (p: object) => <Eraser {...p} />,
 };
 
 export function Shell({ route, children }: { route: Route; children: ReactNode }) {
@@ -48,8 +51,8 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
           <House size={22} weight={route === 'app' ? 'fill' : 'bold'} aria-hidden="true" />
           <span>Home</span>
         </a>
-        {CHAPTERS.map((c) => (
-          <a key={c.route} href={href(c.route)} aria-current={route === c.route ? 'page' : undefined} data-colour={c.colour}>
+        {CHAPTERS.filter((c) => c.route !== 'clean').map((c) => (
+          <a key={c.route} href={href(c.route)} aria-current={route === c.route || (c.route === 'shield' && route === 'clean') ? 'page' : undefined} data-colour={c.colour}>
             {TAB_ICON[c.route]({ size: 22, weight: route === c.route ? 'fill' : 'bold', 'aria-hidden': true })}
             <span>{c.short}</span>
             {c.route === 'tickets' && open > 0 && <span className="count num">{open}</span>}

@@ -72,7 +72,8 @@ export default function AppHome() {
       line: list.length ? `${open.length} in progress${overdue ? `, ${overdue} overdue` : ''}${removed ? `, ${removed} removed` : ''}` : 'Nothing to take down yet',
       Art: ArtTakedown,
     },
-    { to: 'shield' as const, colour: 'paper', title: 'Before I post', line: 'Mark it and hide where you live', Art: ArtShield },
+    { to: 'shield' as const, colour: 'paper', title: 'Before I post', line: 'Mark it so a fake can be traced to you', Art: ArtShield },
+    { to: 'clean' as const, colour: 'char', title: 'Remove personal details', line: 'Street names, house numbers, plates, emails and phone numbers', Art: ArtCheck },
   ];
 
   return (

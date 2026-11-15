@@ -332,3 +332,37 @@ details[open] .plus::after { transform: rotate(0deg); }
 .home-bar { inset: 0 calc(min(15vw, 220px)) auto 0; }
 
 .check-fact { position: static !important; max-width: 36ch; font-size: 17px; font-weight: 500; text-align: left !important; margin: 0 !important; padding: 12px 16px; border-radius: var(--r-card); background: rgba(17, 17, 17, 0.08); }
+
+/* ---------- Section rail v3: a slim index, not colour slabs ---------- */
+.swatches {
+  width: 210px !important; max-width: none !important; padding: 28px 14px !important; gap: 4px !important;
+  justify-content: center; background: var(--night) !important;
+}
+.swatches a {
+  flex: 0 0 auto !important; display: flex !important; flex-direction: row !important; align-items: center !important; gap: 14px;
+  padding: 13px 14px !important; border-radius: 14px !important; background: transparent !important; color: var(--on-dark-soft) !important;
+  justify-content: flex-start !important; text-align: left;
+  font-family: var(--text) !important; font-weight: 600 !important; font-size: 16px !important; text-transform: none !important; line-height: 1.2 !important;
+  transition: background-color var(--t-fast), color var(--t-fast) !important;
+}
+.swatches a::before {
+  content: ''; flex: none; width: 10px; height: 10px; border-radius: 5px; background: var(--dot);
+  transition: height 320ms var(--ease), width 320ms var(--ease);
+}
+.swatches a::after { display: none !important; }
+.swatches a:hover { background: var(--char-2) !important; color: var(--on-dark) !important; transform: none !important; filter: none !important; }
+.swatches a[data-active] { background: var(--char-2) !important; color: var(--on-dark) !important; }
+.swatches a[data-active]::before { height: 26px; width: 6px; }
+.swatches a[data-colour='lime'] { --dot: var(--lime); }
+.swatches a[data-colour='sky'] { --dot: var(--sky); }
+.swatches a[data-colour='alarm'] { --dot: var(--alarm); }
+.swatches a[data-colour='paper'] { --dot: var(--paper); }
+.swatches a[data-colour='char'] { --dot: var(--char-4); }
+.hero-stage, .chapter, .ch-takedown, .footer, .hero-static-feed { margin-right: 210px; }
+.hero-stage { right: 210px !important; margin-right: 0; }
+.home-bar { inset: 0 210px auto 0 !important; }
+@media (max-width: 860px) {
+  .hero-stage { right: 0 !important; }
+  .chapter, .ch-takedown, .footer, .hero-static-feed { margin-right: 0; }
+  .home-bar { inset: 0 0 auto 0 !important; }
+}

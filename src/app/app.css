@@ -292,3 +292,20 @@
 .bar-nav a::after { display: none; }
 .bar-nav a[aria-current='page'] { outline: 3px solid var(--ch-ink); outline-offset: -3px; }
 .empty-art { width: min(320px, 70vw); color: var(--ch, var(--lime)); }
+
+/* ---------- Find my face: web search ---------- */
+.btn-sky { background: var(--sky); color: var(--ink); }
+.btn-sky:hover { background: var(--sky-2); }
+.hunt-go { min-height: 60px; font-size: 23px; justify-self: start; padding: 10px 32px; }
+.consent { background: var(--char-3); border-radius: var(--r-card); padding: 20px; display: grid; gap: 12px; animation: pop 360ms var(--ease) both; }
+.consent h3 { font-size: 26px; }
+.engine-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.engine-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 12px 16px; border-radius: var(--r-card); background: var(--char-3); animation: pop 320ms var(--ease) both; }
+.engine-list li strong::before { content: ''; display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--char-4); margin-right: 10px; }
+.engine-list li[data-ok] strong::before { background: var(--lime); }
+.engine-list li span { color: var(--on-dark-soft); font-size: 15px; }
+.vault-art { width: 140px; height: 140px; border-radius: 50%; background: rgba(17, 17, 17, 0.08); display: grid; place-items: center; color: var(--ink); justify-self: center; }
+.vault-art .art { width: 88%; }
+.hits img { border-radius: var(--r-card); }
+.vault-list img { border-radius: 50%; }
+@media (max-width: 860px) { .hunt-go { width: 100%; justify-self: stretch; } .vault-art { width: 110px; height: 110px; } }
