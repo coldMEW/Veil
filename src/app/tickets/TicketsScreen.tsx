@@ -23,6 +23,7 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { href, navigate } from '../router';
 import { toast } from '../App';
+import { serverRecheck, syncTickets } from '../../services/ticketSync';
 import { ArtTakedown } from '../shared/Art';
 
 function useNow(ms = 30000) {
@@ -40,6 +41,7 @@ function useAutoChecks(list: Ticket[]) {
   useEffect(() => {
     let live = true;
     const run = async () => {
+      await syncTickets(); // the backend's timeline first, when there is one
       const open = tickets.get().filter((t) => t.sentAt && t.status !== 'removed' && t.status !== 'rejected');
       if (hasToken() && open.some((t) => t.gmailThreadId)) {
         try {
@@ -83,6 +85,7 @@ function useAutoChecks(list: Ticket[]) {
         if (!live) return;
         if (t.lastCheckedAt && Date.now() - t.lastCheckedAt < 10 * 60 * 1000) continue;
         try {
+          if (await serverRecheck(t)) continue; // the server looked and recorded what it saw
           const r = await urlStatus(t.imageUrl ?? t.pageUrl);
           if (r.gone) updateTicket(t.id, { status: 'removed', removedAt: Date.now(), lastCheckedAt: Date.now(), lastCheck: `Gone (${r.status})` }, `Checked automatically: the picture is gone (${r.status}). Ticket closed.`);
           else updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: r.status >= 200 && r.status < 300 ? `Still up (${r.status})` : `Could not tell (the site answered ${r.status})` });
@@ -196,6 +199,11 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
   const recheck = async () => {
     setChecking(true);
     try {
+      if (await serverRecheck(t)) {
+        const now = tickets.get().find((x) => x.id === t.id);
+        toast(now?.status === 'removed' ? 'It is gone. Ticket closed.' : (now?.lastCheck ?? 'Checked.'));
+        return;
+      }
       const r = await urlStatus(t.imageUrl ?? t.pageUrl);
       if (r.gone) updateTicket(t.id, { status: 'removed', removedAt: Date.now(), lastCheckedAt: Date.now(), lastCheck: `Gone (${r.status})` }, `Checked: the picture is gone (${r.status}). Ticket closed.`);
       else {
@@ -294,6 +302,11 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
             <>
               <strong className="num">{formatLeft(left)}</strong>
               <span>of the 48-hour removal window (TAKE IT DOWN Act)</span>
+            </>
+          ) : t.status !== 'ready' && t.status !== 'removed' ? (
+            <>
+              <strong>{s.label.split(' · ')[0]}</strong>
+              <span className="num">{t.sentAt ? `sent ${new Date(t.sentAt).toLocaleString()}` : ''}</span>
             </>
           ) : t.status === 'removed' ? (
             <>
