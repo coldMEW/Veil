@@ -254,7 +254,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                   <h2>
                     {result.removed} {result.removed === 1 ? 'detail' : 'details'} painted out
                   </h2>
-                  <p>The export was scanned again; the selected text was not detected. Inspect the copy before posting.</p>
+                  <p>The export was scanned again. Review any remaining-text warning and inspect the copy before posting.</p>
                 </li>
               )}
               {result.unresolved > 0 && <li data-tone="alarm"><h2>Text still needs review</h2><p>Some selected text was detected again. Check the copy before posting.</p></li>}
