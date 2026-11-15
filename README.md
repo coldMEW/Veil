@@ -1,4 +1,4 @@
-# Veil
+﻿# Veil
 
 **Someone made a fake of you. Veil helps you prove it, find it and take it down, from your phone.**
 
@@ -34,23 +34,23 @@ A convincing fake of a real person now takes one photo and a few minutes. The pe
 ```mermaid
 flowchart LR
     subgraph Device["Your phone or browser (on-device)"]
-        UI["React app<br/>Check · Find my face · Take it down · Shield"]
+        UI["React app<br/>Check Â· Find my face Â· Take it down Â· Shield"]
         Face["Face engine<br/>YuNet detect + SFace embed"]
         Mark["Veil mark<br/>keyed DCT watermark"]
         PDQ["PDQ fingerprint"]
         C2PA["C2PA reader"]
         AI["AI-image model<br/>Community Forensics ViT"]
-        OCR["OCR + inpaint<br/>PaddleOCR · MI-GAN"]
+        OCR["OCR + inpaint<br/>PaddleOCR Â· MI-GAN"]
         Vault[("Vault<br/>128 numbers per face,<br/>mark key, tickets")]
     end
-    subgraph Server["Veil backend (Python · FastAPI)"]
+    subgraph Server["Veil backend (Python Â· FastAPI)"]
         Scan["Guarded page and image fetch"]
         Hunt["Reverse image search"]
-        Tix[("Tickets · SQLite<br/>timeline + scheduler")]
+        Tix[("Tickets Â· SQLite<br/>timeline + scheduler")]
         Host["Host lookup<br/>DNS + RDAP"]
     end
     Web(("Public web"))
-    Engines(("Yandex · Bing · Lens"))
+    Engines(("Yandex Â· Bing Â· Lens"))
     UI --> Face & Mark & PDQ & C2PA & AI & OCR
     Face --> Vault
     UI -- "face crop, only on tap" --> Hunt --> Engines
@@ -147,7 +147,7 @@ npm ci
 npm run dev            # http://localhost:5173
 ```
 
-The first run downloads the on-device models (about 170 MB) into `public/models/` and verifies each one by SHA-256, so it needs an internet connection once. In this mode the app's `/api` routes are served by the dev server itself, including the time stamp for Video evidence records; its signing key is created on first use in `local-private/`, which Git ignores. Use Chrome or Edge.
+The first run downloads the on-device models (about 205 MB) into `public/models/` and verifies each one by SHA-256, so it needs an internet connection once. In this mode the app's `/api` routes are served by the dev server itself, including the time stamp for Video evidence records; its signing key is created on first use in `local-private/`, which Git ignores. Use Chrome or Edge.
 
 ### Run with the Python backend
 
