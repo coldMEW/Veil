@@ -360,3 +360,8 @@
   .tool-check .photo { max-height: 34svh; }
   .tool-check .photo canvas { max-height: calc(34svh - 24px); }
 }
+
+.maybe { background: var(--char-2); border-radius: var(--r-card); padding: 4px 16px; }
+.maybe summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 600; font-size: 15px; color: var(--on-dark-soft); }
+.maybe[open] { padding-bottom: 12px; }
+.maybe .choice { background: var(--char-3); }

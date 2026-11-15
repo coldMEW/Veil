@@ -38,5 +38,21 @@ export function verifiedPrivacyCandidates(assetId: string, boxes: OcrBox[]) {
         return full.length > text.length && full.includes(text) && contained(box.rect, other.rect) > 0.65;
       }),
   );
-  return candidatesFromOcr(assetId, distinct).filter((candidate) => candidate.selected);
+  const verified = candidatesFromOcr(assetId, distinct)
+    .filter((candidate) => candidate.selected)
+    .map((c) => ({ ...c, verified: true }));
+  // Second tier, kept apart and never pre-selected: location-class reads (street names, plates) that one
+  // read supports but the second did not confirm. Stray numbers and other text never appear here.
+  const maybe = boxes.filter((box) => {
+    if (distinct.includes(box)) return false;
+    const { category } = classifyText(box.text);
+    if (category !== 'address' && category !== 'plate') return false;
+    if (box.recScore < 0.6 || box.pixelRect.h < 8) return false;
+    return !distinct.some((v) => contained(box.rect, v.rect) > 0.5);
+  });
+  const seen: OcrBox[] = [];
+  for (const box of maybe.sort((a, b) => b.recScore - a.recScore))
+    if (!seen.some((o) => contained(box.rect, o.rect) > 0.5 || contained(o.rect, box.rect) > 0.5)) seen.push(box);
+  const unverified = candidatesFromOcr(assetId, seen.slice(0, 4)).map((c) => ({ ...c, selected: false, verified: false }));
+  return [...verified, ...unverified];
 }

@@ -108,6 +108,8 @@ export interface PrivacyCandidate {
   text?: string;
   /** Detector/recognizer score; technical details only, not a privacy guarantee. */
   score?: number;
+  /** False when a single read suggests it but a second read did not confirm it. Shown apart, never pre-selected. */
+  verified?: boolean;
   selected: boolean;
 }
 

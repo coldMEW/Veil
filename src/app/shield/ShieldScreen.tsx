@@ -206,10 +206,11 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
           <>
             <div className="verdict" data-tone="paper">
               <h1>Remove these?</h1>
-              <p>Two reads support these details. Confirm what to remove.</p>
+              <p>Veil only lists details that two separate reads agree on. Untick anything you want to keep.</p>
             </div>
-            <ul className="candidates">
-              {[...clean.state.candidates].sort((x, y) => Number(y.selected) - Number(x.selected)).map((c) => (
+            {clean.state.candidates.some((c) => c.verified !== false) ? (
+              <ul className="candidates">
+                {clean.state.candidates.filter((c) => c.verified !== false).map((c) => (
                 <li key={c.id}>
                   <label className="choice">
                     <input type="checkbox" checked={c.selected} onChange={() => clean.toggle(c.id)} />
@@ -219,8 +220,31 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                     </span>
                   </label>
                 </li>
-              ))}
-            </ul>
+                ))}
+              </ul>
+            ) : (
+              <p className="note">Nothing was confirmed by two reads in this photo.</p>
+            )}
+            {clean.state.candidates.some((c) => c.verified === false) && (
+              <details className="maybe">
+                <summary>
+                  {clean.state.candidates.filter((c) => c.verified === false).length} more that might be a street name or plate (not confirmed)
+                </summary>
+                <ul className="candidates">
+                  {clean.state.candidates.filter((c) => c.verified === false).map((c) => (
+                <li key={c.id}>
+                  <label className="choice">
+                    <input type="checkbox" checked={c.selected} onChange={() => clean.toggle(c.id)} />
+                    <span>
+                      <strong>{CATEGORY[c.category] ?? 'Text'}</strong>
+                      {c.text && <span>“{c.text}”</span>}
+                    </span>
+                  </label>
+                </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <div className="td-actions">
               <button
                 className="btn btn-lime"

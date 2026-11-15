@@ -200,7 +200,8 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
         const b = bitmapToImageData(input.bitmap, 1600);
         const r = compareImages({ width: a.width, height: a.height, data: a.data }, { width: b.width, height: b.height, data: b.data }, input.assetId);
         const regions = changedRegions(r);
-        const aligned = r.execution === 'complete' && !r.reason;
+        // A failed alignment carries evidence.alignment === null; a successful one always has it.
+        const aligned = r.execution === 'complete' && Boolean((r.evidence as { alignment?: unknown } | undefined)?.alignment);
         setComparison({
           says: regions.length ? r.observation : aligned ? 'Lined up with your original, nothing differs.' : r.observation,
           regions,

@@ -242,7 +242,9 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
         files: [file.uri],
         dialogTitle: 'Send the notice with',
       });
-      updateTicket(t.id, { status: 'sent', sentAt: Date.now(), sentVia: 'mail-app' }, 'Handed to your mail app with the evidence file. The 48-hour clock started.');
+      // Opening the share sheet does not prove the email went out: the person confirms with "I sent it".
+      updateTicket(t.id, { sentVia: 'mail-app' }, 'Opened in your mail app with the evidence file. Tap "I sent it" once it is sent.');
+      toast('When the email is sent, tap "I sent it" to start the clock.');
     } catch (e) {
       if (!/cancel/i.test(String(e))) toast(e instanceof Error ? e.message : 'Could not open your mail app.');
     } finally {
