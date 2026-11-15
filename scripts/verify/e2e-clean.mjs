@@ -1,0 +1,21 @@
+import { chromium } from '@playwright/test';
+const [, , file, out] = process.argv;
+const browser = await chromium.launch();
+const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
+const page = await ctx.newPage();
+page.on('pageerror', (e) => console.log('pageerror', String(e)));
+await page.goto((process.env.VEIL_URL ?? 'http://localhost:5191/') + '#/shield', { waitUntil: 'networkidle' });
+await page.locator('input[type=file]').first().setInputFiles(file);
+const t0 = Date.now();
+await page.getByRole('button', { name: 'Shield it' }).click();
+await page.waitForSelector('text=Remove these?', { timeout: 240000 });
+// Categories only: OCR text of real photos is never logged.
+const rows = await page.locator('.candidates .choice').evaluateAll((els) => els.map((e) => `${e.querySelector('input').checked ? '[x]' : '[ ]'} ${e.querySelector('strong').textContent}`));
+console.log('scan s', ((Date.now() - t0) / 1000).toFixed(1), rows.join(' | '));
+await page.getByRole('button', { name: 'Continue' }).click();
+await page.waitForSelector('text=Shielded', { timeout: 300000 });
+console.log('total s', ((Date.now() - t0) / 1000).toFixed(1));
+const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save the shielded copy' }).click()]);
+await dl.saveAs(out);
+await page.screenshot({ path: out.replace(/\.\w+$/, '-screen.png') });
+await browser.close();

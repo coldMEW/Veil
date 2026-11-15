@@ -13,14 +13,14 @@ import { BeforeAfter } from './BeforeAfter';
 import { toast } from '../App';
 
 const CATEGORY: Record<string, string> = {
+  address: 'Street name or address',
   plate: 'Licence plate',
-  house_number: 'House or room number',
-  street_sign: 'Street sign',
-  address: 'Address',
   email: 'Email address',
   phone: 'Phone number',
-  name: 'Name',
-  text: 'Other text',
+  room_or_id_number: 'House, room or ID number',
+  other_text: 'Other text',
+  manual: 'Area you marked',
+  face: 'Face',
 };
 
 interface Result {
@@ -200,7 +200,7 @@ export default function ShieldScreen() {
               <p>Veil picked the ones that give away where you are. Untick anything you want to keep.</p>
             </div>
             <ul className="candidates">
-              {clean.state.candidates.map((c) => (
+              {[...clean.state.candidates].sort((x, y) => Number(y.selected) - Number(x.selected)).map((c) => (
                 <li key={c.id}>
                   <label className="choice">
                     <input type="checkbox" checked={c.selected} onChange={() => clean.toggle(c.id)} />

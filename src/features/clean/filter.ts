@@ -20,6 +20,9 @@ const PHONE = /\+?\d[\d\s().-]{6,}\d/;
 const ROOM =
   /\b(room|rm|suite|ste|apt|unit|bldg|building|office|lab|classroom|hall)\.?\s*#?\s*[a-z]?\d{1,5}[a-z]?\b/i;
 const ZIP = /^\d{5}(-\d{4})?$/;
+// Street signs read on a curve or partly hidden lose their suffix ("N Lee A"). A compass prefix followed by a
+// capitalised name is still a street name: "N Lee", "SW Oak", "North Main".
+const DIRECTIONAL_STREET = /^(?:N|S|E|W|NE|NW|SE|SW|North|South|East|West)\.?\s+[A-Z][a-z]{2,}(?:\s+[A-Za-z]{0,6})?$/;
 
 const digitCount = (s: string) => (s.match(/\d/g) ?? []).length;
 
@@ -46,6 +49,7 @@ export function classifyText(raw: string): FilterResult {
     if (/\d/.test(t)) return { category: 'address', rule: 'number+street-suffix' };
     if (t.split(' ').length <= 5) return { category: 'address', rule: 'street-name' };
   }
+  if (DIRECTIONAL_STREET.test(t)) return { category: 'address', rule: 'directional-street-name' };
   if (ZIP.test(t)) return { category: 'address', rule: 'zip-code' };
   const d = digitCount(t);
   if (PHONE.test(t) && d >= 7 && d <= 15) return { category: 'phone', rule: 'phone-digits' };

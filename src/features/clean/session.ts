@@ -37,6 +37,39 @@ function growQuad(quad: Point[], fx: number, fy: number): Point[] {
   return quad.map((p) => ({ x: cx + (p.x - cx) * fx, y: cy + (p.y - cy) * fy }));
 }
 
+/**
+ * Lengthen a text quad along its own reading direction (top edge p0->p1), in pixel space so rotation is kept.
+ * Street signs on a curve or behind a pole are often read short ("N Lee A"), so the end gets the larger share.
+ * Height is untouched: growing across the line reaches the sky or wall around a sign.
+ */
+function extendAlongLine(q: Point[], w: number, h: number, before: number, after: number): Point[] {
+  if (q.length !== 4) return q;
+  const [p0, p1, p2, p3] = q as [Point, Point, Point, Point];
+  const dx = (p1.x - p0.x) * w, dy = (p1.y - p0.y) * h;
+  const ex = (s: number) => ({ x: (dx * s) / w, y: (dy * s) / h });
+  const b = ex(before), a = ex(after);
+  return [
+    { x: p0.x - b.x, y: p0.y - b.y },
+    { x: p1.x + a.x, y: p1.y + a.y },
+    { x: p2.x + a.x, y: p2.y + a.y },
+    { x: p3.x - b.x, y: p3.y - b.y },
+  ];
+}
+
+/** Is there saturated colour (a sign plate) close by? White letters on a plate pass; grey-white sky does not. */
+function onColouredPlate(src: Pixels, x: number, y: number, r = 6): boolean {
+  let n = 0, sat = 0;
+  for (let yy = Math.max(0, y - r); yy <= Math.min(src.height - 1, y + r); yy += 2)
+    for (let xx = Math.max(0, x - r); xx <= Math.min(src.width - 1, x + r); xx += 2) {
+      const k = (yy * src.width + xx) * 4;
+      const R = src.data[k]!, G = src.data[k + 1]!, B = src.data[k + 2]!;
+      const mx = Math.max(R, G, B), mn = Math.min(R, G, B);
+      if (mx > 0 && (mx - mn) / mx > 0.35) sat++;
+      n++;
+    }
+  return n > 0 && sat / n > 0.3;
+}
+
 function quadOf(c: PrivacyCandidate): Point[] {
   return (
     c.quad ?? [
@@ -70,9 +103,20 @@ export function textRemovalMask(
     const quad = quadOf(c);
     const d = Math.min(o.dilateMaxPx, Math.max(o.dilateMinPx, Math.round(o.dilateFraction * c.region.h * src.height)));
     maxDil = Math.max(maxDil, d);
-    const g = glyphMask(src, growQuad(quad, o.sampleGrow[0], o.sampleGrow[1]), { threshold: o.threshold, dilatePx: d }).mask;
-    const clip = polygonMask(growQuad(quad, o.clipGrow[0], o.clipGrow[1]), src.width, src.height);
-    for (let i = 0; i < g.data.length; i++) if (g.data[i] && clip.data[i]) out.data[i] = 1;
+    // Street signs are often read short ("N Lee A" for "N Lee Ave": curved or partly hidden plates), so their
+    // search area reaches further along the line. Only text-coloured strokes inside it are removed.
+    // Only lines whose last word looks cut off ("N Lee A", "Oak Av") are lengthened; complete reads are not.
+    const truncated = c.category === 'address' && /\s[A-Za-z]{1,2}$/.test(c.text ?? '') && !/\s(?:St|Rd|Dr|Ln|Ct|Pl|Wy)$/i.test(c.text ?? '');
+    const line = truncated ? extendAlongLine(quad, src.width, src.height, 0, 0.16) : quad;
+    const g = glyphMask(src, growQuad(line, o.sampleGrow[0], o.sampleGrow[1]), { threshold: o.threshold, dilatePx: d }).mask;
+    const clip = polygonMask(growQuad(line, o.clipGrow[0], o.clipGrow[1]), src.width, src.height);
+    // In the lengthened part only, keep strokes that sit on the coloured sign plate, not on grey sky or wall.
+    const core = truncated ? polygonMask(growQuad(quad, o.clipGrow[0], o.clipGrow[1]), src.width, src.height) : null;
+    for (let i = 0; i < g.data.length; i++) {
+      if (!g.data[i] || !clip.data[i]) continue;
+      if (core && !core.data[i] && !onColouredPlate(src, i % src.width, Math.floor(i / src.width))) continue;
+      out.data[i] = 1;
+    }
   }
   return { mask: fillHoles(out), dilatePx: maxDil };
 }
