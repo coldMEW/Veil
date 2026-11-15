@@ -211,6 +211,8 @@ def main() -> int:
     parser.add_argument("--out", type=Path, default=ROOT.parent / "scratch-eval" / ("verify-" + dt.datetime.now().strftime("%Y%m%d-%H%M%S-%f")))
     parser.add_argument("--photo", type=Path, help="Optional PRIVATE local photo; never copied into the repository.")
     parser.add_argument("--min-region-pixels", type=int, default=1, help="Minimum connected-component area for crop previews; use1 for every component. All boxes are always retained in JSON.")
+    parser.add_argument('--backend-python', default=sys.executable, help='Python with backend requirements installed')
+    parser.add_argument('--backend-only', action='store_true', help='Run only the real Python backend acceptance')
     args = parser.parse_args()
     out = args.out.resolve()
     if out == ROOT or ROOT in out.parents:
@@ -230,6 +232,17 @@ def main() -> int:
     server = None
     server_log = None
     try:
+        print('Running backend acceptance...', flush=True)
+        code, output, elapsed = command_run(
+            [args.backend_python, str(ROOT / 'scripts/verify/backend_acceptance.py'),
+             '--python', args.backend_python, '--out', str(out / 'backend')], env, 240)
+        result = next((json.loads(line[len(PREFIX):]) for line in output.splitlines()
+                       if line.startswith(PREFIX)), {'ok': False, 'error': 'backend-output-missing'})
+        result.update(exitCode=code, seconds=round(elapsed, 3))
+        result['ok'] = bool(result.get('ok')) and code == 0
+        results['backend'] = result
+        if args.backend_only:
+            return 0 if result['ok'] else 1
         if args.serve:
             port = parsed.port or (443 if parsed.scheme == "https" else 80)
             if parsed.hostname not in ("localhost", "127.0.0.1", "::1") or parsed.scheme != "http":

@@ -27,3 +27,41 @@ npm run build:android  # then: cd android && ./gradlew assembleDebug  (JDK 21)
 ## Verify
 
 `scripts/verify/` drives the real app in Chromium (and the Android WebView over CDP) with the fictional demo character in `public/demo/source/`: face matching, scanning the demo leaks page (`/demo/leaks.html`), tickets, Shield then Check for the mark, and Clean on a photo you supply. Private photos stay outside the repository.
+
+
+## Python backend
+
+Python 3.11. Keep the virtual environment and database outside the repository. From the repository root:
+
+```powershell
+python -m venv ..\scratch-eval\backend-py-venv
+..\scratch-eval\backend-py-venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+npm run build
+$env:VEIL_DB = (Join-Path (Resolve-Path ..\scratch-eval) 'veil-tickets.sqlite3')
+..\scratch-eval\backend-py-venv\Scripts\python.exe -m backend
+```
+
+The loopback server uses port 8787 and serves `dist/` when built, with COOP/COEP headers. Public page/image
+fetching is DNS-pinned, redirects are checked again, and response time/size are bounded. Hunt uploads only
+when explicitly called: never submit a private photo for automated acceptance. Yandex/Bing return provider
+errors honestly; Lens requires server-side `SERPAPI_KEY` plus an already-public HTTPS image URL.
+
+For Vite development, run the backend separately, then `$env:VEIL_BACKEND='python'; npm run dev`.
+Only `/api` is proxied. Without that environment variable the existing TypeScript middleware remains active.
+The SQLite ticket API records no image bytes or face data. It accepts explicit ticket/sent/reply events and
+rechecks sent/acknowledged tickets every 15 minutes while the server is running. An overdue event is a
+48-hour follow-up reminder, not a claim about a legal deadline. Back up/protect the database as personal data.
+
+Optional SMTP/IMAP credentials belong only in the server environment; never `VITE_*` or browser storage.
+Unconfigured sending returns 503, not success. A caller-recorded `/sent` event is not proof of delivery.
+Bind only to loopback unless adding appropriate authentication and TLS for a multi-user deployment.
+
+**Integration boundary:** the current frontend ticket store is still localStorage; Claude must wire its
+create/update/read flows to `/api/tickets` before SQLite becomes the app's system of record. Android's native
+fetch path also does not automatically use this Python server. Backend acceptance alone does not prove
+Gmail/SMTP delivery, IMAP replies, Android integration, or UI end-to-end ticket synchronization.
+
+```powershell
+..\scratch-eval\backend-py-venv\Scripts\python.exe -m pytest backend/tests -q
+python scripts/verify/run.py --backend-only --backend-python ..\scratch-eval\backend-py-venv\Scripts\python.exe
+```
