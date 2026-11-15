@@ -1,30 +1,59 @@
 import { chromium } from '@playwright/test';
-const base = process.env.VEIL_URL ?? 'http://localhost:5191/';
-const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true });
-const page = await ctx.newPage();
-const errors = [];
-page.on('pageerror', (e) => errors.push(String(e)));
-await page.goto(base + '#/shield', { waitUntil: 'networkidle' });
-await page.locator('input[type=file]').first().setInputFiles('public/demo/source/selfie-1.jpg');
-await page.getByText('Remove where I live').click();
-await page.getByRole('button', { name: 'Shield it' }).click();
-await page.waitForSelector('text=Shielded', { timeout: 120000 });
-const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'Save the shielded copy' }).click()]);
-const out = (process.env.VEIL_OUT ?? '../scratch-eval') + '/shielded.jpg';
-await dl.saveAs(out);
-await page.screenshot({ path: (process.env.VEIL_OUT ?? '../scratch-eval') + '/e2e-shield.png' });
-// Re-encode like a social network would: smaller and recompressed.
-const sharp = (await import('sharp')).default;
-await sharp(out).resize({ width: 700 }).jpeg({ quality: 72 }).toFile((process.env.VEIL_OUT ?? '../scratch-eval') + '/shielded-reposted.jpg');
-for (const f of [(process.env.VEIL_OUT ?? '../scratch-eval') + '/shielded-reposted.jpg', 'public/demo/source/fake-party.jpg']) {
-  await page.goto(base + '#/check', { waitUntil: 'networkidle' });
-  await page.evaluate(() => document.querySelector('.stage-bar button')?.click());
-  await page.waitForTimeout(300);
-  await page.locator('input[type=file]').first().setInputFiles(f);
-  await page.waitForFunction(() => !document.querySelector('.pending'), null, { timeout: 180000 }).catch(() => {});
-  console.log(f, '=>', (await page.locator('.verdict h1').innerText()), '|', (await page.locator('.evidence h2').allInnerTexts()).join(' / '));
-  await page.screenshot({ path: `../scratch-eval/shots/e2e-check-${f.split('/').pop()}.png` });
+import sharp from 'sharp';
+import { join } from 'node:path';
+import { base, out, prepare, emit, openPhoto } from './common.mjs';
+let browser;
+const started = Date.now();
+try {
+  await prepare();
+  browser = await chromium.launch();
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, acceptDownloads: true }),
+    page = await ctx.newPage();
+  async function shield(file, destination) {
+    await openPhoto(page, 'shield', file);
+    await page
+      .locator('.choices .choice')
+      .filter({ hasText: 'Remove where I live' })
+      .locator('input')
+      .setChecked(false);
+    await page.getByRole('button', { name: 'Shield it', exact: true }).click();
+    await page.getByRole('heading', { name: 'Shielded', exact: true }).waitFor({ timeout: 180000 });
+    const [dl] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Save the shielded copy' }).click(),
+    ]);
+    await dl.saveAs(destination);
+  }
+  await shield('public/demo/source/selfie-1.jpg', join(out, 'shielded.jpg'));
+  await page.screenshot({ path: join(out, 'e2e-shield.png') });
+  await sharp(join(out, 'shielded.jpg'))
+    .resize({ width: 700 })
+    .jpeg({ quality: 72 })
+    .toFile(join(out, 'shielded-reposted.jpg'));
+  await openPhoto(page, 'check', join(out, 'shielded-reposted.jpg'));
+  await page
+    .getByRole('heading', { name: 'Made from your photo', exact: true })
+    .waitFor({ timeout: 60000 })
+    .catch(() => {});
+  const madeFromYourPhoto = await page
+    .getByRole('heading', { name: 'Made from your photo', exact: true })
+    .isVisible();
+  await page.screenshot({ path: join(out, 'e2e-check-reposted.png') });
+  let tested12mp = false;
+  if (process.env.VEIL_MARK_12MP) {
+    await shield(process.env.VEIL_MARK_12MP, join(out, 'shielded-12mp.jpg'));
+    tested12mp = true;
+  }
+  emit('mark', {
+    ok: madeFromYourPhoto,
+    madeFromYourPhoto,
+    repostWidth: 700,
+    jpegQuality: 72,
+    tested12mp,
+    ms: Date.now() - started,
+  });
+} catch (error) {
+  emit('mark', { ok: false, error: error.name, ms: Date.now() - started });
+} finally {
+  await browser?.close();
 }
-console.log(errors.length ? 'ERRORS:\n' + errors.join('\n') : 'no errors');
-await browser.close();
