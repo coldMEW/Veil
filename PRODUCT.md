@@ -6,48 +6,47 @@
 
 adaptive
 
-One React codebase. On the web it uses its own Veil design language. The Android app (Capacitor wrapper of the same build) follows Android-native conventions: Material-style navigation, system back, edge-to-edge with insets, bottom sheets, share target, saving to Pictures/Veil. (Confirmed by Bibek, 2026-11-14.)
+One React codebase. Web and the Android app (Capacitor wrapper of the same build) share the UI: colour-chapter top bar on desktop, colour tab bar on phones, system back, edge-to-edge insets, saving to Pictures/Veil.
 
 ## Users
 
-Everyday people who are about to share, post or rely on a photo: they want to know whether it can be trusted and to remove private details (house numbers, licence plates, names on screens or documents) before it leaves their hands. Often on a phone, often one-handed, without technical vocabulary. Hackathon judges see this same flow. (Confirmed.)
+Everyday people, most often young women, who find (or fear) a deepfake or impersonation of themselves on social media or leak sites. They are scared and in a hurry, usually on a phone, with no legal or technical vocabulary. Hackathon judges see the same flow.
 
 ## Product Purpose
 
-Veil lets a person inspect a photo for evidence of editing or generation, clean private text out of it, and protect it against AI editing, all on the device. Success: a non-expert finishes Inspect, Clean or Protect without help and understands what each result does and does not show.
+Veil helps a person prove a picture of them is fake, find where their face has been posted, and get it taken down, and shield new photos before they post them. Success: from a found fake to a sent takedown notice in under two minutes, with evidence a platform will accept.
 
 ## Positioning
 
-Everything runs locally in the browser or phone (ONNX Runtime Web, WASM/WebGPU); no image is uploaded. Results are presented as evidence with method and limitations, never as a "real or fake" verdict.
+Free and for ordinary people, not celebrities (Loti, Ceartas). The face never leaves the device: it is kept as numbers, StopNCII-style, no ID upload. Proof of origin (Veil mark + compare with original) opens a copyright route where intimate-image law does not reach. Tickets go to the right place by themselves and track the legal 48-hour clock.
 
 ## Operating Context
 
-Three jobs on one photo: Inspect (checks such as content credentials/C2PA, metadata, shadow and light geometry, eye highlights, frequency spectrum, model-focus map, face-warp), Clean (OCR finds private text and plates; user picks what to remove; MI-GAN inpaints; fresh PNG export with metadata stripped; automatic rescan), Protect (DiffVax immunisation so diffusion edits of the photo degrade, with a proof card). A printable A4 report with the file SHA-256 records what was checked.
+Four separate jobs: Check (strong evidence only), Find my face (on-device face matching over pages the person chooses, reverse-search hand-off, watchlist), Take it down (auto tickets, routing, notices, evidence file, re-check), Shield (Veil mark, metadata strip, location-clue removal).
 
 ## Capabilities and Constraints
 
-- Models load on demand; core Clean models ship with the Android app, larger ones download only after consent with size shown and sha256 verified.
-- Checks that are not built or did not run must say so plainly; nothing may look like a result when it is not.
-- CSP connect-src 'self' on the web; COOP/COEP for WASM threads.
-- Never blur, pixelate or redact people in photos; Clean removes text and plates only.
-- Feature freeze Sat Nov 14 11 PM CT; code freeze Sun noon.
+- Only strong evidence is shown; a check with no signal is not listed. Wording says what was found, not more.
+- Nothing invisible stops large AI models from reading a photo; Veil never claims it does.
+- Never blur or edit people; Clean removes text and plates only.
+- The server only fetches public pages the person asked to scan; it never receives their photo or face data.
 
 ## Brand Commitments
 
-Name: Veil. Voice: plain, calm, exact; sentence case; no hype, no "AI detector", no "real or fake".
+Name: Veil. Voice: plain, direct, on the person's side; sentence case in body text, condensed capitals in headings. Story scene in black and white; the product in bold colour chapters (lime Check, sky Find my face, red Take it down, paper Shield).
 
 ## Evidence on Hand
 
-Real team test photos exist locally but are private and must never be committed, shown in screenshots that are committed, or described by their OCR text. Use synthetic images for fixtures. No testimonials, users or benchmarks exist; do not invent them.
+Demo character is fictional (illustrated, generated). Real team photos are private and never committed. No testimonials or business numbers exist; do not invent them.
 
 ## Product Principles
 
-1. Evidence, not verdicts: every result shows its method and limits.
-2. The photo stays the hero; tools and results serve it.
-3. One obvious next step at every moment.
-4. Local and honest: say what runs on the device, what was downloaded and what did not run.
-5. Reversible: nothing is changed or saved without the person choosing it.
+1. Prove, then act: every screen ends in an action (a ticket, a notice, a shielded copy).
+2. Strong evidence only.
+3. The face stays on the device.
+4. Honest limits, said plainly.
+5. Fast on a phone.
 
 ## Accessibility & Inclusion
 
-WCAG 2.2 AA: keyboard and screen-reader operable overlays and sheets, 44px touch targets, visible focus, reduced motion respected.
+WCAG 2.2 AA: keyboard and screen-reader operable, 44 px touch targets, visible focus, reduced motion respected (the story becomes a still frame).

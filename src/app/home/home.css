@@ -302,3 +302,26 @@ details[open] .plus::after { transform: rotate(0deg); }
 @media (prefers-reduced-motion: no-preference) {
   .chapter h2, .chapter-lede, .check-list ul, .trace-block, .ticket-card, .rule-tile, .faq-list details { animation: pop linear both; animation-timeline: view(); animation-range: entry 0% entry 40%; }
 }
+
+/* ---------- Picture-book hero (monochrome scene only) ---------- */
+.book .hero-stage { background: #050505; }
+.book-room { position: absolute; inset: 0; will-change: transform; }
+.book-frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 62%; user-select: none; }
+.book-mist {
+  position: absolute; inset: auto -20% 0 0; height: 48%; pointer-events: none; opacity: 0.55;
+  background: url('/story/story-mist.webp') repeat-x bottom / auto 100%; mix-blend-mode: screen;
+}
+.book-dust { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.book-phone { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.book-phone img { width: 100%; height: 100%; object-fit: cover; }
+.book-beat {
+  position: absolute; left: 0; right: 0; bottom: 8svh; margin: 0 auto; width: min(560px, 86%);
+  text-align: center; font-size: clamp(19px, 1.6vw, 24px); font-weight: 500; color: #ececec; letter-spacing: 0.01em;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9);
+}
+.book .hero-copy h1, .book .hero-copy p { text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); }
+.book-static .hero-stage { position: relative; height: 100svh; }
+@media (max-width: 860px) {
+  .book-frame { object-position: 50% 70%; }
+  .book-beat { bottom: 5svh; }
+}
