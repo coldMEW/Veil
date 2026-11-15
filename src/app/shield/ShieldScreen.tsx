@@ -46,6 +46,8 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   const [step, setStep] = useState('');
   const [result, setResult] = useState<Result | null>(null);
   const finishing = useRef(false);
+  const assetRef = useRef<string | null>(null);
+  assetRef.current = ready?.asset.id ?? null;
 
   useEffect(() => {
     setStage('options');
@@ -55,6 +57,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   const finish = async (base: ImageBitmap, removed: number, unresolved = 0) => {
     if (!ready || finishing.current) return;
     finishing.current = true;
+    const startedOn = ready.asset.id;
     try {
       setStage('working');
       let pixels = bitmapToImageData(base);
@@ -85,6 +88,10 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
       const name = ready.fileName.replace(/\.[^.]+$/, '');
       const entry = { id: uid('P'), name, addedAt: Date.now(), pdq, mark: markHex, sha256: await sha256Hex(bytes), thumb: await thumbnail(bitmap, 160) };
       vaultPhotos.set((list) => [...list, entry]);
+      if (assetRef.current !== startedOn) {
+        bitmap.close();
+        return; // another photo was opened while this one was being shielded
+      }
       setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, unresolved, name: `${name}-veil.jpg` });
       setStage('done');
     } catch (e) {
@@ -149,7 +156,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
         {stage === 'done' && result ? <BeforeAfter before={ready.bitmap} after={result.bitmap} /> : <PhotoView bitmap={ready.bitmap} label={ready.fileName} />}
         <div className="stage-bar">
           <span className="stage-name">{ready.fileName}</span>
-          <button className="btn btn-ghost-dark btn-sm" onClick={() => closeImage()}>
+          <button className="btn btn-ghost-dark btn-sm" disabled={stage === 'working'} onClick={() => closeImage()}>
             Open another
           </button>
         </div>

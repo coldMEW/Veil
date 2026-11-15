@@ -16,7 +16,7 @@ export interface ScanHit {
 }
 
 export interface ScanProgress {
-  stage: 'reading' | 'checking' | 'done' | 'failed';
+  stage: 'reading' | 'checking' | 'done' | 'failed' | 'cancelled';
   page: string;
   total: number;
   done: number;
@@ -33,7 +33,7 @@ export const watchlist = persisted<Array<{ url: string; addedAt: number; lastSca
 
 const MAX_IMAGES = 40;
 
-export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHit | null | 'faces'> {
+export async function examine(imageUrl: string, pageUrl: string, signal?: AbortSignal): Promise<ScanHit | null | 'faces'> {
   const blob = await fetchImageBytes(imageUrl);
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   try {
@@ -83,6 +83,8 @@ export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHi
     }
     if (!best) return sawFace ? 'faces' : null;
 
+    // A cancelled search must not leave tickets behind.
+    if (signal?.aborted) return null;
     const thumb = await thumbnail(bitmap);
     const sha = await sha256Hex(new Uint8Array(await blob.arrayBuffer()));
     const detail =
@@ -120,7 +122,7 @@ export async function scan(url: string, onProgress: (p: ScanProgress) => void, s
       while (next < images.length && !signal?.aborted) {
         const img = images[next++]!;
         try {
-          const r = await examine(img.url, page.pageUrl);
+          const r = await examine(img.url, page.pageUrl, signal);
           if (r === 'faces') p.faces++;
           else if (r) {
             p.faces++;
@@ -134,13 +136,14 @@ export async function scan(url: string, onProgress: (p: ScanProgress) => void, s
       }
     };
     await Promise.all([worker(), worker(), worker()]);
-    p.stage = 'done';
+    p.stage = signal?.aborted ? 'cancelled' : 'done';
   } catch (e) {
     p.stage = 'failed';
     p.error = e instanceof Error ? e.message : 'The page could not be scanned.';
   }
   onProgress({ ...p });
-  watchlist.set((list) => list.map((w) => (w.url === url ? { ...w, lastScan: Date.now(), hits: p.hits.length } : w)));
+  // Only a finished scan updates the watchlist; a failed or cancelled one keeps the earlier result.
+  if (p.stage === 'done') watchlist.set((list) => list.map((w) => (w.url === url ? { ...w, lastScan: Date.now(), hits: p.hits.length } : w)));
   return p;
 }
 

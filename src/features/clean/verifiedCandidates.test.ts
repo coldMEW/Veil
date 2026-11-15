@@ -32,7 +32,10 @@ it('shows only stable privacy suggestions, never other text or unmatched reads',
 it('does not label raw OCR as verified when verification was not performed', () => {
   const b = box('ABC1234');
   delete b.verification;
-  expect(verifiedPrivacyCandidates('x', [b])).toEqual([]);
+  // An unconfirmed plate-like read may be offered in the separate tier, but never as verified or pre-selected.
+  const out = verifiedPrivacyCandidates('x', [b]);
+  expect(out.filter((c) => c.verified !== false)).toEqual([]);
+  expect(out.every((c) => !c.selected)).toBe(true);
 });
 it('collapses contained number fragments and duplicate plates', () => {
   const plate = box('ABC1234', 0.9),

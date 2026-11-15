@@ -11,7 +11,7 @@ export const LAW_NOTE: Record<Law, string> = {
   policy: 'For fakes that are not intimate. Every big platform bans impersonation and deceptive AI-made pictures of real people.',
   'take-it-down':
     'For intimate images made or shared without consent, real or AI-made. Covered platforms must remove them within 48 hours of a valid request.',
-  dmca: 'When the fake was made from a photo you took. Your copyright in the original is the lever; Veil mark and the comparison are the proof.',
+  dmca: 'Only if you took the original photo yourself. You sign this notice under penalty of perjury, so do not use it unless that is true.',
   gdpr: 'Your face is personal data. You can ask any site that serves people in the EU or UK to erase it without undue delay.',
 };
 
@@ -64,7 +64,7 @@ Signed electronically: /${name}/  ${date(Date.now())}`;
   if (t.law === 'policy') {
     return `To the trust and safety team of ${t.site},
 
-The picture below shows my face in a scene that never happened. It was made with AI or an editing tool and is posted without my consent. It impersonates me and misleads anyone who sees it, which breaks your rules on impersonation and on deceptive synthetic or manipulated media.
+The picture below shows my face, or a likeness of me, and was posted without my consent. I did not take part in it or agree to it. If it was made or altered with AI or an editing tool, it also breaks your rules on deceptive synthetic or manipulated media; either way it breaks your rules on impersonation and on using a person's likeness without consent.
 
 Where it is:
 ${where}

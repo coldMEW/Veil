@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { closeImage } from '../lib/runtime/imageSession';
 import { useRoute } from './router';
 import { Home } from './home/Home';
 import { Shell } from './shell/Shell';
@@ -35,6 +36,13 @@ function Toasts() {
 
 export function App() {
   const { route, param } = useRoute();
+  // A picture opened in one tool does not follow you into another. (Home hands a picture to Check on purpose.)
+  const previous = useRef(route);
+  useEffect(() => {
+    const from = previous.current;
+    previous.current = route;
+    if (from !== route && from !== 'home' && from !== 'app') closeImage();
+  }, [route]);
   return (
     <>
       {route === 'home' && !isAndroid() ? (

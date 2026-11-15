@@ -162,10 +162,10 @@ describe('handleApi error responses', () => {
     expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'The site could not be reached.' });
   });
-  it('returns 404 JSON for a DNS failure', async () => {
+  it('returns 502 JSON for a DNS failure (a failed lookup is not evidence the page is gone)', async () => {
     vi.mocked(lookup).mockRejectedValue(new Error('ENOTFOUND'));
     const res = await handleApi('/api/image', new URLSearchParams({ url: 'https://missing.example/image' }));
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(502);
     expect(await res.json()).toEqual({ error: 'Could not find missing.example.' });
   });
   it.each([404, 410, 500])('preserves missing image status or maps upstream %s to 502', async (status) => {
@@ -173,5 +173,14 @@ describe('handleApi error responses', () => {
     const res = await handleApi('/api/image', new URLSearchParams({ url: 'https://example.com/image' }));
     expect(res.status).toBe(status === 500 ? 502 : status);
     expect(await res.json()).toEqual({ error: `The site answered ${status}.` });
+  });
+});
+
+describe('urlStatus', () => {
+  it('never reports gone when the name does not resolve', async () => {
+    vi.mocked(lookup).mockRejectedValue(new Error('EAI_AGAIN'));
+    const res = await handleApi('/api/status', new URLSearchParams({ url: 'https://example.com/photo.jpg' }));
+    expect(res.status).toBe(502);
+    expect(await res.json()).not.toHaveProperty('gone', true);
   });
 });

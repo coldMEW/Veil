@@ -22,7 +22,7 @@ function Onboarding({ done }: { done: () => void }) {
   const last = i === SLIDES.length - 1;
   return (
     <div className="onboard" role="dialog" aria-modal="true" aria-labelledby="onboard-title">
-      <button className="onboard-skip" onClick={done}>Skip</button>
+      {last ? <span className="onboard-skip" aria-hidden="true" /> : <button className="onboard-skip" onClick={done}>Skip</button>}
       <div className="onboard-art" key={i}>
         <Art />
       </div>

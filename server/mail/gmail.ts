@@ -104,7 +104,7 @@ export async function fetchReplies(token: string, ticketIds: string[]): Promise<
 
 export type Verdict = 'acknowledged' | 'removed' | 'rejected' | 'needs_info' | 'unknown';
 
-const NEGATED = /\b(has|have|was|were|is|are)\s+not\s+(yet\s+)?(been\s+)?(removed|taken down|deleted|disabled)|\bif\b[^.]{0,60}\b(removed|taken down)|\b(not|unable to|cannot|can't|won't)\s+(remove|take (it|this|the content) down|delete)/i;
+const NEGATED = /\bremoved (nothing|no content|none)\b|\b(nothing|no content) (has been|was|were) (removed|taken down)|\b(has|have|was|were|is|are)\s+not\s+(yet\s+)?(been\s+)?(removed|taken down|deleted|disabled)|\bif\b[^.]{0,60}\b(removed|taken down)|\b(not|unable to|cannot|can't|won't)\s+(remove|take (it|this|the content) down|delete)/i;
 const REMOVED = /\b(has|have) been (removed|taken down|deleted|disabled)|\bwe('ve| have)? (removed|taken down|deleted|disabled)|\bis no longer available|\bdisabled access\b|\bcontent was removed|\bremoved the (reported )?(content|image|photo|post|material)/i;
 const REJECTED = /does(n't| not) violate|not in violation|no violation|unable to take action|will not be (removed|taking action)|cannot (take action|remove)|not (be )?able to (remove|act)|declin(e|ed) (your|the) request|request (is|was|has been) (denied|rejected|declined)|isn't against our|not against our/i;
 const NEEDS = /more information|additional information|please provide|need you to|verify your identity|proof of identity|could you (send|provide|confirm)|missing (information|details)|incomplete (notice|request)/i;

@@ -17,12 +17,14 @@ export interface HuntHit { engine: string; pageUrl: string; imageUrl: string | n
 export interface HuntEngineResult { engine: string; ok: boolean; hits: HuntHit[]; error?: string; ms: number }
 
 export interface HuntProgress {
-  stage: 'searching' | 'checking' | 'done' | 'failed';
+  stage: 'searching' | 'checking' | 'done' | 'failed' | 'cancelled';
   engines: HuntEngineResult[];
   candidates: number;
   checked: number;
   faces: number;
   hits: ScanHit[];
+  /** Candidates that could not be loaded or read; they were not checked. */
+  skipped: number;
   error?: string;
 }
 
@@ -97,11 +99,13 @@ export async function faceCrop(bitmap: ImageBitmap): Promise<Blob> {
 
 /** The whole pipeline. Calls back as it goes; ends with matches already turned into tickets. */
 export async function huntFace(crop: Blob, onProgress: (p: HuntProgress) => void, signal?: AbortSignal): Promise<HuntProgress> {
-  const p: HuntProgress = { stage: 'searching', engines: [], candidates: 0, checked: 0, faces: 0, hits: [] };
+  const p: HuntProgress = { stage: 'searching', engines: [], candidates: 0, checked: 0, faces: 0, hits: [], skipped: 0 };
   onProgress({ ...p });
   try {
     p.engines = await searchEngines(crop);
     onProgress({ ...p });
+    // No engine answered: that is a failed search, not a clean result.
+    if (!p.engines.some((e) => e.ok)) throw new Error(`No search engine returned results (${p.engines.map((e) => `${e.engine}: ${e.error ?? 'failed'}`).join('; ') || 'none available'}).`);
     // Pictures to check: every result image, plus the pictures on result pages that came without one.
     const images = new Map<string, string>();
     const pagesOnly: string[] = [];
@@ -128,17 +132,22 @@ export async function huntFace(crop: Blob, onProgress: (p: HuntProgress) => void
       while (next < list.length && !signal?.aborted) {
         const [img, page] = list[next++]!;
         try {
-          const r = await examine(img, page);
+          const r = await examine(img, page, signal);
           if (r === 'faces') p.faces++;
           else if (r) { p.faces++; p.hits = [...p.hits, r]; }
+          p.checked++;
         } catch {
-          /* unreachable or not a picture */
+          p.skipped++; // unreachable or not a picture: not checked
         }
-        p.checked++;
         onProgress({ ...p, hits: [...p.hits] });
       }
     };
     await Promise.all([worker(), worker(), worker(), worker()]);
+    if (signal?.aborted) {
+      p.stage = 'cancelled';
+      onProgress({ ...p });
+      return p;
+    }
     p.stage = 'done';
     hunts.set((l) => [{ at: Date.now(), candidates: p.candidates, matches: p.hits.length, pages: [...new Set(p.hits.map((h) => h.pageUrl))] }, ...l].slice(0, 20));
   } catch (e) {

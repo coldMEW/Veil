@@ -37,6 +37,9 @@ export default function TraceScreen() {
   const [hunt, setHunt] = useState<HuntProgress | null>(null);
   const abort = useRef<AbortController | null>(null);
 
+  // Leaving the screen stops any search in flight.
+  useEffect(() => () => abort.current?.abort(), []);
+
   // A face handed over from Check is added once, with consent implied by the tap that sent it.
   useEffect(() => {
     const p = pendingTrace.take();
@@ -258,7 +261,7 @@ function HitGrid({ hits }: { hits: ScanHit[] }) {
           <div>
             <p className="hit-label" data-kind={h.kind}>
               {h.label}
-              {h.kind === 'face' && <span className="num"> · {Math.round(h.score * 100)}</span>}
+              {h.kind === 'face' && <span className="num hit-score"> similarity {h.score.toFixed(2)}</span>}
             </p>
             <p className="small hit-url">{siteOf(h.pageUrl)}</p>
             <a className="btn btn-alarm btn-sm" href={href('tickets', h.ticketId)}>Open ticket</a>
@@ -287,7 +290,8 @@ function HuntResults({ p }: { p: HuntProgress }) {
           {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> candidates against your face, on this device</>}
           {p.stage === 'done' && (p.hits.length
             ? <><strong className="num">{p.hits.length}</strong> of {p.candidates} candidates are confirmed as your face on this device. Tickets are open.</>
-            : <>None of the {p.candidates} candidates is your face{p.faces ? ` (${p.faces} other faces checked)` : ''}. Similar-looking pictures are not counted.</>)}
+            : <>Your face was not found in the {p.checked} candidates Veil could check{p.skipped ? `; ${p.skipped} more could not be loaded` : ''}. This covers what the search engines returned, not the whole web.</>)}
+          {p.stage === 'cancelled' && <>Search stopped before it finished.</>}
           {p.stage === 'failed' && <>The search failed: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}
@@ -307,7 +311,8 @@ function Results({ p }: { p: ScanProgress }) {
           {p.stage === 'checking' && <>Checking <span className="num">{p.done}</span> of <span className="num">{p.total}</span> pictures</>}
           {p.stage === 'done' && (p.hits.length
             ? <><strong className="num">{p.hits.length}</strong> {p.hits.length === 1 ? 'picture shows' : 'pictures show'} you. Tickets are open.</>
-            : <>No picture on this page matches your face{p.faces ? ` (${p.faces} other faces seen)` : ''}.</>)}
+            : <>Your face was not found in the {p.done - p.skipped} pictures Veil could read on this page{p.skipped ? `; ${p.skipped} could not be loaded` : ''}.</>)}
+          {p.stage === 'cancelled' && <>Scan stopped before it finished.</>}
           {p.stage === 'failed' && <>Could not scan: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}

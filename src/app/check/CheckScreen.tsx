@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { closeImage, openImageFile, useImageSession } from '../../lib/runtime/imageSession';
+import { closeImage, imageGeneration, openImageFile, useImageSession } from '../../lib/runtime/imageSession';
 import { useCheck, type CheckInput, type Verdict } from '../../services/check';
 import { fetchImageBytes } from '../../services/api';
 import { createTicket } from '../../services/tickets';
@@ -20,7 +20,9 @@ const VERDICT: Record<Verdict, { title: string; line: string; tone: string }> = 
   unclear: { title: 'Nothing decisive', line: 'None of the checks found strong evidence either way. That does not prove the picture is real: add your original photo to compare.', tone: 'char' },
 };
 
-let sourceUrl: string | null = null;
+/** The web address a picture was opened from, tied to that picture's hash so it never sticks to another one. */
+let source: { assetId: string | null; url: string } | null = null;
+const sourceFor = (assetId: string | undefined) => (source && assetId && source.assetId === assetId ? source.url : null);
 
 export default function CheckScreen() {
   const session = useImageSession();
@@ -38,15 +40,20 @@ export default function CheckScreen() {
 
   useEffect(() => {
     setOriginal(null);
-    setFoundAt(sourceUrl ?? '');
+    // A pending web address belongs to the picture that just opened; anything older is dropped.
+    if (source && source.assetId === null && input) source.assetId = input.assetId;
+    else if (source && source.assetId !== input?.assetId) source = null;
+    setFoundAt(sourceFor(input?.assetId) ?? '');
   }, [input?.assetId]);
 
   const openUrl = async () => {
     if (!url.trim()) return;
     setLoadingUrl(true);
     try {
+      const generation = imageGeneration();
       const blob = await fetchImageBytes(url.trim());
-      sourceUrl = url.trim();
+      if (imageGeneration() !== generation) return; // another picture was opened meanwhile
+      source = { assetId: null, url: url.trim() };
       await openImageFile(new File([blob], url.split('/').pop()?.split('?')[0] || 'Image from the web', { type: blob.type }));
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not open that address.');
@@ -64,7 +71,7 @@ export default function CheckScreen() {
     }
     const t = createTicket({
       pageUrl: page,
-      imageUrl: sourceUrl,
+      imageUrl: sourceFor(input.assetId),
       match: { kind: 'manual', score: null, detail: 'Reported from a check in Veil.' },
       thumb: await thumbnail(input.bitmap),
       imageSha256: input.assetId,
@@ -83,7 +90,7 @@ export default function CheckScreen() {
           busy={session.status === 'loading' || loadingUrl}
           error={session.status === 'error' ? session.reason : null}
           onFile={(f) => {
-            sourceUrl = null;
+            source = null;
             void openImageFile(f);
           }}
         >
@@ -117,7 +124,7 @@ export default function CheckScreen() {
         <PhotoView bitmap={session.bitmap} label={session.fileName} />
         <div className="stage-bar">
           <span className="stage-name">{session.fileName}</span>
-          <button className="btn btn-ghost-dark btn-sm" onClick={() => { sourceUrl = null; closeImage(); }}>
+          <button className="btn btn-ghost-dark btn-sm" onClick={() => { source = null; closeImage(); }}>
             Open another
           </button>
         </div>
@@ -180,8 +187,8 @@ export default function CheckScreen() {
             <p>Find everywhere else it has been posted.</p>
             <button
               className="btn btn-ghost-dark btn-sm"
-              onClick={() => {
-                pendingTrace.set({ bitmap: session.bitmap, face });
+              onClick={async () => {
+                pendingTrace.set({ bitmap: await createImageBitmap(session.bitmap), face });
                 navigate('trace');
               }}
             >

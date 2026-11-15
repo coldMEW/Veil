@@ -46,19 +46,33 @@ function useAutoChecks(list: Ticket[]) {
           const g = await gmail();
           const access = await connectGmail(); // returns the live token; never opens a window here (hasToken() was checked)
           const replies = await g.fetchReplies(access, open.map((t) => t.id));
-          for (const r of replies) {
+          // Oldest first, so a later reply decides. Only replies in the thread Veil sent count.
+          for (const r of [...replies].sort((x, y) => Date.parse(x.date) - Date.parse(y.date))) {
             const t = tickets.get().find((x) => x.id === r.ticketId);
-            if (!t || (t.replies ?? []).some((x) => x.messageId === r.messageId)) continue;
+            if (!t || r.threadId !== t.gmailThreadId || (t.replies ?? []).some((x) => x.messageId === r.messageId)) continue;
             const verdict = g.classifyReply(r.subject, r.snippet);
-            const status = verdict === 'unknown' ? t.status : verdict;
+            const closed = t.status === 'removed';
+            // A reply saying "removed" is a claim: the ticket closes only when the picture is really gone.
+            let status: Ticket['status'] = closed || verdict === 'unknown' || verdict === 'removed' ? t.status : verdict;
+            let note = verdict === 'unknown' ? 'read it below' : verdict.replace('_', ' ');
+            if (verdict === 'removed' && !closed) {
+              const check = await urlStatus(t.imageUrl ?? t.pageUrl).catch(() => null);
+              if (check?.gone) {
+                status = 'removed';
+                note = `they say it is removed, and the picture is gone (${check.status})`;
+              } else {
+                status = t.status === 'ready' ? 'sent' : t.status === 'sent' ? 'acknowledged' : t.status;
+                note = 'they say it is removed, but Veil can still reach the picture';
+              }
+            }
             updateTicket(
               t.id,
               (cur) => ({
-                status: status as Ticket['status'],
-                removedAt: status === 'removed' ? Date.now() : cur.removedAt,
+                status,
+                removedAt: status === 'removed' ? (cur.removedAt ?? Date.now()) : cur.removedAt,
                 replies: [...(cur.replies ?? []), { at: Date.parse(r.date) || Date.now(), from: r.from, snippet: r.snippet, verdict, messageId: r.messageId }],
               }),
-              `Reply from ${r.from}: ${verdict === 'unknown' ? 'read it below' : verdict.replace('_', ' ')}.`,
+              `Reply from ${r.from}: ${note}.`,
             );
           }
         } catch {
@@ -71,7 +85,7 @@ function useAutoChecks(list: Ticket[]) {
         try {
           const r = await urlStatus(t.imageUrl ?? t.pageUrl);
           if (r.gone) updateTicket(t.id, { status: 'removed', removedAt: Date.now(), lastCheckedAt: Date.now(), lastCheck: `Gone (${r.status})` }, `Checked automatically: the picture is gone (${r.status}). Ticket closed.`);
-          else updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: `Still up (${r.status})` });
+          else updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: r.status >= 200 && r.status < 300 ? `Still up (${r.status})` : `Could not tell (the site answered ${r.status})` });
         } catch {
           /* offline or blocked; try again later */
         }
@@ -163,7 +177,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
         if (h.registrar?.email) found.push({ name: `${h.registrar.name ?? 'Registrar'} (sold the domain)`, email: h.registrar.email, source: 'registrar' });
         updateTicket(t.id, (cur) => ({ destinations: [...cur.destinations, ...found] }), found.length ? `Looked up the host: ${found.map((f) => f.email).join(', ')}.` : 'Looked up the host: no public abuse address.');
       })
-      .catch(() => live && updateTicket(t.id, {}, 'Looked up the host: lookup unavailable.'))
+      .catch(() => undefined) // a failed lookup is retried the next time the ticket is opened
       .finally(() => live && setFinding(false));
     return () => {
       live = false;
@@ -184,8 +198,11 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
     try {
       const r = await urlStatus(t.imageUrl ?? t.pageUrl);
       if (r.gone) updateTicket(t.id, { status: 'removed', removedAt: Date.now(), lastCheckedAt: Date.now(), lastCheck: `Gone (${r.status})` }, `Checked: the picture is gone (${r.status}). Ticket closed.`);
-      else updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: `Still up (${r.status})` }, `Checked: still up (${r.status}).`);
-      toast(r.gone ? 'It is gone. Ticket closed.' : 'Still up.');
+      else {
+        const up = r.status >= 200 && r.status < 300;
+        updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: up ? `Still up (${r.status})` : `Could not tell (the site answered ${r.status})` }, up ? `Checked: still up (${r.status}).` : `Checked: could not tell, the site answered ${r.status}.`);
+      }
+      toast(r.gone ? 'It is gone. Ticket closed.' : r.status >= 200 && r.status < 300 ? 'Still up.' : 'Could not tell: the site did not give a clear answer.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not check.');
     } finally {
@@ -222,7 +239,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
         attachment: { name: `veil-evidence-${t.id}.html`, type: 'text/html', bytes: evidence },
       });
       const sent = await g.sendGmail(access, mime);
-      updateTicket(t.id, { status: 'sent', sentAt: Date.now(), sentVia: 'gmail', gmailThreadId: sent.threadId }, `Sent from ${mailAccount.get().email ?? me.email} to ${emails.map((d) => d.email).join(', ')} with the evidence file. The 48-hour clock started.`);
+      updateTicket(t.id, { status: 'sent', sentAt: Date.now(), sentVia: 'gmail', gmailThreadId: sent.threadId }, `Sent from ${mailAccount.get().email ?? me.email} to ${emails.map((d) => d.email).join(', ')} with the evidence file.`);
       toast('Sent. Veil will watch for their reply.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Sending failed.');
@@ -276,7 +293,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
           {t.status === 'sent' && left !== null ? (
             <>
               <strong className="num">{formatLeft(left)}</strong>
-              <span>of the 48-hour removal window</span>
+              <span>of the 48-hour removal window (TAKE IT DOWN Act)</span>
             </>
           ) : t.status === 'removed' ? (
             <>
@@ -380,8 +397,8 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
         <h3>After you send it</h3>
         <div className="td-actions">
           {t.status === 'ready' && (
-            <button className="btn btn-ink" onClick={() => updateTicket(t.id, { status: 'sent', sentAt: Date.now() }, 'Marked as sent. The 48-hour clock started.')}>
-              I sent it: start the clock
+            <button className="btn btn-ink" onClick={() => updateTicket(t.id, { status: 'sent', sentAt: Date.now() }, t.law === 'take-it-down' ? 'Marked as sent. The 48-hour removal window started.' : 'Marked as sent.')}>
+              I sent it
             </button>
           )}
           {t.status !== 'removed' && (
