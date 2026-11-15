@@ -5,26 +5,36 @@ import { navigate, href } from '../router';
 import { openImageFile } from '../../lib/runtime/imageSession';
 import './home.css';
 
-const SWATCHES = [
-  { id: 'check', label: 'Check an image', colour: 'lime' },
+const SECTIONS = [
+  { id: 'check', label: 'Check', colour: 'lime' },
   { id: 'trace', label: 'Find my face', colour: 'sky' },
   { id: 'takedown', label: 'Take it down', colour: 'alarm' },
-  { id: 'shield', label: 'Shield a photo', colour: 'paper' },
+  { id: 'shield', label: 'Shield', colour: 'paper' },
   { id: 'questions', label: 'Questions', colour: 'char' },
 ];
 
 export function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [active, setActive] = useState<string | null>(null);
-  // The rail marks the chapter you are reading.
+  const [solid, setSolid] = useState(false);
+  // The bar turns solid once the story is behind you, and marks the chapter you are reading.
   useEffect(() => {
-    const ids = SWATCHES.map((s) => s.id);
+    const onScroll = () => setSolid(window.scrollY > window.innerHeight * 0.6);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  useEffect(() => {
+    const ids = SECTIONS.map((s) => s.id);
     const io = new IntersectionObserver(
       (entries) => entries.forEach((e) => e.isIntersecting && setActive(e.target.id)),
       { rootMargin: '-45% 0px -50% 0px' },
     );
     ids.forEach((id) => { const el = document.getElementById(id); if (el) io.observe(el); });
-    return () => io.disconnect();
+    const hero = document.querySelector('.hero');
+    const heroIo = new IntersectionObserver(([e]) => e?.isIntersecting && e.intersectionRatio > 0.2 && setActive(null), { threshold: [0.2] });
+    if (hero) heroIo.observe(hero);
+    return () => { io.disconnect(); heroIo.disconnect(); };
   }, []);
   const pick = () => fileRef.current?.click();
   const onFile = (file: File | undefined) => {
@@ -35,26 +45,32 @@ export function Home() {
 
   return (
     <div className="home">
-      <header className="home-bar">
+      <header className="home-bar" data-solid={solid || undefined}>
         <a className="brand" href={href('home')} aria-label="Veil home">
           <img src="/brand/veil-64.png" alt="" width="38" height="38" />
           <span className="wordmark">Veil</span>
         </a>
-        <a className="home-bar-link" href={href('tickets')}>
-          My tickets
-        </a>
+        <nav className="home-nav" aria-label="Sections">
+          {SECTIONS.map((x) => (
+            <a
+              key={x.id}
+              href={`#${x.id}`}
+              data-colour-dot={x.colour}
+              aria-current={active === x.id ? 'true' : undefined}
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById(x.id)?.scrollIntoView({ behavior: 'smooth' });
+              }}
+            >
+              {x.label}
+            </a>
+          ))}
+        </nav>
+        <div className="home-bar-end">
+          <a className="home-bar-link" href={href('tickets')}>My tickets</a>
+          <button className="btn btn-lime btn-sm" onClick={pick}>Check an image</button>
+        </div>
       </header>
-
-      <nav className="swatches" aria-label="Sections">
-        {SWATCHES.map((s) => (
-          <a key={s.id} href={`#${s.id}`} data-colour={s.colour} data-active={active === s.id || undefined} onClick={(e) => {
-            e.preventDefault();
-            document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' });
-          }}>
-            {s.label}
-          </a>
-        ))}
-      </nav>
 
       <HeroBook onCheck={pick} onTrace={() => navigate('trace')} />
 

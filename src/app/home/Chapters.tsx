@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FacePortrait } from './Woman';
 import { href } from '../router';
+import { ArtShield } from '../shared/Art';
 
 /* ---------------- Check: object on a disc ---------------- */
 
@@ -311,6 +312,7 @@ export function Closing({ onPick }: { onPick: () => void }) {
         now.
       </h2>
       <p>It opens on your phone. Nothing is uploaded unless you ask Veil to search the web.</p>
+      <div className="closing-art"><ArtShield /></div>
     </section>
   );
 }
