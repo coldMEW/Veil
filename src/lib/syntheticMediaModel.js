@@ -42,7 +42,7 @@ const PE_SMALL = Object.freeze({
 });
 
 export const SYNTHETIC_MEDIA_DETECTORS = [SYNTHETIC_MEDIA_MODEL, PE_SMALL];
-export const SYNTHETIC_MEDIA_SAMPLE_LIMIT = 16;
+export const SYNTHETIC_MEDIA_SAMPLE_LIMIT = 24;
 
 const ORT_SCRIPT_URL = '/vendor/ort/ort.min.js';
 const CHANNEL_MEAN = [0.485, 0.456, 0.406];
@@ -74,8 +74,10 @@ function sigmoid(logit) {
   return exponent / (1 + exponent);
 }
 
-function reviewSignal(prediction) {
-  const agreed = prediction.matches > 1;
+function reviewSignal(passage) {
+  const prediction = passage[0];
+  const last = passage.at(-1);
+  const count = passage.length;
   const [time, thumbnail] = [prediction.time, prediction.thumbnail];
   return {
     id: `synthetic-model-${Math.round(time * 1000)}`,
@@ -83,12 +85,14 @@ function reviewSignal(prediction) {
     kind: 'review_signal',
     check: 'synthetic_media_model',
     timeStart: Number(time.toFixed(3)),
-    timeEnd: Number(time.toFixed(3)),
-    title: agreed ? 'Both visual detectors flagged this frame' : 'One visual detector flagged this frame',
-    observation: `Review the frame at ${formatTimestamp(time)} and the seconds around it. ${agreed ? 'Both tools found patterns associated with AI-generated images.' : prediction.checks.length > 1 ? 'The second tool scored the frame below its review threshold.' : 'Only one tool returned a score for this frame.'}`,
+    timeEnd: Number(last.time.toFixed(3)),
+    title: count > 1 ? 'AI checks flagged this stretch' : 'AI check flagged a sampled frame',
+    observation: `${count > 1 ? `${count} sampled frames raised a flag between ${formatTimestamp(time)} and ${formatTimestamp(last.time)}.` : `A sampled frame at ${formatTimestamp(time)} raised a flag.`} The checks did not identify a specific object or visible defect.`,
     evidence: {
       matchingDetectors: prediction.matches,
       detectorsScored: prediction.checks.length,
+      flaggedSampleCount: count,
+      samplesFlaggedByBoth: passage.filter(({ matches }) => matches > 1).length,
       modelScores: Object.fromEntries(prediction.checks.map(({ id, score }) => [id.replaceAll('-', '_'), score])),
     },
     thumbnail,
@@ -127,16 +131,25 @@ export function compareDetectorResults(frames, detectors) {
     return { time, thumbnail, checks, matches: checks.filter(({ score, threshold }) => score >= threshold).length };
   });
   const flagged = compared.filter(({ matches }) => matches > 0);
-  const highlights = [];
-  for (const frame of [...flagged].sort((a, b) => b.matches - a.matches || a.time - b.time)) {
-    if (highlights.every(({ time }) => Math.abs(time - frame.time) >= 1)) highlights.push(frame);
-    if (highlights.length === 8) break;
+  const passages = [];
+  let passage = null;
+  for (const frame of compared) {
+    if (!frame.matches) {
+      passage = null;
+      continue;
+    }
+    if (!passage || frame.time - passage.at(-1).time > 2) {
+      passage = [];
+      passages.push(passage);
+    }
+    passage.push(frame);
   }
   return {
     flaggedFrames: flagged.length,
     agreementFrames: flagged.filter(({ matches }) => matches > 1).length,
     scoredFrames: compared.filter(({ checks }) => checks.length > 0).length,
-    signals: highlights.map(reviewSignal),
+    signals: passages.sort((a, b) => b.length - a.length || a[0].time - b[0].time)
+      .slice(0, 12).map(reviewSignal),
   };
 }
 

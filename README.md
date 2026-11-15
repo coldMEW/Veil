@@ -13,7 +13,7 @@ It is designed around a simple principle: preserve the original file, make techn
 - Issues an Ed25519-signed local receipt containing the server hash, receipt time, public-key fingerprint, and custody events.
 - Inspects detailed container facts: MP4/MOV brands, top-level box layout, fast-start position, fragmentation, data payload, duration, average data rate, metadata boxes, tracks, codecs, video dimensions, and audio sample details when declared.
 - Detects a C2PA UUID container marker as a **candidate only**. It does not validate a Content Credential signature or trust chain yet.
-- Runs [Detectra v3](https://huggingface.co/TensorFold/detectra-v1) and [imdet PE-Small](https://huggingface.co/Deckard618/imdet) locally on up to 16 sampled frames. The scan highlights same-frame agreement and records each detector's revision, SHA-256, threshold, coverage, and frame scores.
+- Runs [Detectra v3](https://huggingface.co/TensorFold/detectra-v1) and [imdet PE-Small](https://huggingface.co/Deckard618/imdet) locally on up to 24 sampled frames. Consecutive flagged samples appear as a passage in the report. Exact model details and frame scores remain in the evidence export.
 - Scans the original locally for timestamped review signals: abrupt full-frame transitions, localized changes, exposure shifts, possible held frames, abrupt audio transitions, and (when the browser supports it) face-track discontinuities.
 - Places each signal on a review timeline with a sampled-frame thumbnail and a one-click jump back to the original moment.
 - Keeps the scan explicitly non-conclusive: normal edits, motion, compression, lighting, and detector limitations can create the same patterns.
@@ -43,6 +43,16 @@ npm run dev
 ```
 
 Then open [http://localhost:5173](http://localhost:5173).
+
+### Optional cloud checks
+
+Set any of these environment variables on the server and restart it. In PowerShell use `$env:VARIABLE = 'your key'` before running `npm run dev`. Keep keys out of Git and out of the browser.
+
+- `GEMINI_API_KEY` enables Google's video and sound observations. `VEIL_GEMINI_MODEL` optionally overrides the default `gemini-3.8-flash`.
+- `HIVE_API_KEY` enables Hive timestamped generation and face-manipulation scores. Use the API key for a Hive AI-Generated Image and Video Detection project.
+- `OPENAI_API_KEY` enables OpenAI provenance checks on up to four JPEG stills sampled from the video. The key's organization needs access to the Content Provenance API.
+
+Click **Send media for cloud checks** to share the footage with the providers shown. The prototype accepts MP4 or MOV clips up to 14 MB and 90 seconds for this option. The report groups results by time and shows failed checks in **Check details**. Google's official SynthID video verifier remains an external user-run check. The OpenAI verifier accepts images and audio, so Veil submits sampled stills and reports detections at their timestamps.
 
 `npm run dev` watches the project and restarts after code changes. If an older Veil server is already running, stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> and run the command again before refreshing the browser.
 

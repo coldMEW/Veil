@@ -8,7 +8,7 @@ import {
 
 export const ANALYSIS_ENGINE = Object.freeze({
   id: 'veil-browser-evidence-scan',
-  version: '0.4.0',
+  version: '0.5.0',
   mode: 'two local frame classifiers with separate temporal, face and audio checks',
 });
 
@@ -100,14 +100,17 @@ export function analyzeTemporalDescriptors(frames) {
         ),
       );
     } else if (localScore >= localThreshold && frame.globalDifference > 0.015) {
+      const cell = frame.cellDifferences.indexOf(Math.max(...frame.cellDifferences));
+      const column = ['left', 'center', 'right'][Math.floor((cell % GRID_COLUMNS) * 3 / GRID_COLUMNS)];
+      const row = ['upper', 'middle', 'lower'][Math.floor(Math.floor(cell / GRID_COLUMNS) * 3 / GRID_ROWS)];
       signals.push(
         signal(
           `local-${index}-${Math.round(frame.time * 1000)}`,
           'localized_temporal_change',
           frame.time,
-          'Localized visual discontinuity',
-          `One image region changes differently from the rest of the sampled frame at ${formatTimestamp(frame.time)}. Review for compositing, occlusion, a moving subject, or a normal local event.`,
-          { globalDifference: frame.globalDifference, localDifferenceSpread: localScore, threshold: localThreshold, cellDifferences: frame.cellDifferences },
+          `Picture change in the ${row} ${column}`,
+          `Between ${formatTimestamp(previous.time)} and ${formatTimestamp(frame.time)}, the ${row} ${column} of the picture changed more than the rest. Compare that area at the two times.`,
+          { globalDifference: frame.globalDifference, localDifferenceSpread: localScore, threshold: localThreshold, cellDifferences: frame.cellDifferences, previousTime: previous.time },
           frame.thumbnail,
         ),
       );
@@ -449,6 +452,7 @@ export async function analyzeVideoFile(file, onProgress) {
       sampledFrames: frames.length,
       frameIntervalEstimate: frames.length > 1 ? frames[1].time - frames[0].time : null,
       syntheticMedia,
+      cloudFrames: cloudFrameSamples(frames),
       temporal,
       face,
       audio,
@@ -470,4 +474,10 @@ export async function analyzeVideoFile(file, onProgress) {
     video.load();
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+function cloudFrameSamples(frames) {
+  const selected = frames.filter(({ modelPixels }) => modelPixels);
+  const indexes = selectEvenlyIndexes(selected.length, 4);
+  return selected.filter((_, index) => indexes.has(index)).map(({ time, thumbnail }) => ({ time, thumbnail }));
 }

@@ -26,7 +26,7 @@ test('ignores malformed model scores instead of manufacturing a result', () => {
   assert.equal(summary.flaggedFrames, 0);
 });
 
-test('counts agreement only at shared timestamps and prioritizes it over earlier isolated flags', () => {
+test('counts agreement only at shared timestamps and keeps consecutive flags in the same passage', () => {
   const frames = [{ time: 1 }, { time: 1.5 }, { time: 3 }];
   const detectors = [
     {
@@ -42,7 +42,7 @@ test('counts agreement only at shared timestamps and prioritizes it over earlier
   assert.equal(comparison.agreementFrames, 1);
   assert.equal(comparison.flaggedFrames, 2);
   assert.equal(comparison.scoredFrames, 3);
-  assert.deepEqual(comparison.signals.map(({ timeStart }) => timeStart), [1.5]);
+  assert.deepEqual(comparison.signals.map(({ timeStart, timeEnd, evidence }) => [timeStart, timeEnd, evidence.flaggedSampleCount]), [[1, 1.5, 2]]);
   const partial = compareDetectorResults(frames, [detectors[0], { ...detectors[1], predictions: [] }]);
   assert.equal(partial.agreementFrames, 0);
   assert.equal(partial.flaggedFrames, 2);

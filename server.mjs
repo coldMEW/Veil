@@ -3,9 +3,11 @@ import { createServer } from 'node:http';
 import { extname, isAbsolute, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EvidenceStore, EvidenceStoreError, MAX_EVIDENCE_BYTES } from './server/evidenceStore.mjs';
+import { cloudProviders, MAX_CLOUD_BYTES, MAX_CLOUD_SECONDS, runCloudReview } from './server/cloudReview.mjs';
 
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const port = Number(process.env.PORT || 5173);
+let cloudReviewRunning = false;
 const evidenceStore = new EvidenceStore(resolve(root, '.veil-evidence'));
 const ortDistribution = resolve(root, 'node_modules', 'onnxruntime-web', 'dist');
 const vendorAssets = Object.fromEntries(
@@ -70,6 +72,35 @@ async function readBody(req, maxBytes) {
 }
 
 async function handleApi(req, res, pathname) {
+  if (pathname.startsWith('/api/review/')) {
+    const localSocket = ['::1', '127.0.0.1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress);
+    const localHost = /^(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/.test(req.headers.host ?? '');
+    if (!localSocket || !localHost) throw new EvidenceStoreError('Cloud review is only available from the local Veil app.', 403);
+    if (req.method === 'GET' && pathname === '/api/review/providers') {
+      sendJson(res, 200, { providers: cloudProviders(), maxBytes: MAX_CLOUD_BYTES, maxSeconds: MAX_CLOUD_SECONDS });
+      return true;
+    }
+    if (req.method === 'POST' && pathname === '/api/review/cloud') {
+      if (req.headers.origin !== `http://${req.headers.host}` || req.headers['x-veil-cloud-consent'] !== 'yes') {
+        throw new EvidenceStoreError('Start the upload from the cloud review button in Veil.', 403);
+      }
+      if (cloudReviewRunning) throw new EvidenceStoreError('Another cloud review is already running.', 429);
+      cloudReviewRunning = true;
+      try {
+        const body = await readBody(req, Math.ceil(MAX_CLOUD_BYTES * 4 / 3) + 1_000_000);
+        let review;
+        try {
+          review = await runCloudReview(JSON.parse(body.toString('utf8')));
+        } catch (error) {
+          throw new EvidenceStoreError(error.message, 400);
+        }
+        sendJson(res, 200, review);
+      } finally {
+        cloudReviewRunning = false;
+      }
+      return true;
+    }
+  }
   if (req.method === 'GET' && pathname === '/api/evidence/health') {
     sendJson(res, 200, { status: 'ok', service: 'veil-local-evidence-vault', maxEvidenceBytes: MAX_EVIDENCE_BYTES });
     return true;

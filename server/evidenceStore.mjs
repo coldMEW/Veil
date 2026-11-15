@@ -126,7 +126,7 @@ function sanitizeAnalysis(value) {
   const sourceSha256 = typeof value.sourceSha256 === 'string' ? value.sourceSha256.toLowerCase() : '';
   if (!/^[a-f0-9]{64}$/.test(sourceSha256)) throw new EvidenceStoreError('Analysis must identify the sealed source video with a SHA-256 hash.');
   const signals = Array.isArray(value.signals)
-    ? value.signals.slice(0, 40).map((entry, index) => {
+    ? value.signals.slice(0, 64).map((entry, index) => {
         const timeStart = nonNegativeNumber(entry?.timeStart);
         const requestedTimeEnd = nonNegativeNumber(entry?.timeEnd);
         return {
@@ -193,6 +193,19 @@ function sanitizeAnalysis(value) {
     sampledFrames: nonNegativeNumber(value.sampledFrames),
     frameIntervalEstimate: nonNegativeNumber(value.frameIntervalEstimate),
     syntheticMedia,
+    ...(value.cloudReview?.sourceSha256 === sourceSha256 && Array.isArray(value.cloudReview.checks) ? {
+      cloudReview: {
+        sourceSha256,
+        checkedAt: text(value.cloudReview.checkedAt, 64),
+        checks: value.cloudReview.checks.slice(0, 8).filter(Boolean).map((check) => ({
+          id: text(check.id, 80),
+          name: text(check.name, 120),
+          status: text(check.status, 50),
+          coverage: nonNegativeNumber(check.coverage),
+          reason: text(check.reason, 500),
+        })),
+      },
+    } : {}),
     temporal:
       value.temporal && typeof value.temporal === 'object'
         ? {
@@ -377,7 +390,7 @@ export class EvidenceStore {
         'This prototype detects a C2PA container marker but does not validate a manifest signature, signer trust, or timestamp trust.',
         'Original evidence is stored locally; production use requires independently controlled retention, access, and timestamp services.',
       ],
-      software: { product: 'Veil Evidence Passport', version: '0.4.0', mode: 'local evidence vault' },
+      software: { product: 'Veil Evidence Passport', version: '0.5.0', mode: 'local evidence vault' },
     };
     const envelope = await this.signPayload(payload);
     await writeAtomic(join(target, 'receipt.json'), `${JSON.stringify(envelope, null, 2)}\n`, 0o600);
