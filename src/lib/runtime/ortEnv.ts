@@ -26,6 +26,9 @@ export function configureOrt(): typeof ort {
 export async function hasWebGpu(): Promise<boolean> {
   const gpu = (globalThis.navigator as Navigator & { gpu?: { requestAdapter(): Promise<unknown> } }).gpu;
   if (!gpu) return false;
+  // Android: stay on the CPU path. On a Pixel 7 the WebGPU device was lost in the middle of a run (the face
+  // engine then never answered again), and model work on the phone's GPU makes the screen stutter.
+  if (/Android/i.test(globalThis.navigator?.userAgent ?? '')) return false;
   try {
     return (await gpu.requestAdapter()) != null;
   } catch {

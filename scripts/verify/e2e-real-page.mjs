@@ -1,0 +1,21 @@
+// Real photos through enrol -> scan -> tickets. Usage: node e2e-real-page.mjs <enrol photo> <local page url>
+import { chromium } from '@playwright/test';
+const base = process.env.VEIL_URL ?? 'http://localhost:5194/';
+const [, , enrol, pageUrl] = process.argv;
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+await page.goto(base + '#/trace', { waitUntil: 'networkidle' });
+await page.locator('.vault input[type=file]').setInputFiles(enrol);
+await page.waitForSelector('.vault-list li', { timeout: 120000 });
+await page.getByRole('tab', { name: 'Check a page I know' }).click();
+await page.locator('#scan-url').fill(pageUrl);
+await page.getByRole('button', { name: 'Scan', exact: true }).click();
+await page.waitForFunction(() => /shows? you|not found|Could not/.test(document.querySelector('.results-head')?.textContent ?? ''), null, { timeout: 600000 });
+const head = (await page.locator('.results-head').innerText()).replace(/\s+/g, ' ');
+const tickets = await page.evaluate(() => JSON.parse(localStorage.getItem('veil.tickets.v1') ?? '[]').map((t) => ({ file: t.imageUrl.split('/').pop(), score: t.match.score.toFixed(2), kind: t.match.kind, law: t.law, status: t.status })));
+console.log(head);
+for (const t of tickets.sort((a, b) => a.file.localeCompare(b.file))) console.log('  ticket:', t.file.padEnd(42), t.kind, t.score, t.law, t.status);
+await page.goto(base + '#/tickets', { waitUntil: 'networkidle' });
+await page.locator('.ticket-list li').first().waitFor({ timeout: 30000 });
+console.log('tickets on screen:', await page.locator('.ticket-list li').count());
+await browser.close();

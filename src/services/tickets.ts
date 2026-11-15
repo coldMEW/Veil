@@ -70,8 +70,8 @@ export const ALWAYS = {
   ftc: { name: 'Report a platform that ignores you (FTC)', url: 'https://reportfraud.ftc.gov/' },
 };
 
-/** The demo leaks page ships with Veil; it is shown under its made-up name. */
-export const DEMO_SITE = 'hot-leaks.example';
+/** The demo feed page ships with Veil; it is shown under its made-up name. */
+export const DEMO_SITE = 'fakefeed.example';
 export function isDemoUrl(url: string): boolean {
   try {
     const u = new URL(url, window.location.href);
@@ -83,7 +83,8 @@ export function isDemoUrl(url: string): boolean {
 
 export function siteOf(url: string): string {
   try {
-    if (isDemoUrl(url)) return DEMO_SITE;
+    // Each bundled test page is shown under its own made-up site name.
+    if (isDemoUrl(url)) return /\/demo\/real/.test(new URL(url, window.location.href).pathname) ? 'campusfeed.example' : DEMO_SITE;
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
     return url;

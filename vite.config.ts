@@ -12,7 +12,8 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), ...(process.env.VEIL_BACKEND === 'python' ? [] : [veilApi()])],
+  plugins: [react(), tailwindcss(), // With the Python backend, Node still answers the witness stamp (a hash in, a signature out); the rest is proxied.
+    veilApi(process.env.VEIL_BACKEND === 'python' ? ['/api/witness'] : undefined)],
   server: {
     headers: isolationHeaders,
     ...(process.env.VEIL_BACKEND === 'python'

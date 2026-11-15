@@ -2,14 +2,16 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PrivacyCandidate, TransformRecord } from '../../contracts';
 import {verifiedPrivacyCandidates} from './verifiedCandidates';
 import { OcrEngine, type ScanProgress } from './ocr/engine';
-import { MiganInpainter, MIGAN_MODEL } from './inpaint';
+import { MIGAN_MODEL } from './inpaint';
+import type { CleanReply } from './clean.worker';
 import type { Pixels } from './mask';
 import {
   rescanExport,
-  runClean,
   textRemovalMask,
   TEXT_REMOVAL_DEFAULTS,
+  type CleanOutput,
   type RescanResult,
+  type runClean,
 } from './session';
 
 export type FillMethod = 'migan_inpaint' | 'solid_redaction';
@@ -48,6 +50,33 @@ function bitmapPixels(bitmap: ImageBitmap): Pixels {
 const message = (e: unknown) => (e instanceof Error ? e.message : 'Something went wrong.');
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortError';
 
+/** One worker for the removal itself (fill model, PNG, checks), kept alive so the model loads once. */
+let cleanWorker: Worker | null = null;
+let cleanSeq = 0;
+const cleanWaiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+function cleanCall(request: { kind: 'load'; url: string } | { kind: 'run'; opts: Omit<Parameters<typeof runClean>[0], 'inpainter'> }): Promise<unknown> {
+  if (!cleanWorker) {
+    cleanWorker = new Worker(new URL('./clean.worker.ts', import.meta.url), { type: 'module' });
+    cleanWorker.onmessage = (event: MessageEvent<CleanReply>) => {
+      const w = cleanWaiting.get(event.data.id);
+      if (!w) return;
+      cleanWaiting.delete(event.data.id);
+      if (event.data.error) w.reject(new Error(event.data.error));
+      else w.resolve(event.data.value);
+    };
+    cleanWorker.onerror = () => {
+      for (const w of cleanWaiting.values()) w.reject(new Error('The removal worker stopped.'));
+      cleanWaiting.clear();
+      cleanWorker = null;
+    };
+  }
+  const id = ++cleanSeq;
+  return new Promise((resolve, reject) => {
+    cleanWaiting.set(id, { resolve, reject });
+    cleanWorker!.postMessage({ id, ...request });
+  });
+}
+
 /**
  * Clean flow: find text (OCR) -> person chooses -> remove -> fresh PNG -> re-scan the exported pixels.
  * Nothing is stored or sent; changing the photo cancels work and clears everything (product rule 7).
@@ -55,7 +84,6 @@ const isAbort = (e: unknown) => e instanceof DOMException && e.name === 'AbortEr
 export function useClean(assetId: string | null, sha256: string | null, bitmap: ImageBitmap | null) {
   const [state, setState] = useState<CleanState>({ status: 'idle' });
   const engineRef = useRef<OcrEngine | null>(null);
-  const inpainterRef = useRef<MiganInpainter | null>(null);
   const pixelsRef = useRef<Pixels | null>(null);
   const runRef = useRef(0);
   const cleanWithRef = useRef<((c: PrivacyCandidate[], m: FillMethod) => Promise<void>) | null>(null);
@@ -142,34 +170,32 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
         const src = pixels();
         step('Building the removal mask');
         const { mask, dilatePx } = textRemovalMask(src, candidates);
+        // Development only: lets the verification scripts look at the exact mask that was used.
+        if (import.meta.env.DEV) (globalThis as { __veilClean?: unknown }).__veilClean = { candidates, mask };
         let used: FillMethod = method;
         let fellBack: string | null = null;
-        let inpainter: MiganInpainter | undefined;
         if (method === 'migan_inpaint') {
           try {
             step('Loading the fill model');
-            if (!inpainterRef.current || inpainterRef.current.state !== 'ready') {
-              const m = new MiganInpainter();
-              await m.load(`/models/migan/${MIGAN_MODEL.file}`, 'wasm');
-              inpainterRef.current = m;
-            }
-            inpainter = inpainterRef.current;
+            await cleanCall({ kind: 'load', url: `/models/migan/${MIGAN_MODEL.file}` });
           } catch (err) {
             used = 'solid_redaction';
             fellBack = `The fill model could not load (${message(err)}), so the selected text was covered with solid blocks instead.`;
           }
         }
         step(used === 'migan_inpaint' ? 'Filling the selected text' : 'Covering the selected text');
-        const out = await runClean({
-          src,
-          srcSha256: sha256,
-          mask,
-          expansionPx: dilatePx,
-          method: used,
-          inpainter,
-          inpaintMaxSide: TEXT_REMOVAL_DEFAULTS.inpaintMaxSide,
-          modelSha256: used === 'migan_inpaint' ? MIGAN_MODEL.sha256 : undefined,
-        });
+        const out = (await cleanCall({
+          kind: 'run',
+          opts: {
+            src,
+            srcSha256: sha256,
+            mask,
+            expansionPx: dilatePx,
+            method: used,
+            inpaintMaxSide: TEXT_REMOVAL_DEFAULTS.inpaintMaxSide,
+            modelSha256: used === 'migan_inpaint' ? MIGAN_MODEL.sha256 : undefined,
+          },
+        })) as CleanOutput;
         step('Re-scanning the exported file');
         const e = await engine();
         const rescan = await rescanExport(e, out.verification.decoded, selected);

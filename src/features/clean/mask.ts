@@ -58,42 +58,52 @@ export function paintCircle(mask: Mask, cx: number, cy: number, radius: number, 
  * Used to cover glyph edges and anti-aliasing beyond detector boxes.
  */
 export function dilate(mask: Mask, radius: number): Mask {
-  if (radius <= 0) return { ...mask, data: mask.data.slice() };
   const { width: w, height: h } = mask;
-  const tmp = new Uint8Array(w * h);
   const out = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) {
-    const row = y * w;
+  if (radius <= 0) {
+    out.set(mask.data);
+    return { width: w, height: h, data: out };
+  }
+  // Work only on the part of the image the mask touches (grown by the radius). On a 9-megapixel phone
+  // photo with a small mask this is hundreds of times less work than sweeping the whole frame.
+  const b = maskBounds(mask);
+  if (!b) return { width: w, height: h, data: out };
+  const x0 = Math.max(0, b.x - radius), y0 = Math.max(0, b.y - radius);
+  const x1 = Math.min(w - 1, b.x + b.w - 1 + radius), y1 = Math.min(h - 1, b.y + b.h - 1 + radius);
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1;
+  const tmp = new Uint8Array(bw * bh);
+  for (let y = 0; y < bh; y++) {
+    const row = (y + y0) * w + x0;
     let count = 0;
-    for (let x = 0; x < Math.min(radius, w); x++) count += mask.data[row + x]!;
-    for (let x = 0; x < w; x++) {
+    for (let x = 0; x < Math.min(radius, bw); x++) count += mask.data[row + x]!;
+    for (let x = 0; x < bw; x++) {
       const add = x + radius;
-      if (add < w) count += mask.data[row + add]!;
+      if (add < bw) count += mask.data[row + add]!;
       const rem = x - radius - 1;
       if (rem >= 0) count -= mask.data[row + rem]!;
-      tmp[row + x] = count > 0 ? 1 : 0;
+      tmp[y * bw + x] = count > 0 ? 1 : 0;
     }
   }
-  for (let x = 0; x < w; x++) {
-    let count = 0;
-    for (let y = 0; y < Math.min(radius, h); y++) count += tmp[y * w + x]!;
-    for (let y = 0; y < h; y++) {
-      const add = y + radius;
-      if (add < h) count += tmp[add * w + x]!;
-      const rem = y - radius - 1;
-      if (rem >= 0) count -= tmp[rem * w + x]!;
-      out[y * w + x] = count > 0 ? 1 : 0;
+  const counts = new Uint16Array(bw);
+  for (let y = 0; y < Math.min(radius, bh); y++) for (let x = 0; x < bw; x++) counts[x] = counts[x]! + tmp[y * bw + x]!;
+  for (let y = 0; y < bh; y++) {
+    const add = y + radius, rem = y - radius - 1;
+    for (let x = 0; x < bw; x++) {
+      let c = counts[x]!;
+      if (add < bh) c += tmp[add * bw + x]!;
+      if (rem >= 0) c -= tmp[rem * bw + x]!;
+      counts[x] = c;
+      if (c > 0) out[(y + y0) * w + x + x0] = 1;
     }
   }
   return { width: w, height: h, data: out };
 }
-
 /**
  * Fill enclosed holes: unmasked pixels that cannot reach the edge of the mask's bounding box (+1 px)
  * without crossing the mask become masked. Removes islands such as a glossy highlight on a sticker
  * letter that the colour test kept, which the inpainter would otherwise preserve as a visible patch.
  */
-export function fillHoles(mask: Mask): Mask {
+export function fillHoles(mask: Mask, maxHoleArea = Infinity): Mask {
   const { width: w, height: h } = mask;
   const b = maskBounds(mask);
   const out = { width: w, height: h, data: mask.data.slice() };
@@ -127,8 +137,30 @@ export function fillHoles(mask: Mask): Mask {
     if (y > y0) push(x, y - 1);
     if (y < y1) push(x, y + 1);
   }
+  // Each enclosed hole is filled only when it is small (`maxHoleArea` pixels at most): the inside of a letter
+  // is, the gap between two letters that happen to be joined by a plate edge is not.
   for (let y = y0; y <= y1; y++)
-    for (let x = x0; x <= x1; x++) if (!mask.data[y * w + x] && !reach[(y - y0) * bw + (x - x0)]) out.data[y * w + x] = 1;
+    for (let x = x0; x <= x1; x++) {
+      const li = (y - y0) * bw + (x - x0);
+      if (mask.data[y * w + x] || reach[li]) continue;
+      const hole: number[] = [];
+      const todo = [x, y];
+      reach[li] = 1;
+      while (todo.length) {
+        const cy = todo.pop()!;
+        const cx = todo.pop()!;
+        hole.push(cy * w + cx);
+        const visit = (nx: number, ny: number) => {
+          if (nx < x0 || nx > x1 || ny < y0 || ny > y1) return;
+          const ni = (ny - y0) * bw + (nx - x0);
+          if (reach[ni] || mask.data[ny * w + nx]) return;
+          reach[ni] = 1;
+          todo.push(nx, ny);
+        };
+        visit(cx - 1, cy); visit(cx + 1, cy); visit(cx, cy - 1); visit(cx, cy + 1);
+      }
+      if (hole.length <= maxHoleArea) for (const i of hole) out.data[i] = 1;
+    }
   return out;
 }
 

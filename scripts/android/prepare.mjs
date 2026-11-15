@@ -28,7 +28,7 @@ for (const m of core) {
 // HF may redirect pinned large files to these exact content-delivery origins.
 const csp =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
-  "img-src 'self' blob: data:; font-src 'self'; worker-src 'self' blob:; " +
+  "img-src 'self' blob: data:; media-src 'self' blob:; font-src 'self'; worker-src 'self' blob:; " +
   "connect-src 'self' https: ; " +
   "object-src 'none'; base-uri 'none'; form-action 'none'";
 let html = await readFile(join(root, 'index.html'), 'utf8');

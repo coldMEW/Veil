@@ -9,6 +9,7 @@ import { toast } from '../App';
 import { PhotoView } from '../shared/PhotoView';
 import { DropZone } from '../shared/DropZone';
 import { ArtCheck } from '../shared/Art';
+import { Reasons } from '../shared/Reasons';
 import { pendingTrace } from '../trace/pending';
 
 const VERDICT: Record<Verdict, { title: string; line: string; tone: string }> = {
@@ -145,6 +146,8 @@ export default function CheckScreen() {
             </ul>
           )}
         </div>
+
+        <Reasons reasons={check.reasons} noun="picture" />
 
         {check.evidence.length > 0 && (
           <ol className="evidence">

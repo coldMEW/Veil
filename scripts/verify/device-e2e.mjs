@@ -1,9 +1,9 @@
-// Drives the installed Android app through its WebView debug port (debug builds only).
+﻿// Drives the installed Android app through its WebView debug port (debug builds only).
 // adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>, then: node scripts/verify/device-e2e.mjs
 import { chromium } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-const ADB = process.env.ADB ?? 'C:/Users/DSU/Android/Sdk/platform-tools/adb.exe';
+const ADB = process.env.ADB ?? 'adb';
 const out = process.env.VEIL_OUT ?? '../scratch-eval/shots';
 const browser = await chromium.connectOverCDP('http://localhost:9333');
 const page = browser.contexts()[0].pages()[0];
@@ -30,7 +30,7 @@ await page.waitForSelector('.vault-list li', { timeout: 120000 });
 console.log('enrol ms', Date.now() - t);
 t = Date.now();
 await page.getByRole('tab', { name: 'Check a page I know' }).click();
-await page.getByRole('button', { name: 'demo leaks page' }).click();
+await page.getByRole('button', { name: 'demo feed page' }).click();
 await page.waitForFunction(() => /pictures show you|matches your face|Could not scan/.test(document.querySelector('.results-head')?.textContent ?? ''), null, { timeout: 300000 });
 console.log('scan ms', Date.now() - t, '|', (await page.locator('.results-head').innerText()).replace(/\s+/g, ' '));
 console.log('hits', (await page.locator('.hit-label').allInnerTexts()).join(', '));

@@ -11,6 +11,8 @@ export interface FaceEngine {
   detectFaces(image: ImageBitmap | ImageData): Promise<Face[]>;
   embedFace(image: ImageBitmap | ImageData, face: Face): Promise<Float32Array>;
   compareFaces(a: Float32Array, b: Float32Array): { cosine: number; match: 'same' | 'possible' | 'different' };
+  scoreFaceForgery?(image: ImageBitmap | ImageData, face: Face): Promise<number>;
+  FACE_FAKE_LEAD?: number;
 }
 
 export interface FingerprintEngine {
@@ -48,10 +50,64 @@ let face: Promise<FaceEngine | null> | null = null;
 let fingerprint: Promise<FingerprintEngine | null> | null = null;
 let watermark: Promise<WatermarkEngine | null> | null = null;
 
+/**
+ * A worker that answers `{ id, value }` or `{ id, error }`. Hiding or reading a mark in a 9-megapixel
+ * photo takes over a second; done on the page's own thread it froze the screen for that long.
+ */
+function rpc(make: () => Worker) {
+  let worker: Worker | null = null;
+  let seq = 0;
+  const waiting = new Map<number, { resolve: (v: unknown) => void; reject: (e: Error) => void }>();
+  return <T,>(message: object): Promise<T> => {
+    if (!worker) {
+      worker = make();
+      worker.onmessage = (event: MessageEvent<{ id: number; value?: unknown; error?: string }>) => {
+        const w = waiting.get(event.data.id);
+        if (!w) return;
+        waiting.delete(event.data.id);
+        if (event.data.error) w.reject(new Error(event.data.error));
+        else w.resolve(event.data.value);
+      };
+      worker.onerror = () => {
+        for (const w of waiting.values()) w.reject(new Error('The engine worker stopped.'));
+        waiting.clear();
+        worker = null;
+      };
+    }
+    const id = ++seq;
+    return new Promise<T>((resolve, reject) => {
+      waiting.set(id, { resolve: resolve as (v: unknown) => void, reject });
+      worker!.postMessage({ id, ...message });
+    });
+  };
+}
+
+/** The watermark engine with the pixel work moved to its worker. Falls back to the page thread if workers are unavailable. */
+async function watermarkEngine(): Promise<WatermarkEngine | null> {
+  const direct = await load<WatermarkEngine>('watermark');
+  if (!direct || typeof Worker === 'undefined') return direct;
+  const call = rpc(() => new Worker(new URL('../engine/watermark/watermark.worker.ts', import.meta.url), { type: 'module' }));
+  return {
+    embedMark: (image, key, payload) => call<ImageData>({ kind: 'embed', image, key, payload }).catch(() => direct.embedMark(image, key, payload)),
+    detectMark: (image, key) => call<MarkResult>({ kind: 'detect', image, key }).catch(() => direct.detectMark(image, key)),
+  };
+}
+
+async function fingerprintEngine(): Promise<FingerprintEngine | null> {
+  const direct = await load<FingerprintEngine>('fingerprint');
+  if (!direct || typeof Worker === 'undefined') return direct;
+  const call = rpc(() => new Worker(new URL('../engine/fingerprint/fingerprint.worker.ts', import.meta.url), { type: 'module' }));
+  return {
+    ...direct,
+    pdqHash: (image) => call<{ hash: string; quality: number }>({ image }).catch(() => direct.pdqHash(image)),
+    hamming: direct.hamming,
+  };
+}
+
 export const engines = {
   face: () => (face ??= load<FaceEngine>('face')),
-  fingerprint: () => (fingerprint ??= load<FingerprintEngine>('fingerprint')),
-  watermark: () => (watermark ??= load<WatermarkEngine>('watermark')),
+  fingerprint: () => (fingerprint ??= fingerprintEngine()),
+  watermark: () => (watermark ??= watermarkEngine()),
   has: (name: 'face' | 'fingerprint' | 'watermark') => Boolean(modules[`../engine/${name}/index.ts`]),
 };
 

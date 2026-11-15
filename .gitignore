@@ -24,3 +24,8 @@ ui-shots/
 .scratch/
 .taste-skill/
 scripts/verify/.math.mjs
+local-private/
+
+# real team photos for the local demo page: never committed
+public/demo/real/
+public/demo/real.html

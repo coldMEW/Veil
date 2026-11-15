@@ -17,7 +17,7 @@ import { markKey, payloadHex, vaultPhotos } from './vault';
 
 /** One piece of evidence that is strong enough to show. Weak or empty checks never become one. */
 export interface Evidence {
-  id: 'credentials' | 'metadata' | 'ai-model' | 'preview' | 'mark' | 'original';
+  id: 'credentials' | 'metadata' | 'ai-model' | 'face-model' | 'preview' | 'mark' | 'original';
   tone: 'fake' | 'real' | 'source';
   /** 'proof' is a fact about the file; 'signal' is a model's opinion and can be wrong. */
   strength?: 'proof' | 'signal';
@@ -119,6 +119,63 @@ export function markEvidence(mark: MarkResult): Evidence | null {
   };
 }
 
+export interface ReasonInputs {
+  provenance: ProvenanceResult | null;
+  /** 'none' = the photo has no hidden preview to compare. */
+  preview: ThumbnailComparison | null | 'none';
+  markFound: boolean;
+  comparison: OriginalComparison | null;
+  aiProbability: number | null;
+  faceFake: { score: number; lead: number; faces: number } | 'none' | null;
+  evidence: Evidence[];
+}
+
+/**
+ * Why Veil says what it says, as short bullets: up to three signs of tampering and up to three signs
+ * the picture was left alone, strongest first. Facts about the file outrank a model's opinion, and a
+ * check that did not run or had nothing to compare contributes no bullet at all.
+ */
+export function checkReasons(i: ReasonInputs): { for: string[]; against: string[]; source: string[] } {
+  const list: Array<{ side: 'for' | 'against'; weight: number; text: string }> = [];
+  const add = (side: 'for' | 'against', weight: number, text: string) => list.push({ side, weight, text });
+  const has = (id: Evidence['id']) => i.evidence.find((e) => e.id === id);
+
+  // Signs of tampering
+  if (i.comparison?.changed) add('for', 100, `It differs from your original in ${i.comparison.regions.length} area${i.comparison.regions.length === 1 ? '' : 's'}.`);
+  const cred = has('credentials');
+  if (cred?.tone === 'fake') add('for', 95, cred.title === 'Changed after it was signed' ? 'Its pixels no longer match its own signed Content Credentials.' : 'Its own signed label says it was made with AI.');
+  if (has('metadata')) {
+    const names = [...new Set(i.provenance?.hints.toolNames ?? [])].slice(0, 2);
+    add('for', 70, names.length ? `The file's hidden data names an AI tool: ${names.join(', ')}.` : 'The file\'s hidden data declares it AI-made.');
+  }
+  if (has('preview')) add('for', 60, 'The small preview stored inside the file shows a different picture.');
+  if (i.faceFake && i.faceFake !== 'none' && i.faceFake.faces > 0 && i.faceFake.score >= i.faceFake.lead) {
+    add('for', 55, `The face-forgery model scores the face ${i.faceFake.score.toFixed(2)} of 1 for swapped or generated.`);
+  }
+  if (i.aiProbability !== null && i.aiProbability >= OUTPUT_STRONG) add('for', 50, `The AI-image model scores it ${Math.round(i.aiProbability * 100)} of 100 for AI-made.`);
+  else if (i.aiProbability !== null && i.aiProbability >= 0.5) add('for', 20, `The AI-image model leans AI-made (${Math.round(i.aiProbability * 100)} of 100), under the 90 line Veil needs.`);
+  const software = i.provenance?.camera?.software ?? i.provenance?.hints.software[0] ?? null;
+  if (software && /photoshop|lightroom|gimp|snapseed|facetune|picsart|canva|pixelmator|affinity/i.test(software)) add('for', 15, `Last saved by an editor: ${software.slice(0, 40)}.`);
+
+  // Signs it was left alone
+  if (i.comparison?.same) add('against', 100, 'It lines up with your original and nothing differs.');
+  if (cred?.tone === 'real') add('against', 95, 'Signed camera credentials are present and still match the picture.');
+  if (i.preview && i.preview !== 'none' && !has('preview')) add('against', 60, 'The small preview stored inside the file matches the picture.');
+  if (i.aiProbability !== null && i.aiProbability < 0.5) add('against', 50, `The AI-image model stays low: ${Math.round(i.aiProbability * 100)} of 100 for AI-made.`);
+  if (i.faceFake && i.faceFake !== 'none' && i.faceFake.faces > 0 && i.faceFake.score < 0.5) {
+    add('against', 45, `The face-forgery model sees no swap signs (${i.faceFake.score.toFixed(2)} of 1).`);
+  }
+  const camera = i.provenance?.camera;
+  if (camera?.make && camera.dateTimeOriginal && !i.provenance?.hints.toolNames.length) {
+    add('against', 30, `Camera details are intact: ${[camera.make, camera.model].filter(Boolean).join(' ')}, taken ${camera.dateTimeOriginal.slice(0, 10).replace(/:/g, '-')}.`);
+  }
+
+  const pick = (side: 'for' | 'against') => list.filter((r) => r.side === side).sort((a, b) => b.weight - a.weight).slice(0, 3).map((r) => r.text);
+  // Your own mark is not a sign of tampering or of the opposite: it says where the picture came from.
+  const source = i.markFound ? ['Your invisible Veil mark is inside: this picture was made from a photo you shielded.'] : [];
+  return { for: pick('for'), against: pick('against'), source };
+}
+
 export interface CheckInput {
   assetId: string;
   bytes: Uint8Array;
@@ -142,6 +199,7 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
   const [mark, setMark] = useState<MarkResult | null | 'none'>(null);
   const [faces, setFaces] = useState<Face[] | null | 'none'>(null);
   const [comparison, setComparison] = useState<OriginalComparison | null>(null);
+  const [faceFake, setFaceFake] = useState<{ score: number; lead: number; faces: number } | 'none' | null>(null);
   const model = useModelFocus(assetId, input?.bitmap ?? null);
 
   useEffect(() => {
@@ -149,6 +207,7 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
     setPreview(null);
     setMark(null);
     setFaces(null);
+    setFaceFake(null);
     if (!input) return;
     let live = true;
     void readProvenance(input.bytes, input.mimeType).then((r) => live && setProvenance(r));
@@ -182,8 +241,17 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
       try {
         const found = await fe.detectFaces(input.bitmap);
         if (live) setFaces(found);
+        // Face-forgery model on the largest faces (at least 80 px wide). A lead, never proof.
+        if (fe.scoreFaceForgery) {
+          let top = 0;
+          const big = found.filter((f) => f.box.w * input.bitmap.width >= 80).sort((a, b) => b.box.w * b.box.h - a.box.w * a.box.h).slice(0, 3);
+          for (const f of big) top = Math.max(top, await fe.scoreFaceForgery(input.bitmap, f));
+          if (import.meta.env.DEV) console.info('[veil] face-model', top.toFixed(3), big.length);
+          if (live) setFaceFake({ score: top, lead: fe.FACE_FAKE_LEAD ?? 0.85, faces: big.length });
+        } else if (live) setFaceFake('none');
       } catch {
         if (live) setFaces('none');
+        if (live) setFaceFake('none');
       }
     })();
     return () => {
@@ -252,14 +320,25 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
       const e = aiEvidence(aiProbability);
       if (e) list.push(e);
     }
+    if (faceFake && faceFake !== 'none' && faceFake.faces > 0 && faceFake.score >= faceFake.lead) {
+      list.push({
+        id: 'face-model',
+        tone: 'fake',
+        strength: 'signal',
+        title: 'The face looks manipulated to our model',
+        says: `A face-forgery model scores the face ${faceFake.score.toFixed(2)} out of 1 for swapped or generated. In our tests this level caught 25 of 60 known fakes and wrongly flagged 2 of 60 real faces, so treat it as a lead, not proof.`,
+        how: 'Deep-Fake-Detector v2 (ViT, Apache-2.0), run on the face crop on this device.',
+      });
+    }
     return list;
-  }, [mark, comparison, provenance, preview, aiProbability]);
+  }, [mark, comparison, provenance, preview, aiProbability, faceFake]);
 
   const pending: string[] = [];
   if (input) {
     if (!provenance) pending.push('Reading Content Credentials');
     if (preview === null) pending.push('Comparing the hidden preview');
     if (mark === null) pending.push('Looking for your Veil mark');
+    if (faceFake === null) pending.push('Looking at the face');
     if (model.state.status === 'idle' || model.state.status === 'loading') pending.push('Loading the AI-image model');
     if (model.state.status === 'running') pending.push(`AI-image model ${model.state.done}/${model.state.total}`);
   }
@@ -277,5 +356,10 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
         ? 'signed'
         : 'unclear';
 
-  return { evidence, pending, verdict, faces: faces === 'none' ? null : faces, facesUnavailable: faces === 'none', aiProbability, modelFailed, comparison };
+  const reasons = useMemo(
+    () => checkReasons({ provenance, preview, markFound: Boolean(mark && mark !== 'none' && mark.found), comparison, aiProbability, faceFake, evidence }),
+    [provenance, preview, mark, comparison, aiProbability, faceFake, evidence],
+  );
+
+  return { evidence, pending, verdict, reasons, faces: faces === 'none' ? null : faces, facesUnavailable: faces === 'none', aiProbability, modelFailed, comparison };
 }

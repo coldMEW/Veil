@@ -8,9 +8,9 @@ const VB_H = 1000;
 const PHONE_FLOOR = { x: 1018, y: 914 };
 
 const FAKES = [
-  { user: 'hot.leaks.daily', caption: 'guess who got caught', bg: '#2e2e2e', outfit: '#ff5a45', accent: '#4a4a4a', tag: 'Face swap' },
+  { user: 'trending.clips', caption: 'look who was out last night', bg: '#2e2e2e', outfit: '#ff5a45', accent: '#4a4a4a', tag: 'Face swap' },
   { user: 'cryptowins_now', caption: '"I made $40k with this app"', bg: '#3a3a3a', outfit: '#d4f36b', tag: 'AI-made ad' },
-  { user: 'anon_uploads', caption: 'more in my bio', bg: '#262626', outfit: '#7cc4ff', accent: '#555', tag: 'Face swap' },
+  { user: 'anon_uploads', caption: 'reposted without asking', bg: '#262626', outfit: '#7cc4ff', accent: '#555', tag: 'Face swap' },
 ];
 
 function useOrigin(stage: React.RefObject<HTMLDivElement | null>, wrap: React.RefObject<HTMLDivElement | null>) {
@@ -220,7 +220,7 @@ export function HeroStory({ onCheck, onTrace }: { onCheck: () => void; onTrace: 
             </svg>
             </motion.div>
             <motion.div className="notify" style={{ opacity: notify, y: notifyY }} aria-hidden="true">
-              <strong>hot.leaks.daily</strong> tagged you in a post
+              <strong>trending.clips</strong> tagged you in a post
             </motion.div>
           </motion.div>
 

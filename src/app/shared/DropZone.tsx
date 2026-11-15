@@ -8,6 +8,7 @@ export function DropZone({
   onFile,
   cta = 'Choose a picture',
   art,
+  accept = 'image/jpeg,image/png',
   children,
 }: {
   art?: ReactNode;
@@ -17,6 +18,8 @@ export function DropZone({
   error?: string | null;
   onFile: (file: File) => void;
   cta?: string;
+  /** File types the picker offers. */
+  accept?: string;
   children?: ReactNode;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -52,7 +55,7 @@ export function DropZone({
       <input
         ref={input}
         type="file"
-        accept="image/jpeg,image/png"
+        accept={accept}
         hidden
         onChange={(e) => {
           const f = e.target.files?.[0];

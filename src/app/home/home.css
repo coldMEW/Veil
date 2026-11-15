@@ -450,3 +450,27 @@ details[open] .plus::after { transform: rotate(0deg); }
 .plan-schools .plan-price strong { color: var(--lime); }
 @media (max-width: 1000px) { .plans { grid-template-columns: 1fr; } .plan-schools { grid-template-columns: 1fr; } }
 .chapter, .ch-takedown { scroll-margin-top: 72px; }
+
+/* ---------- Pricing: Personal | Enterprise ---------- */
+.plan-switch { display: inline-flex; gap: 4px; padding: 5px; border-radius: 999px; background: var(--char-2); justify-self: start; }
+.plan-switch button { border: 0; min-height: 48px; padding: 0 26px; border-radius: 999px; background: transparent; color: var(--on-dark-soft); font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; cursor: pointer; transition: background-color var(--t-med) var(--ease), color var(--t-med) var(--ease); }
+.plan-switch button:hover { color: var(--on-dark); }
+.plan-switch button[aria-selected='true'] { background: var(--white); color: var(--ink); }
+.plan-swap { display: grid; gap: 12px; }
+.plan-gives { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; }
+.plan-gives-col { border-radius: 30px; padding: 28px 26px; background: var(--char-2); display: grid; gap: 18px; align-content: start; }
+.plan-gives-col h3 { font-size: 30px; }
+.plan-gives dl { margin: 0; display: grid; gap: 14px; }
+.plan-gives dt { font-weight: 600; font-size: 18px; color: var(--sky); }
+.plan-gives dd { margin: 2px 0 0; font-size: 16px; color: var(--on-dark-soft); max-width: 62ch; }
+.plan-gives ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; font-size: 16px; }
+.plan-gives li { padding-left: 22px; position: relative; }
+.plan-gives li::before { content: ''; position: absolute; left: 0; top: 0.5em; width: 10px; height: 10px; border-radius: 50%; background: var(--lime); }
+.plan-gives .plan-why { background: var(--char-3); color: var(--on-dark-soft); }
+@media (prefers-reduced-motion: no-preference) {
+  .plan-swap > * { animation: pop 420ms var(--ease) both; }
+  .plan-swap .plan:nth-child(2) { animation: pop 420ms 70ms var(--ease) both; }
+  .plan-swap .plan:nth-child(3) { animation: pop 420ms 140ms var(--ease) both; }
+  .plan-swap > *:nth-child(2) { animation-delay: 160ms; }
+}
+@media (max-width: 1000px) { .plan-gives { grid-template-columns: 1fr; } .plan-switch button { padding: 0 18px; font-size: 19px; } }

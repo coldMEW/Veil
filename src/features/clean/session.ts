@@ -94,6 +94,7 @@ export function textRemovalMask(
   const o = { ...TEXT_REMOVAL_DEFAULTS, ...opts };
   const out = emptyMask(src.width, src.height);
   let maxDil = 0;
+  let tallest = 0;
   for (const c of candidates) {
     if (!c.selected) continue;
     if (c.removal === 'region' || c.sourceMethod === 'manual') {
@@ -101,13 +102,14 @@ export function textRemovalMask(
       continue;
     }
     const quad = quadOf(c);
+    if (quad.length === 4) tallest = Math.max(tallest, Math.hypot((quad[1]!.x - quad[2]!.x) * src.width, (quad[1]!.y - quad[2]!.y) * src.height));
     const d = Math.min(o.dilateMaxPx, Math.max(o.dilateMinPx, Math.round(o.dilateFraction * c.region.h * src.height)));
     maxDil = Math.max(maxDil, d);
     // Street signs are often read short ("N Lee A" for "N Lee Ave": curved or partly hidden plates), so their
     // search area reaches further along the line. Only text-coloured strokes inside it are removed.
     // Only lines whose last word looks cut off ("N Lee A", "Oak Av") are lengthened; complete reads are not.
     const truncated = c.category === 'address' && /\s[A-Za-z]{1,2}$/.test(c.text ?? '') && !/\s(?:St|Rd|Dr|Ln|Ct|Pl|Wy)$/i.test(c.text ?? '');
-    const line = truncated ? extendAlongLine(quad, src.width, src.height, 0, 0.16) : quad;
+    const line = truncated ? extendAlongLine(quad, src.width, src.height, 0, 0.3) : quad;
     const g = glyphMask(src, growQuad(line, o.sampleGrow[0], o.sampleGrow[1]), { threshold: o.threshold, dilatePx: d }).mask;
     const clip = polygonMask(growQuad(line, o.clipGrow[0], o.clipGrow[1]), src.width, src.height);
     // In the lengthened part only, keep strokes that sit on the coloured sign plate, not on grey sky or wall.
@@ -118,7 +120,8 @@ export function textRemovalMask(
       out.data[i] = 1;
     }
   }
-  return { mask: fillHoles(out), dilatePx: maxDil };
+  // Fill only letter-sized holes (the inside of an 'e' or a '6'), never the plate between letters.
+  return { mask: fillHoles(out, tallest ? Math.round(0.07 * tallest * tallest) : Infinity), dilatePx: maxDil };
 }
 
 let seq = 0;

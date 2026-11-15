@@ -5,6 +5,7 @@ import { tickets, timeLeft } from '../../services/tickets';
 import { vaultFaces } from '../../services/vault';
 import { persisted } from '../../services/store';
 import { ArtCheck, ArtFace, ArtShield, ArtTakedown, ArtTrace } from '../shared/Art';
+import { isAndroid } from '../../platform/environment';
 import './hub.css';
 
 const onboarded = persisted<boolean>('veil.onboarded.v1', false);
@@ -73,6 +74,8 @@ export default function AppHome() {
       Art: ArtTakedown,
     },
     { to: 'shield' as const, colour: 'paper', title: 'Before I post', line: 'Mark it so a fake can be traced to you', Art: ArtShield },
+    // Video evidence is a desk tool: a full scan takes minutes on a phone, so it is offered on the web only.
+    ...(isAndroid() ? [] : [{ to: 'video' as const, colour: 'sky', title: 'Is this video real?', line: 'Mark the moments worth a look and seal a record', Art: ArtCheck }]),
     { to: 'clean' as const, colour: 'char', title: 'Remove personal details', line: 'Street names, house numbers, plates, emails and phone numbers', Art: ArtCheck },
   ];
 

@@ -12,7 +12,7 @@ try {
   await page.waitForSelector('.vault-list li', { timeout: 90000 });
   const t = Date.now();
   await page.getByRole('tab', { name: 'Check a page I know' }).click();
-await page.getByRole('button', { name: 'demo leaks page' }).click();
+await page.getByRole('button', { name: 'demo feed page' }).click();
   await page.waitForFunction(
     () =>
       /pictures show you|matches your face|Could not scan/.test(

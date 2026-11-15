@@ -263,6 +263,20 @@ export async function handleApi(pathname: string, params: URLSearchParams, reque
       status,
       headers: { 'content-type': 'application/json', 'cache-control': 'no-store' },
     });
+  if (pathname === '/api/witness') {
+    // Stamps a hash with the server's time. The body is 64 hex characters; no video ever comes here.
+    const { witness, witnessInfo } = await import('./witness');
+    if (!request || request.method === 'GET') return json(witnessInfo());
+    const text = (await request.text()).slice(0, 400);
+    let digest: unknown = null;
+    try {
+      digest = (JSON.parse(text) as { digest?: unknown }).digest;
+    } catch {
+      /* handled below */
+    }
+    const stamp = witness(digest);
+    return stamp ? json(stamp) : json({ error: 'Send the SHA-256 of the record as 64 hex characters.' }, 400);
+  }
   try {
     if (!target) throw new HttpError(400, 'Add a web address.');
     if (pathname.endsWith('/scan')) return json(await scanPage(target));

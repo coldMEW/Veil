@@ -4,6 +4,7 @@ import {
   deleteTicket,
   DEMO_SITE,
   isDemoUrl,
+  siteOf,
   formatLeft,
   profile,
   tickets,
@@ -168,7 +169,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
     if (t.destinations.some((d) => d.source === 'host' || d.source === 'registrar') || t.log.some((l) => l.text.startsWith('Looked up'))) return;
     let live = true;
     if (isDemoUrl(t.pageUrl)) {
-      updateTicket(t.id, (cur) => ({ destinations: [...cur.destinations, { name: `${DEMO_SITE} abuse team (demo)`, email: `abuse@${DEMO_SITE}`, source: 'host' }] }), `Looked up the host: abuse@${DEMO_SITE} (demo).`);
+      updateTicket(t.id, (cur) => ({ destinations: [...cur.destinations, { name: `${siteOf(t.pageUrl)} abuse team (demo)`, email: `abuse@${siteOf(t.pageUrl)}`, source: 'host' }] }), `Looked up the host: abuse@${DEMO_SITE} (demo).`);
       return;
     }
     setFinding(true);

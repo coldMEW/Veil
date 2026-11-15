@@ -201,8 +201,8 @@ export default function TraceScreen() {
             </form>
             <p className="small">
               Try it on the{' '}
-              <button className="link-quiet linkish" onClick={() => { const demo = new URL('demo/leaks.html', window.location.href).href; setUrl(demo); void runScan(demo); }}>
-                demo leaks page
+              <button className="link-quiet linkish" onClick={() => { const demo = new URL('demo/feed.html', window.location.href).href; setUrl(demo); void runScan(demo); }}>
+                demo feed page
               </button>
               .{' '}
               {url.trim() && !watch.some((w) => w.url === url.trim()) && (
@@ -290,7 +290,7 @@ function HuntResults({ p }: { p: HuntProgress }) {
           {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> candidates against your face, on this device</>}
           {p.stage === 'done' && (p.hits.length
             ? <><strong className="num">{p.hits.length}</strong> of {p.candidates} candidates are confirmed as your face on this device. Tickets are open.</>
-            : <>Your face was not found in the {p.checked} candidates Veil could check{p.skipped ? `; ${p.skipped} more could not be loaded` : ''}. This covers what the search engines returned, not the whole web.</>)}
+            : <>Your face was not found in the {p.checked} candidates Veil could check{p.skipped ? `; ${p.skipped} more could not be loaded` : ''}. {p.faces > 0 && <>{p.faces} of them show a face, none close enough to be you. </>}This covers what the search engines returned, not the whole web.</>)}
           {p.stage === 'cancelled' && <>Search stopped before it finished.</>}
           {p.stage === 'failed' && <>The search failed: {p.error}</>}
         </p>

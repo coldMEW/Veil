@@ -15,7 +15,7 @@ export function disposeFaceEngine() {
   stop(new Error('Face engine cancelled.'));
 }
 async function request(
-  kind: 'detect' | 'embed',
+  kind: 'detect' | 'embed' | 'fake',
   image: ImageBitmap | ImageData,
   face?: Face,
 ): Promise<unknown> {
@@ -35,7 +35,9 @@ async function request(
       : await createImageBitmap(image);
   const n = ++id;
   return new Promise((resolve, reject) => {
-    pending.set(n, { resolve, reject });
+    // A request that never answers must not block every later one: restart the worker instead.
+    const timer = setTimeout(() => pending.has(n) && stop(Error('The face models did not answer in time.')), 90_000);
+    pending.set(n, { resolve: (v) => { clearTimeout(timer); resolve(v); }, reject: (e) => { clearTimeout(timer); reject(e); } });
     try {
       worker!.postMessage({ id: n, kind, image: copy, face }, 'data' in copy ? [] : [copy]);
     } catch (error) {
@@ -52,3 +54,13 @@ export async function detectFaces(image: ImageBitmap | ImageData): Promise<Face[
 export async function embedFace(image: ImageBitmap | ImageData, face: Face): Promise<Float32Array> {
   return (await request('embed', image, face)) as Float32Array;
 }
+
+/**
+ * Score for "this face looks manipulated or generated" (0..1) from a face-forgery classifier.
+ * A lead only: at FACE_FAKE_LEAD it caught 25 of 60 labelled fakes and flagged 2 of 60 real faces
+ * (docs/face-swap-detector-evaluation.md). Never present it as proof.
+ */
+export async function scoreFaceForgery(image: ImageBitmap | ImageData, face: Face): Promise<number> {
+  return (await request('fake', image, face)) as number;
+}
+export const FACE_FAKE_LEAD = 0.85;

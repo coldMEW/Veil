@@ -22,5 +22,17 @@
     "license": "Apache-2.0",
     "licenseSource": "https://github.com/opencv/opencv_zoo/blob/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/face_recognition_sface/LICENSE",
     "servedAs": "/models/face/face_recognition_sface_2021dec.onnx"
+  },
+  "facefake": {
+    "name": "facefake",
+    "upstream": "https://huggingface.co/onnx-community/Deep-Fake-Detector-v2-Model-ONNX",
+    "revision": "4ea3d66dfb1bedca29727c6a0c6fa061d5f3f9c9",
+    "path": "onnx/model_q4f16.onnx",
+    "url": "https://huggingface.co/onnx-community/Deep-Fake-Detector-v2-Model-ONNX/resolve/4ea3d66dfb1bedca29727c6a0c6fa061d5f3f9c9/onnx/model_q4f16.onnx",
+    "sha256": "d3ac808c1e632abe7d62160e67db63d10f6a952ebc0507cf3b6d5cd0de4a2594",
+    "bytes": 49718585,
+    "license": "Apache-2.0",
+    "licenseSource": "https://huggingface.co/prithivMLmods/Deep-Fake-Detector-v2-Model",
+    "servedAs": "/models/face/deepfake_detector_v2_q4f16.onnx"
   }
 }

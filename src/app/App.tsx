@@ -10,6 +10,7 @@ const CheckScreen = lazy(() => import('./check/CheckScreen'));
 const TraceScreen = lazy(() => import('./trace/TraceScreen'));
 const TicketsScreen = lazy(() => import('./tickets/TicketsScreen'));
 const ShieldScreen = lazy(() => import('./shield/ShieldScreen'));
+const VideoScreen = lazy(() => import('./video/VideoScreen'));
 const AppHome = lazy(() => import('./hub/AppHome'));
 const CleanScreen = lazy(() => import('./shield/ShieldScreen').then((m) => ({ default: () => <m.default mode="clean" /> })));
 
@@ -50,12 +51,13 @@ export function App() {
       ) : (
         <Shell route={route === 'home' ? 'app' : route}>
           <Suspense fallback={<div className="screen-loading" aria-busy="true" />}>
-            {(route === 'app' || route === 'home') && <AppHome />}
+            {(route === 'app' || route === 'home' || (route === 'video' && isAndroid())) && <AppHome />}
             {route === 'check' && <CheckScreen />}
             {route === 'trace' && <TraceScreen />}
             {route === 'tickets' && <TicketsScreen ticketId={param} />}
             {route === 'shield' && <ShieldScreen />}
             {route === 'clean' && <CleanScreen />}
+            {route === 'video' && !isAndroid() && <VideoScreen />}
           </Suspense>
         </Shell>
       )}

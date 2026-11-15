@@ -83,7 +83,7 @@ export function CheckChapter({ onPick }: { onPick: () => void }) {
 /* ---------------- Trace: fixed output, live controls ---------------- */
 
 const MATCHES = [
-  { site: 'hot-leaks.example', kind: 'Face', score: 0.71, source: 'page', outfit: '#ff5a45' },
+  { site: 'fakefeed.example', kind: 'Face', score: 0.71, source: 'page', outfit: '#ff5a45' },
   { site: 'x.com/anon_uploads', kind: 'Face', score: 0.64, source: 'page', outfit: '#7cc4ff' },
   { site: 'yandex.com images', kind: 'Copy', score: 0.93, source: 'search', outfit: '#d4f36b' },
   { site: 'forum.example/t/8812', kind: 'Face', score: 0.44, source: 'watch', outfit: '#e6e4dd' },
@@ -141,7 +141,7 @@ export function TraceChapter() {
           <div className="segmented" role="radiogroup" aria-label="Where the match came from">
             {(['all', 'page', 'search', 'watch'] as const).map((s) => (
               <button key={s} role="radio" aria-checked={source === s} onClick={() => setSource(s)}>
-                {{ all: 'All', page: 'Leak pages', search: 'Web search', watch: 'Watchlist' }[s]}
+                {{ all: 'All', page: 'Pages', search: 'Web search', watch: 'Watchlist' }[s]}
               </button>
             ))}
           </div></div>
@@ -171,7 +171,7 @@ function TicketCard({ step }: { step: 0 | 1 | 2 | 3 }) {
           <FacePortrait bg="#2a2a2a" outfit="#ff5a45" />
         </span>
         <span>
-          <strong>hot-leaks.example</strong>
+          <strong>fakefeed.example</strong>
           <span className="num">VT-7Q2K9</span>
         </span>
       </div>
@@ -288,7 +288,7 @@ const PLANS = [
     colour: 'lime',
     line: 'Veil keeps looking so you do not have to.',
     gets: ['Everything in Free', 'Automatic web search every day', 'Alerts when a new match appears', 'Send from your Gmail and track every reply', 'Watchlist re-checked every 6 hours', 'Up to 3 faces'],
-    why: 'Each web search costs us about a cent in search fees; daily monitoring is roughly $0.40 a month per person. The rest pays for the service.',
+    why: 'The price pays for scheduled monitoring, hosting and support. Face matching runs on your own device, and paid search will come with a published monthly allowance.',
     cta: 'Coming after the hackathon',
   },
   {
@@ -297,19 +297,122 @@ const PLANS = [
     per: 'a month, or $140 a year',
     colour: 'sky',
     line: 'For parents, and for people whose face is their work.',
-    gets: ['Everything in Guard', 'Up to 6 faces, each with its own vault', 'Search every hour, plus Google Lens results', 'Bulk takedowns: one notice to every host at once', 'Escalation letters when a site ignores the 48-hour window'],
-    why: 'Hourly search and Google Lens results cost us about $4 a month for a family of six.',
+    gets: ['Everything in Guard', 'Up to 6 faces, each with its own vault', 'Known pages re-checked every hour', 'Google Lens results, with a monthly allowance', 'Bulk takedowns: one notice to every host at once', 'Escalation letters when a site ignores the 48-hour window'],
+    why: 'The price pays for a shared family vault, support and frequent checks of pages you already know about. New web searches and Lens results will have a published allowance.',
     cta: 'Coming after the hackathon',
   },
 ];
 
+/* Enterprise: a commercial licence. Prices are our opening offer for pilots, not yet a live checkout. */
+const TEAM_PLANS = [
+  {
+    name: 'Team',
+    price: '$49',
+    per: 'per reviewer a month, billed yearly. 3 seats minimum',
+    colour: 'sky',
+    line: 'For a claims or trust desk that reviews video every week.',
+    gets: ['Video evidence for every reviewer', 'Sealed records with a server time stamp: 250 cases a month', 'Printable report and a record anyone can re-check', 'Commercial licence for everything in Personal', 'Email support'],
+    why: 'The video is analysed in the reviewer\'s own browser, so we run no GPUs and never hold your footage. The price pays for the licence, support and the time-stamp service.',
+  },
+  {
+    name: 'Business',
+    price: '$99',
+    per: 'per reviewer a month, billed yearly. 5 seats minimum',
+    colour: 'lime',
+    line: 'For departments that must show who looked at what, and when.',
+    gets: ['Everything in Team', '2,000 sealed cases a month', 'Roles, and a log of who opened each case', 'Choose how long records are kept', 'Priority support'],
+    why: 'The higher fee pays for administration, the access log and faster support. We still do not charge by the minute of video, because your devices do the work.',
+  },
+  {
+    name: 'Custom',
+    price: 'Ask',
+    per: 'yearly licence, on your own servers if you need',
+    colour: 'paper',
+    line: 'For insurers, law firms and newsrooms with their own rules.',
+    gets: ['Everything in Business', 'Runs fully inside your network', 'Your own signing and time-stamp keys', 'Security review and a named contact'],
+    why: 'Deployment, retention and security review differ for every organisation, so this one is quoted, not listed.',
+  },
+];
+
+const VIDEO_GIVES = [
+  ['A fingerprint of the exact file', 'SHA-256 of the original bytes, computed on the reviewer\'s device. The video is never uploaded.'],
+  ['The moments worth a look', 'Frames sampled across the video and run through the same AI-image and face models as photo Check, plus cuts, patch-like changes and sound jumps, each on a timeline you can click.'],
+  ['Reasons in plain words', 'Up to three signs of tampering in red and three signs it was left alone in green, with an ordinary explanation beside every signal.'],
+  ['A record nobody can quietly edit', 'A handling log where each entry locks the one before it, signed on the device and time-stamped by a server that sees only the fingerprint.'],
+  ['Checkable by anyone', 'Send the record to the other side. They drop it into Veil and every signature is re-checked from scratch.'],
+];
+
 export function Pricing() {
+  const [who, setWho] = useState<'personal' | 'enterprise'>('personal');
+  const personal = who === 'personal';
   return (
     <section id="pricing" className="chapter ch-night ch-pricing" aria-labelledby="pricing-title">
       <div className="pricing-head">
-        <h2 id="pricing-title">Free to defend yourself</h2>
-        <p className="chapter-lede">Protection is free. You pay only if you want Veil to keep watch for you. Paid plans open after the hackathon; today every feature in the app is free.</p>
+        <h2 id="pricing-title">{personal ? 'Free to defend yourself' : 'Licensed for your team'}</h2>
+        <p className="chapter-lede">
+          {personal
+            ? 'Protection is free. You pay only if you want Veil to keep watch for you. Paid plans open after the hackathon; today every feature in the app is free.'
+            : 'A commercial licence for teams that review video evidence: claims, legal, HR, newsrooms. It adds Video evidence and includes everything in Personal. Licences open after the hackathon; today you can try it free.'}
+        </p>
+        <div className="plan-switch" role="tablist" aria-label="Who is it for">
+          <button role="tab" aria-selected={personal} onClick={() => setWho('personal')}>Personal</button>
+          <button role="tab" aria-selected={!personal} onClick={() => setWho('enterprise')}>Enterprise</button>
+        </div>
       </div>
+      {!personal && (
+        <div className="plan-swap" key="enterprise">
+          <div className="plans">
+            {TEAM_PLANS.map((p) => (
+              <article key={p.name} className="plan" data-colour={p.colour}>
+                <h3>{p.name}</h3>
+                <p className="plan-price">
+                  <strong className="num">{p.price}</strong> <span>{p.per}</span>
+                </p>
+                <p className="plan-line">{p.line}</p>
+                <ul>
+                  {p.gets.map((g) => (
+                    <li key={g}>{g}</li>
+                  ))}
+                </ul>
+                <p className="plan-why">
+                  <strong>Why this price.</strong> {p.why}
+                </p>
+                {p.name === 'Team' ? (
+                  <a className="btn btn-ink" href={href('video')}>Try Video evidence</a>
+                ) : (
+                  <p className="plan-soon">Opens after the hackathon</p>
+                )}
+              </article>
+            ))}
+          </div>
+          <div className="plan-gives">
+            <div className="plan-gives-col">
+              <h3>What the licence adds: Video evidence</h3>
+              <dl>
+                {VIDEO_GIVES.map(([t, d]) => (
+                  <div key={t}>
+                    <dt>{t}</dt>
+                    <dd>{d}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+            <div className="plan-gives-col">
+              <h3>Also included: everything in Personal</h3>
+              <ul>
+                <li>Check any picture, with the reasons shown</li>
+                <li>Find a face on the pages you choose and across the web</li>
+                <li>Takedown tickets, notices written for you and the 48-hour clock</li>
+                <li>Shield photos with a traceable mark before posting</li>
+                <li>Remove street names, plates, emails and phone numbers</li>
+              </ul>
+              <p className="plan-why">Veil marks moments for a person to review. It does not rule a video real or fake, and a record is not legal advice.</p>
+            </div>
+          </div>
+        </div>
+      )}
+      {personal && (
+      <div className="plan-swap" key="personal">
       <div className="plans">
         {PLANS.map((p) => (
           <article key={p.name} className="plan" data-colour={p.colour}>
@@ -343,6 +446,8 @@ export function Pricing() {
           <strong className="num">$2</strong> <span>per student, per year</span>
         </p>
       </div>
+      </div>
+      )}
     </section>
   );
 }
@@ -355,7 +460,7 @@ const QUESTIONS = [
   ['Will the site really take it down?', 'Under the TAKE IT DOWN Act, covered platforms in the US must remove non-consensual intimate images within 48 hours of a valid request. Veil writes that request, sends it to the right place, and tracks the clock. Sites that ignore it can be reported to the FTC, their host and Google Search.'],
   ['What if the fake is not explicit?', 'Use the copyright route when it was made from a photo you took, or the GDPR route if you are in the EU or UK. Impersonation and scam ads break every big platform’s rules too.'],
   ['Can Veil stop AI from editing my photos?', 'Nothing reliably stops today’s large models from editing a picture. Veil does what does work: it marks your photo so a fake made from it can be traced and proved, and removes what gives away where you live.'],
-  ['Does it work on videos?', 'Not yet. Veil checks still pictures today, including frames you screenshot from a video.'],
+  ['Does it work on videos?', 'Yes. Video evidence samples frames across an MP4 or MOV on your device, runs the same models on each one, marks the moments worth a look, and seals a signed record. It marks moments for a person to review; it does not rule a video real or fake.'],
   ['What does it cost?', 'Checking, shielding, face matching and takedown tickets are free. Paid plans, opening after the hackathon, add automatic daily monitoring and reply tracking.'],
 ];
 

@@ -5,6 +5,8 @@ export interface FocusRequest {
   coarse: boolean;
   /** Force a grid size (tests). Otherwise chosen from the measured backend speed. */
   grid?: number;
+  /** Score the whole views only and skip the occlusion heatmap (used for video frames). */
+  viewsOnly?: boolean;
 }
 
 export interface FocusResult {

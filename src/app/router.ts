@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 
-export type Route = 'home' | 'app' | 'check' | 'trace' | 'tickets' | 'shield' | 'clean';
-const ROUTES: Route[] = ['home', 'app', 'check', 'trace', 'tickets', 'shield', 'clean'];
+export type Route = 'home' | 'app' | 'check' | 'trace' | 'tickets' | 'shield' | 'clean' | 'video';
+const ROUTES: Route[] = ['home', 'app', 'check', 'trace', 'tickets', 'shield', 'clean', 'video'];
 
 function parse(): { route: Route; param: string | null } {
   const [head = '', param = null] = window.location.hash.replace(/^#\/?/, '').split('/');

@@ -70,7 +70,8 @@ async function run(req: FocusRequest) {
   const s = await getSession();
   // 64 GPU / 36 WASM occlusions in batches of 8; phones use 16 on either backend.
   // These are workload choices, not a browser/phone performance guarantee.
-  const grid = selectFocusGrid(backend, req.coarse, req.grid);
+  // Video frames need only the whole-view scores: no occlusion passes, so many frames stay affordable.
+  const grid = req.viewsOnly ? 0 : selectFocusGrid(backend, req.coarse, req.grid);
 
   // Preprocess exactly as the model card: Pillow-style bicubic resize of the
   // short edge to 440, then center-crop 384.

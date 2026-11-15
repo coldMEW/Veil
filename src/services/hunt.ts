@@ -97,6 +97,12 @@ export async function faceCrop(bitmap: ImageBitmap): Promise<Blob> {
   return c.convertToBlob({ type: 'image/jpeg', quality: 0.9 });
 }
 
+/**
+ * Similarity a web-search result needs before Veil calls it your face and opens a ticket. Measured: the same
+ * person scores 0.56 to 0.94 on our real photos; look-alike strangers returned by a real search scored up to 0.39.
+ */
+export const WEB_SEARCH_MIN_FACE = 0.5;
+
 /** The whole pipeline. Calls back as it goes; ends with matches already turned into tickets. */
 export async function huntFace(crop: Blob, onProgress: (p: HuntProgress) => void, signal?: AbortSignal): Promise<HuntProgress> {
   const p: HuntProgress = { stage: 'searching', engines: [], candidates: 0, checked: 0, faces: 0, hits: [], skipped: 0 };
@@ -132,7 +138,7 @@ export async function huntFace(crop: Blob, onProgress: (p: HuntProgress) => void
       while (next < list.length && !signal?.aborted) {
         const [img, page] = list[next++]!;
         try {
-          const r = await examine(img, page, signal);
+          const r = await examine(img, page, signal, WEB_SEARCH_MIN_FACE);
           if (r === 'faces') p.faces++;
           else if (r) { p.faces++; p.hits = [...p.hits, r]; }
           p.checked++;

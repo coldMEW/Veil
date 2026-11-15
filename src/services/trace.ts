@@ -33,7 +33,12 @@ export const watchlist = persisted<Array<{ url: string; addedAt: number; lastSca
 
 const MAX_IMAGES = 40;
 
-export async function examine(imageUrl: string, pageUrl: string, signal?: AbortSignal): Promise<ScanHit | null | 'faces'> {
+/**
+ * minFace raises the similarity a face needs before it counts. A page the person points at uses the
+ * engine's own line (0.36). A web search is different: search engines return look-alikes on purpose, and on a
+ * real search two strangers scored 0.38 and 0.39, so that path asks for more.
+ */
+export async function examine(imageUrl: string, pageUrl: string, signal?: AbortSignal, minFace = 0): Promise<ScanHit | null | 'faces'> {
   const blob = await fetchImageBytes(imageUrl);
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   try {
@@ -74,7 +79,7 @@ export async function examine(imageUrl: string, pageUrl: string, signal?: AbortS
         const e = await face.embedFace(bitmap, f);
         for (const m of mine) {
           const c = face.compareFaces(e, m);
-          if (c.match !== 'same') continue; // 'possible' is too weak to open a ticket on
+          if (c.match !== 'same' || c.cosine < minFace) continue; // too weak to open a ticket on
           if (!best || (best.kind === 'face' && c.cosine > best.score)) {
             best = { kind: 'face', score: c.cosine, label: 'Your face' };
           }
