@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { analyzeTemporalDescriptors } from './videoAnalysis.js';
+import { analyzeTemporalDescriptors, describeFlaggedPassage } from './videoAnalysis.js';
+
+test('explains a flagged frame using adjacent pictures and the measured area of change', () => {
+  const changes = Array(24).fill(0.015);
+  changes[5] = 0.23;
+  const frames = [
+    { time: 1, meanLuminance: 0.5, thumbnail: 'before' },
+    { time: 1.5004, meanLuminance: 0.52, thumbnail: 'after', globalDifference: 0.034, cellDifferences: changes },
+  ];
+  const comparison = describeFlaggedPassage(frames, { timeStart: 1.5, timeEnd: 1.5 });
+  assert.match(comparison.description, /upper right/);
+  assert.deepEqual([comparison.before.thumbnail, comparison.after.thumbnail], ['before', 'after']);
+});
 
 test('flags an unusually large sampled frame transition for review', () => {
   const frames = [

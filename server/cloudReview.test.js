@@ -29,17 +29,28 @@ test('routes video and stills to the supported providers and combines their find
     providers: cloudProviders(env).map(({ id }) => id),
     video: clip.toString('base64'),
     sourceSha256,
-    frames: [{ time: 2, thumbnail: 'data:image/jpeg;base64,/9j/2Q==' }],
+    frames: [1, 2].map((time) => ({ time, thumbnail: 'data:image/jpeg;base64,/9j/2Q==' })),
+    windows: [{ start: 1, end: 3 }],
   };
   const requests = [];
   const fetcher = async (url, options) => {
     requests.push(url);
     if (url.includes('googleapis.com')) {
       assert.equal(JSON.parse(options.body).contents[0].parts[0].inlineData.data, input.video);
+      assert.match(JSON.parse(options.body).contents[0].parts[1].text, /"start":1,"end":3/);
       return Response.json({ candidates: [{ finishReason: 'STOP', content: { parts: [{ text: JSON.stringify({ findings: [
         { start: 1, end: 3, subject: 'door handle', location: 'left of the door', before: 'There is one metal handle.', after: 'Two handles appear on the door.' },
         { start: 7, end: 8, subject: 'door handle', location: 'left of the door', before: 'There is one metal handle.', after: 'Two handles appear on the door.' },
       ] }) }] } }] });
+    }
+    if (url.endsWith('/responses')) {
+      const body = JSON.parse(options.body);
+      assert.equal(body.store, false);
+      assert.equal(body.input[0].content.filter(({ type }) => type === 'input_image').length, 2);
+      return Response.json({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify({ findings: [
+        { start: 1, end: 2, subject: 'door frame', location: 'left edge of door', before: 'The edge is straight.', after: 'The edge bends inward.' },
+        { start: 1.5, end: 2, subject: 'door frame', location: 'left edge of door', before: 'The edge is straight.', after: 'The edge bends inward.' },
+      ] }) }] }] });
     }
     if (url.includes('thehive.ai')) {
       assert.deepEqual(Buffer.from(await options.body.get('media').arrayBuffer()), clip);
@@ -56,12 +67,13 @@ test('routes video and stills to the supported providers and combines their find
   assert.equal(requests.length, 0);
   const report = await runCloudReview(input, { env, fetcher });
   assert.equal(report.sourceSha256, sourceSha256);
-  assert.deepEqual(report.checks.map(({ status }) => status), ['complete', 'complete', 'complete']);
+  assert.deepEqual(report.checks.map(({ status }) => status), ['complete', 'complete', 'complete', 'complete']);
+  assert.equal(report.checks.find(({ id }) => id === 'gpt').findings.length, 1);
   const groups = combineFindings([
     { check: 'synthetic_media_model', timeStart: 1.5, timeEnd: 2 },
     { check: 'temporal_edit', timeStart: 4, timeEnd: 4 },
   ], report.checks.flatMap(({ findings }) => findings));
   assert.equal(groups.length, 1);
-  assert.equal(groups[0].findings.length, 4);
+  assert.equal(groups[0].findings.length, 6);
   assert.equal(groups[0].timeEnd, 3);
 });

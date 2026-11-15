@@ -42,13 +42,14 @@ function initialState() {
     sourceUrl: '',
     vault: { status: 'idle', receipt: null, verification: null, error: null, syncError: null },
     analysis: { status: 'idle', result: null, error: null, progress: null, persisted: false, syncPromise: null },
-    cloud: { config: null, running: false, error: null, result: null },
+    cloud: { config: null, auto: false, running: false, error: null, result: null },
     error: null,
   };
 }
 
 let state = initialState();
 let scanGeneration = 0;
+let uploadCloudConfig = null;
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -165,7 +166,7 @@ function emptyScreen() {
         <span><b>03</b> Uncertainty stays visible</span>
       </div>
       ${uploadPanel()}
-      <p class="privacy-note">The original is sent only to Veil’s local evidence vault running on this computer. It receives an independent hash and a locally signed receipt; this is not yet an external custody service.</p>
+      <p class="privacy-note">Veil saves the original in the local evidence vault. If you opt into cloud checks, Veil also shares the media described above.</p>
     </section>
     ${footer()}`;
 }
@@ -182,6 +183,10 @@ function uploadPanel() {
       </div>
       <label class="button primary" for="video-file">${busy ? 'Processing' : 'Choose video'}</label>
     </section>
+    ${!busy && uploadCloudConfig?.providers.length ? `<label class="source-check cloud-opt-in">
+      <input type="checkbox" data-cloud-auto ${state.cloud.auto ? 'checked' : ''} />
+      <span><strong>Run all connected cloud checks on this video</strong><br />Shares media with ${escapeHtml(cloudRecipients(uploadCloudConfig))}. Clips up to 14 MB and 90 seconds.</span>
+    </label>` : ''}
     ${state.error ? `<div class="notice danger" role="alert"><strong>Could not open this file.</strong> ${escapeHtml(state.error)}</div>` : ''}`;
 }
 
@@ -273,26 +278,45 @@ function findingsForReview() {
   return combineFindings(local, cloud);
 }
 
+function cloudRecipients(config) {
+  return config.providers.map(({ name, input }) => `${name} (${input})`).join(', ');
+}
+
 function cloudSection() {
   const { config, error, running, result } = state.cloud;
-  if (!config?.providers.length) return '<p class="source-check">Cloud checks are unavailable on this setup.</p>';
+  if (!config) return '<p class="source-check">Veil couldn’t reach its cloud configuration endpoint. Restart the local server and open the video again.</p>';
+  const missing = config.missing ?? [];
+  const setup = missing.length ? `<details class="unavailable-details"><summary>Cloud checks that need setup</summary>
+    <p>Add the listed keys to the server’s <code>.env</code> file, then restart Veil.</p>
+    <ul>${missing.map(({ name, key }) => `<li>${escapeHtml(name)} <code>${escapeHtml(key)}</code></li>`).join('')}</ul></details>` : '';
+  if (!config.providers.length) return `<div class="source-check"><p>Only local checks ran. No cloud providers are connected.</p>${setup}</div>`;
   const tooLarge = state.file.size > config.maxBytes || (state.facts?.durationFromContainer ?? state.media.duration) > config.maxSeconds;
   const ready = state.analysis.status === 'complete' && !tooLarge && !running && !result;
-  const recipients = config.providers.map(({ name, input }) => `${name} (${input})`).join(', ');
+  const recipients = cloudRecipients(config);
   const message = tooLarge ? 'Cloud checks support MP4 or MOV clips up to 14 MB and 90 seconds.'
     : `Starting cloud checks sends media to ${recipients}. Each provider applies its own data policy.`;
   return `<div class="source-check no-print">
     <p>${escapeHtml(message)}</p>
     ${result ? '<p>Cloud review finished. See Check details for which providers completed.</p>' : `<button class="button quiet" data-action="cloud-review" ${ready ? '' : 'disabled'}>${running ? 'Checking with cloud providers…' : 'Send media for cloud checks'}</button>`}
     ${error ? `<p role="alert">${escapeHtml(error)}</p>` : ''}
+    ${setup}
   </div>`;
+}
+
+function frameComparison(comparison) {
+  if (!comparison) return '';
+  const grid = Number.isInteger(comparison.highlightedCell) ? `<div class="review-frame-grid" aria-hidden="true">${Array.from({ length: 24 }, (_, index) =>
+    `<span${index === comparison.highlightedCell ? ' class="highlighted"' : ''}></span>`).join('')}</div>` : '';
+  return `<div class="review-frames">${[['Earlier sample', comparison.before], ['Later sample', comparison.after]].map(([label, frame]) =>
+    `<figure><div class="review-frame-image"><img src="${escapeHtml(frame.thumbnail)}" alt="${label} from the video" loading="lazy" />${grid}</div><figcaption>${label} · ${escapeHtml(formatTimestamp(frame.time))}</figcaption></figure>`
+  ).join('')}</div>`;
 }
 
 function findingCards() {
   return findingsForReview().map(({ timeStart, label, findings }) => `
     <article class="scan-lead review review-passage">
       <button type="button" class="button quiet" data-action="seek" data-time="${timeStart}">Review ${escapeHtml(label)}</button>
-      <ul>${findings.map(({ title, observation }) => `<li><strong>${escapeHtml(title)}</strong><p>${escapeHtml(observation)}</p></li>`).join('')}</ul>
+      <ul>${findings.map(({ title, observation, comparison }) => `<li><strong>${escapeHtml(title)}</strong><p>${escapeHtml(observation)}</p>${frameComparison(comparison)}</li>`).join('')}</ul>
     </article>`).join('');
 }
 
@@ -704,7 +728,11 @@ async function runCloudChecks() {
         video,
         sourceSha256: current.sha256,
         providers: config.providers.map(({ id }) => id),
-        frames: config.providers.some(({ id }) => id === 'openai') ? local.cloudFrames : [],
+        frames: config.providers.some(({ id }) => ['gemini', 'gpt', 'openai'].includes(id)) ? local.cloudFrames : [],
+        windows: local.syntheticMedia.signals.map(({ timeStart, timeEnd, comparison }) => ({
+          start: Math.max(0, Math.min(timeStart, comparison?.before.time ?? timeStart) - 0.5),
+          end: Math.min(duration, Math.max(timeEnd, comparison?.after.time ?? timeEnd) + 0.5),
+        })),
       }),
     });
     const report = await responseJson(response);
@@ -714,6 +742,7 @@ async function runCloudChecks() {
     await syncAnalysisWithVault();
     if (state !== current) return;
     current.cloud.result = report;
+    addCustodyEvent('cloud_review_completed', `Received cloud review statuses for ${report.checks.length} checks.`);
     current.analysis.persisted = false;
     void syncAnalysisWithVault();
   } catch (error) {
@@ -778,6 +807,7 @@ async function runEvidenceScan() {
     addCustodyEvent('automated_evidence_scan_completed', `Completed ${ANALYSIS_ENGINE.id} with ${result.signals.length} timestamped review signal${result.signals.length === 1 ? '' : 's'}.`);
     render();
     void syncAnalysisWithVault();
+    if (state.cloud.auto) void runCloudChecks();
   } catch (error) {
     if (run !== scanGeneration) return;
     state.analysis = { status: 'failed', result: null, error: error instanceof Error ? error.message : 'The browser could not complete the evidence scan.', progress: null, persisted: false, syncPromise: null };
@@ -795,6 +825,7 @@ async function openVideo(file) {
     return;
   }
 
+  const consentedProviders = state.cloud.auto ? uploadCloudConfig?.providers.map(({ id }) => id) : null;
   if (state.assetUrl) URL.revokeObjectURL(state.assetUrl);
   scanGeneration += 1;
   state = initialState();
@@ -817,6 +848,9 @@ async function openVideo(file) {
     state.assetUrl = assetUrl;
     state.media = media;
     state.cloud.config = cloudConfig;
+    // A newly connected provider needs its own consent on this file.
+    state.cloud.auto = Boolean(consentedProviders?.length && cloudConfig?.providers.length &&
+      cloudConfig.providers.every(({ id }) => consentedProviders.includes(id)));
     addCustodyEvent('sha256_computed_locally', `Computed SHA-256 for ${bytes.length.toLocaleString()} original bytes.`);
     addCustodyEvent('container_inspected_locally', `Read ${facts.container}; top-level boxes: ${facts.topLevelBoxes.join(', ') || 'none'}.`);
     if (facts.c2paManifestCandidate) addCustodyEvent('c2pa_container_candidate', 'Found a C2PA UUID container marker. Full signature validation is not included in this MVP.');
@@ -913,6 +947,7 @@ function resetCase() {
 
 app.addEventListener('change', (event) => {
   const target = event.target;
+  if (target.matches('[data-cloud-auto]')) state.cloud.auto = target.checked;
   if (target.matches('[data-video-input]')) void openVideo(target.files?.[0]);
   if (target.matches('[data-workflow]')) {
     state.workflow = target.value;
@@ -996,6 +1031,10 @@ app.addEventListener('drop', (event) => {
 
 try {
   render();
+  void loadCloudConfig().then((config) => {
+    uploadCloudConfig = config;
+    if (!state.file) render();
+  });
 } catch (error) {
   showStartupError(error);
 }

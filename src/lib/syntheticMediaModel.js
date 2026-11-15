@@ -1,5 +1,3 @@
-import { formatTimestamp } from './videoFacts.js';
-
 /**
  * A pinned, browser-executable forensic image model. It is run against
  * representative video frames, so its output is deliberately retained as a
@@ -87,7 +85,7 @@ function reviewSignal(passage) {
     timeStart: Number(time.toFixed(3)),
     timeEnd: Number(last.time.toFixed(3)),
     title: count > 1 ? 'AI checks flagged this stretch' : 'AI check flagged a sampled frame',
-    observation: `${count > 1 ? `${count} sampled frames raised a flag between ${formatTimestamp(time)} and ${formatTimestamp(last.time)}.` : `A sampled frame at ${formatTimestamp(time)} raised a flag.`} The checks did not identify a specific object or visible defect.`,
+    observation: count > 1 ? `${count} sampled frames raised a flag.` : 'A sampled frame raised a flag.',
     evidence: {
       matchingDetectors: prediction.matches,
       detectorsScored: prediction.checks.length,

@@ -35,7 +35,7 @@ It is designed around a simple principle: preserve the original file, make techn
 
 ## Run locally
 
-Requires Node 20 or later.
+Requires Node 20.12 or later.
 
 ```bash
 npm test
@@ -46,13 +46,13 @@ Then open [http://localhost:5173](http://localhost:5173).
 
 ### Optional cloud checks
 
-Set any of these environment variables on the server and restart it. In PowerShell use `$env:VARIABLE = 'your key'` before running `npm run dev`. Keep keys out of Git and out of the browser.
+Copy `.env.example` to `.env` in the project folder, fill in the keys you have, and restart Veil. The server also accepts environment variables set before running `npm run dev`. Keep keys out of Git and out of the browser.
 
 - `GEMINI_API_KEY` enables Google's video and sound observations. `VEIL_GEMINI_MODEL` optionally overrides the default `gemini-3.8-flash`.
 - `HIVE_API_KEY` enables Hive timestamped generation and face-manipulation scores. Use the API key for a Hive AI-Generated Image and Video Detection project.
-- `OPENAI_API_KEY` enables OpenAI provenance checks on up to four JPEG stills sampled from the video. The key's organization needs access to the Content Provenance API.
+- `OPENAI_API_KEY` enables a GPT comparison and OpenAI provenance checks on up to four JPEG stills. Veil prioritizes before-and-after samples around flagged passages. The key's organization needs separate access to the Content Provenance API for its watermark checks. `VEIL_OPENAI_MODEL` optionally overrides `gpt-5-mini`.
 
-Click **Send media for cloud checks** to share the footage with the providers shown. The prototype accepts MP4 or MOV clips up to 14 MB and 90 seconds for this option. The report groups results by time and shows failed checks in **Check details**. Google's official SynthID video verifier remains an external user-run check. The OpenAI verifier accepts images and audio, so Veil submits sampled stills and reports detections at their timestamps.
+Select **Run all connected cloud checks on this video** before opening a clip, or click **Send media for cloud checks** after opening it. The prototype accepts MP4 or MOV clips up to 14 MB and 90 seconds for this option. The report groups results by time and shows failed checks in **Check details**. Google's official SynthID video verifier remains an external user-run check. The OpenAI verifier accepts images and audio, so Veil submits sampled stills and reports detections at their timestamps.
 
 `npm run dev` watches the project and restarts after code changes. If an older Veil server is already running, stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> and run the command again before refreshing the browser.
 

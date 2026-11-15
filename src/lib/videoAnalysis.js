@@ -164,6 +164,43 @@ function buildSampleTimes(duration) {
   return Array.from({ length: count }, (_, index) => margin + ((duration - margin * 2) * (index + 1)) / (count + 1));
 }
 
+export function describeFlaggedPassage(frames, { timeStart, timeEnd }) {
+  // Saved signal timestamps are rounded to milliseconds. Keep the adjacent
+  // comparison frame even when the signal covers just one sample.
+  const candidates = frames.map((after, index) => ({ before: frames[index - 1], after }))
+    .filter(({ before, after }) => before && after.time >= timeStart - 0.001 && before.time <= timeEnd + 0.001)
+    .filter(({ after }) => Number.isFinite(after.globalDifference));
+  const pair = candidates.sort((a, b) => b.after.globalDifference - a.after.globalDifference)[0];
+  if (!pair) return null;
+  const { before, after } = pair;
+  const cells = after.cellDifferences;
+  const peak = Math.max(...cells);
+  const cell = cells.indexOf(peak);
+  const column = ['left', 'center', 'right'][Math.floor((cell % GRID_COLUMNS) * 3 / GRID_COLUMNS)];
+  const row = ['upper', 'middle', 'lower'][Math.floor(Math.floor(cell / GRID_COLUMNS) * 3 / GRID_ROWS)];
+  const brightness = after.meanLuminance - before.meanLuminance;
+  let description;
+  let highlightedCell = null;
+  if (after.globalDifference < 0.01) {
+    description = 'The two neighboring samples look nearly identical. The local flag comes from the appearance of the frame itself.';
+  } else if (Math.abs(brightness) >= 0.08 && peak < after.globalDifference * 2) {
+    description = brightness > 0 ? 'Most of the picture gets brighter.' : 'Most of the picture gets darker.';
+  } else if (peak >= after.globalDifference * 1.8 && peak >= 0.06) {
+    description = `The strongest change is in the ${row} ${column} of the picture. Compare that area in the two samples below.`;
+    highlightedCell = cell;
+  } else {
+    description = 'The change is spread across the picture. Compare the two samples for a cut or a change in camera position.';
+  }
+  return {
+    before: { time: before.time, thumbnail: before.thumbnail },
+    after: { time: after.time, thumbnail: after.thumbnail },
+    description,
+    highlightedCell,
+    pictureDifference: after.globalDifference,
+    brightestRegionChange: peak,
+  };
+}
+
 function waitFor(video, eventName, timeoutMs = 8_000) {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
@@ -433,6 +470,19 @@ export async function analyzeVideoFile(file, onProgress) {
     const syntheticMedia = await analyzeSyntheticFrames(frames, (progress) => {
       onProgress?.({ phase: 'model', ...progress });
     });
+    for (const signal of syntheticMedia.signals) {
+      const comparison = describeFlaggedPassage(frames, signal);
+      if (!comparison) continue;
+      signal.comparison = comparison;
+      signal.evidence.comparison = {
+        beforeTime: comparison.before.time,
+        afterTime: comparison.after.time,
+        pictureDifference: comparison.pictureDifference,
+        largestRegionDifference: comparison.brightestRegionChange,
+        highlightedCell: comparison.highlightedCell,
+      };
+      signal.observation = comparison.description;
+    }
     const temporal = analyzeTemporalDescriptors(frames);
     const faceStatus = faceDetector ? 'complete' : 'unavailable';
     const face = {
@@ -452,7 +502,7 @@ export async function analyzeVideoFile(file, onProgress) {
       sampledFrames: frames.length,
       frameIntervalEstimate: frames.length > 1 ? frames[1].time - frames[0].time : null,
       syntheticMedia,
-      cloudFrames: cloudFrameSamples(frames),
+      cloudFrames: cloudFrameSamples(frames, syntheticMedia.signals),
       temporal,
       face,
       audio,
@@ -476,8 +526,14 @@ export async function analyzeVideoFile(file, onProgress) {
   }
 }
 
-function cloudFrameSamples(frames) {
+function cloudFrameSamples(frames, signals) {
   const selected = frames.filter(({ modelPixels }) => modelPixels);
   const indexes = selectEvenlyIndexes(selected.length, 4);
-  return selected.filter((_, index) => indexes.has(index)).map(({ time, thumbnail }) => ({ time, thumbnail }));
+  const pairs = signals.flatMap(({ comparison }) => comparison ? [comparison.before, comparison.after] : []);
+  const even = selected.filter((_, index) => indexes.has(index));
+  const samples = new Map();
+  for (const { time, thumbnail } of [...pairs, ...even]) {
+    if (!samples.has(time)) samples.set(time, { time, thumbnail });
+  }
+  return [...samples.values()].slice(0, 4).sort((a, b) => a.time - b.time);
 }
