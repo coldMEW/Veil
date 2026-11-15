@@ -78,7 +78,8 @@ export function parseBingHTML(html: string): HuntHit[] {
 function signature(raw: string): string {
   const parts = raw.split('|');
   if (parts.length !== 3) return raw;
-  const key = 'AAAAC3NzaC1lZDI1NTE5AAAAIGd3gMN2v1KRLBGmotz7jbQYF8PaB+Jpe6iVf2YIeN5b';
+  // Public constant from Bing's own page script (not a credential). gitleaks:allow
+  const key = 'AAAAC3NzaC1lZDI1NTE5AAAAIGd3gMN2v1KRLBGmotz7jbQYF8PaB+Jpe6iVf2YIeN5b'; // gitleaks:allow
   try {
     const bytes = atob(parts[1]!);
     let decoded = '';

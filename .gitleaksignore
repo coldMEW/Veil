@@ -1,0 +1,5 @@
+# Reviewed false positives. Each line is one exact finding (commit:file:rule:line).
+# Both are the same public constant from Bing's own web page script, used to decode the
+# upload signature of its visual-search endpoint. It is not a credential and grants no access.
+b07e827e6ab9a572f574fee4e952cd77fcae6ace:server/hunt/bing.ts:generic-api-key:81
+5cca83e61efbd819bb45f9fe9d384af1e5b38dbd:backend/hunt.py:generic-api-key:187

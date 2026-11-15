@@ -184,7 +184,8 @@ async def bing(image, provider):
     signature = sig[1]
     parts = signature.split('|')
     if len(parts) == 3:
-        key = 'AAAAC3NzaC1lZDI1NTE5AAAAIGd3gMN2v1KRLBGmotz7jbQYF8PaB+Jpe6iVf2YIeN5b'
+        # Public constant from Bing's own page script (not a credential).
+        key = 'AAAAC3NzaC1lZDI1NTE5AAAAIGd3gMN2v1KRLBGmotz7jbQYF8PaB+Jpe6iVf2YIeN5b'  # gitleaks:allow
         try:
             decoded = ''.join(chr((v ^ ord(key[i % len(key)])) - 3)
                               for i, v in enumerate(base64.b64decode(parts[1])))
