@@ -315,8 +315,8 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
             </>
           ) : (
             <>
-              <strong>Ready</strong>
-              <span>Send it to start the clock</span>
+              <strong>Not sent yet</strong>
+              <span>The notice is written. Send it below.</span>
             </>
           )}
         </div>

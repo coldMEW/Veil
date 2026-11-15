@@ -111,7 +111,7 @@ export function markEvidence(mark: MarkResult): Evidence | null {
   return {
     id: 'mark',
     tone: 'source',
-    title: 'Made from your photo',
+    title: 'Your Veil mark is inside',
     says: photo
       ? `Your invisible Veil mark is still inside. This picture was made from "${photo.name}", which you shielded on ${new Date(photo.addedAt).toLocaleDateString()}.`
       : 'Your invisible Veil mark is inside: this picture was made from a photo you shielded with Veil.',

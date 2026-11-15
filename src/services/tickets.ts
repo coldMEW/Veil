@@ -146,6 +146,8 @@ export function updateTicket(id: string, patch: Partial<Ticket> | ((t: Ticket) =
     list.map((t) => {
       if (t.id !== id) return t;
       const p = typeof patch === 'function' ? patch(t) : patch;
+      // The same destination is never listed twice (lookups can run more than once).
+      if (p.destinations) p.destinations = p.destinations.filter((d, i, all) => all.findIndex((o) => (o.email ?? o.reportUrl ?? o.name) === (d.email ?? d.reportUrl ?? d.name)) === i);
       return { ...t, ...p, log: logText ? [...t.log, { at: Date.now(), text: logText }] : t.log };
     }),
   );

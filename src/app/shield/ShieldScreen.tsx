@@ -153,7 +153,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   return (
     <div className="tool tool-split">
       <section className="stage" aria-label="The photo">
-        {stage === 'done' && result ? <BeforeAfter before={ready.bitmap} after={result.bitmap} /> : <PhotoView bitmap={ready.bitmap} label={ready.fileName} />}
+        {stage === 'done' && result ? <BeforeAfter before={ready.bitmap} after={result.bitmap} afterLabel={cleanOnly ? 'Cleaned' : 'Shielded'} /> : <PhotoView bitmap={ready.bitmap} label={ready.fileName} />}
         <div className="stage-bar">
           <span className="stage-name">{ready.fileName}</span>
           <button className="btn btn-ghost-dark btn-sm" disabled={stage === 'working'} onClick={() => closeImage()}>
@@ -305,7 +305,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                     .catch((e) => toast(String(e)))
                 }
               >
-                Save the shielded copy
+                {cleanOnly ? 'Save the clean copy' : 'Save the shielded copy'}
               </button>
               <button className="btn btn-ghost-dark" onClick={() => setStage('options')}>
                 Start over
