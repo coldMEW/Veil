@@ -1,8 +1,8 @@
-﻿import { build } from 'esbuild';
+import { build } from 'esbuild';
 import * as ort from 'onnxruntime-node';
 import { readFile } from 'node:fs/promises';
-await build({entryPoints:['src/engine/face/math.ts'],outfile:'public/models/face/math-smoke.mjs',bundle:true,platform:'node',format:'esm'});
-const m=await import('../../../public/models/face/math-smoke.mjs');
+const bundle=await build({entryPoints:['src/engine/face/math.ts'],bundle:true,platform:'node',format:'esm',write:false});
+const m=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
 const manifest=JSON.parse(await readFile(new URL('./models.json',import.meta.url)));
 const image={width:112,height:112,data:new Uint8ClampedArray(112*112*4)};
 for(let i=0;i<image.data.length;i+=4){image.data[i]=90+(i%89);image.data[i+1]=130;image.data[i+2]=70;image.data[i+3]=255;}

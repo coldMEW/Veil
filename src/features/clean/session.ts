@@ -22,8 +22,8 @@ export interface OcrBox {
  */
 export const TEXT_REMOVAL_DEFAULTS = {
   threshold: 30,
-  dilateFraction: 0.2,
-  dilateMaxPx: 20,
+  dilateFraction: 0.06,
+  dilateMaxPx: 6,
   dilateMinPx: 4,
   sampleGrow: [1.06, 1.08] as const,
   clipGrow: [1.1, 1.12] as const,
@@ -196,7 +196,7 @@ export async function runClean(opts: {
   expansionPx: number;
   method: Extract<TransformMethod, 'solid_redaction' | 'migan_inpaint'>;
   inpainter?: Inpainter;
-  /** Max model input side. 512 for large regions; TEXT_REMOVAL_DEFAULTS.inpaintMaxSide for thin glyph masks. */
+  /** Upper bound on native inference tile size; MI-GAN caps individual tiles at 512. */
   inpaintMaxSide?: number;
   modelSha256?: string;
   color?: RGB;
@@ -208,9 +208,9 @@ export async function runClean(opts: {
     const maxSide = opts.inpaintMaxSide ?? 512;
     pixels = (await opts.inpainter.inpaint(src, mask, { maxSide })).pixels;
     // Repair pass: MI-GAN occasionally emits a small near-white/near-black blob that depends on the working
-    // resolution (measured on a real photo: present at 512/768/1400, absent at 1024). Pixels far outside the
-    // brightness range of the real background ring are re-inpainted once at a different resolution.
-    const alts = maxSide === 1024 ? [768, 512] : [1024, 768];
+    // tile context. Pixels far outside the
+    // brightness range of the background ring are re-inpainted at a different native tile size.
+    const alts = [448, 384, 512].filter(side => side !== Math.min(512, maxSide)).slice(0, 2);
     for (const alt of alts) {
       const outliers = fillOutliers(pixels, mask);
       if (!outliers) break;

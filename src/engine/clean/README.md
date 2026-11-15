@@ -1,0 +1,13 @@
+# Clean engine regressions
+
+The implementation changes the existing Clean adapters, with new native tiling in tiles.ts. No UI edits.
+
+OCR runs source-resolution normal and 90-degree counterclockwise detector views without allocating rotated tile RGBA buffers. Quads are mapped back before recognition. Steep lines compare both recognition directions; cross-orientation duplicates are resolved after recognition using confidence and text length to avoid a high-score single-word fragment suppressing its complete line. Every runtime OCR box carries a category. rotateTiles:false restores the earlier detector pass budget. Expect approximately doubled detector work and additional steep-line recognition work. Fragment duplicates and texture false positives can remain.
+
+Privacy selection retains the existing category allowlist and recognition gates. Added conservative guards for known garment brand words and printed establishment dates; lone street suffixes are review-only. This is lexical filtering, not garment scene understanding: unknown brands, ambiguous numbers and OCR mistakes still need review. All text remains manually selectable.
+
+Glyph dilation is 6% of box height, minimum4 / maximum6 source pixels (previously20%, min4/max20). The small-letter minimum is intentional: reducing to2 left recoverable text in the real browser round trip. Large letters get substantially less dilation.
+
+MI-GAN now processes overlapping native-scale tiles no larger than its trained512 resolution, skips tiles with no approved mask, blends overlap predictions by context weights, and applies a two-pixel feather inside the approved mask. No outside feather ring is needed; outside-mask RGBA remains identical. Outlier repair retries at448/384-pixel native tile sizes rather than passing equivalent oversized caps. Input/output tensors are disposed even on failure. There is an explicit256-active-tile memory/work budget. Texture synthesis remains model-dependent and can smear or invent detail. More tiles cost latency; maxSide now limits tile input size, not global downscale resolution.
+
+Commands: node src/engine/clean/smoke.mjs [local-photo-path...] (only synthetic OCR strings may appear with --diagnostic; private loops output counts/timings only). node src/engine/clean/inpaint-smoke.mjs checks real native-model tiling on generated texture. node src/engine/clean/browser-smoke.mjs requires Vite localhost:5190 and saves a synthetic cleaned preview under scratch-eval. Existing Playwright clean.spec.ts checks full export+rescan in Chromium. Private previews are saved only to scratch-eval, never the repo.

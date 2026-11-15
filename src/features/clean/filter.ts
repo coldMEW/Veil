@@ -12,9 +12,13 @@ export interface FilterResult {
 
 const STREET_SUFFIX =
   /\b(st|street|rd|road|ave|avenue|blvd|boulevard|ln|lane|dr|drive|ct|court|pl|place|way|hwy|highway|pkwy|parkway|cir|circle|ter|terrace|sq|square)\.?(?=\s|$|[,.])/i;
+// Conservative lexical guard: obvious clothing branding is review-only, including printed dates.
+const GARMENT =
+  /\b(?:nike|adidas|puma|reebok|under armour|north face|essentials|levi['’]?s|aeropostale|hollister|abercrombie|champion|vans|supreme)\b|\b(?:est(?:ablished)?\.?|since)\s*(?:18|19|20)\d{2}\b/i;
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
 const PHONE = /\+?\d[\d\s().-]{6,}\d/;
-const ROOM = /\b(room|rm|suite|ste|apt|unit|bldg|building|office|lab|classroom|hall)\.?\s*#?\s*[a-z]?\d{1,5}[a-z]?\b/i;
+const ROOM =
+  /\b(room|rm|suite|ste|apt|unit|bldg|building|office|lab|classroom|hall)\.?\s*#?\s*[a-z]?\d{1,5}[a-z]?\b/i;
 const ZIP = /^\d{5}(-\d{4})?$/;
 
 const digitCount = (s: string) => (s.match(/\d/g) ?? []).length;
@@ -36,8 +40,9 @@ export function classifyText(raw: string): FilterResult {
   const t = raw.trim().replace(/\s+/g, ' ');
   if (!t) return { category: 'other_text', rule: 'empty' };
   if (EMAIL.test(t)) return { category: 'email', rule: 'email-pattern' };
+  if (GARMENT.test(t)) return { category: 'other_text', rule: 'garment-brand-review-only' };
   if (ROOM.test(t)) return { category: 'room_or_id_number', rule: 'room-keyword+number' };
-  if (STREET_SUFFIX.test(t)) {
+  if (STREET_SUFFIX.test(t) && t.split(' ').length >= 2) {
     if (/\d/.test(t)) return { category: 'address', rule: 'number+street-suffix' };
     if (t.split(' ').length <= 5) return { category: 'address', rule: 'street-name' };
   }

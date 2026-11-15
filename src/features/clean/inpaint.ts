@@ -2,6 +2,7 @@ import type { InferenceSession } from 'onnxruntime-web';
 import type { CapabilityState } from '../../contracts';
 import { maskBounds, type Mask, type Pixels } from './mask';
 import { compositeCrop, workingCrop } from './redact';
+import { inpaintTiled, innerFeatherWeight } from '../../engine/clean/tiles';
 import { getOrt } from './ortEnv';
 
 /**
@@ -40,7 +41,13 @@ export function toModelInputs(src: Pixels, mask: Mask, crop: { x: number; y: num
 export function extractCrop(src: Pixels, crop: { x: number; y: number; w: number; h: number }): Pixels {
   const data = new Uint8ClampedArray(crop.w * crop.h * 4);
   for (let y = 0; y < crop.h; y++)
-    data.set(src.data.subarray(((crop.y + y) * src.width + crop.x) * 4, ((crop.y + y) * src.width + crop.x + crop.w) * 4), y * crop.w * 4);
+    data.set(
+      src.data.subarray(
+        ((crop.y + y) * src.width + crop.x) * 4,
+        ((crop.y + y) * src.width + crop.x + crop.w) * 4,
+      ),
+      y * crop.w * 4,
+    );
   return { width: crop.w, height: crop.h, data };
 }
 
@@ -87,7 +94,12 @@ export function resizeBilinear(src: Pixels, w: number, h: number): Pixels {
 }
 
 /** Nearest-neighbour resize of a binary mask crop; any covered source pixel keeps the hole (conservative). */
-export function resizeMaskCrop(mask: Mask, crop: { x: number; y: number; w: number; h: number }, w: number, h: number): Mask {
+export function resizeMaskCrop(
+  mask: Mask,
+  crop: { x: number; y: number; w: number; h: number },
+  w: number,
+  h: number,
+): Mask {
   const data = new Uint8Array(w * h);
   const sx = crop.w / w;
   const sy = crop.h / h;
@@ -100,7 +112,9 @@ export function resizeMaskCrop(mask: Mask, crop: { x: number; y: number; w: numb
       let hit = 0;
       for (let yy = ys; yy < ye && !hit; yy++)
         for (let xx = xs; xx < xe; xx++)
-          if (mask.data[(crop.y + Math.min(yy, crop.h - 1)) * mask.width + crop.x + Math.min(xx, crop.w - 1)]) {
+          if (
+            mask.data[(crop.y + Math.min(yy, crop.h - 1)) * mask.width + crop.x + Math.min(xx, crop.w - 1)]
+          ) {
             hit = 1;
             break;
           }
@@ -141,32 +155,63 @@ export class MiganInpainter {
   }
 
   /** Inpaint the masked region. Returns a new full-size buffer; `src` is not mutated. */
-  async inpaint(src: Pixels, mask: Mask, opts: { pad?: number; minSize?: number; maxSide?: number } = {}): Promise<InpaintResult> {
+  async inpaint(
+    src: Pixels,
+    mask: Mask,
+    opts: { pad?: number; minSize?: number; maxSide?: number } = {},
+  ): Promise<InpaintResult> {
     if (!this.session || this.state !== 'ready') throw new Error('MI-GAN not loaded');
     const bounds = maskBounds(mask);
-    if (!bounds) return { pixels: { ...src, data: new Uint8ClampedArray(src.data) }, crop: { x: 0, y: 0, w: 0, h: 0 }, ms: 0, backend: this.backend };
+    if (!bounds)
+      return {
+        pixels: { ...src, data: new Uint8ClampedArray(src.data) },
+        crop: { x: 0, y: 0, w: 0, h: 0 },
+        ms: 0,
+        backend: this.backend,
+      };
     // Context pad proportional to the hole so large holes still see surroundings.
     const pad = opts.pad ?? Math.max(64, Math.round(0.5 * Math.max(bounds.w, bounds.h)));
     const crop = workingCrop(bounds, src.width, src.height, pad, opts.minSize ?? MIGAN_NATIVE);
-    // Run at native resolution: resize the crop (longest side -> 512), inpaint, resize back.
-    // Thin holes (glyph strokes) inpaint sharper at native resolution; large holes need ~512 context.
-    const scale = Math.min(1, (opts.maxSide ?? MIGAN_NATIVE) / Math.max(crop.w, crop.h));
-    const mw = Math.max(8, Math.round(crop.w * scale));
-    const mh = Math.max(8, Math.round(crop.h * scale));
-    const cropPx = resizeBilinear(extractCrop(src, crop), mw, mh);
-    const cropMask = resizeMaskCrop(mask, crop, mw, mh);
-    const { image, mask: m } = toModelInputs(cropPx, cropMask, { x: 0, y: 0, w: mw, h: mh });
     const ort = await getOrt(this.backend as 'wasm' | 'webgpu');
-    const t0 = performance.now();
-    const out = await this.session.run({
-      image: new ort.Tensor('uint8', image, [1, 3, mh, mw]),
-      mask: new ort.Tensor('uint8', m, [1, 1, mh, mw]),
-    });
-    const ms = performance.now() - t0;
-    const result = (out.result ?? Object.values(out)[0])!;
-    const inpaintedSmall = fromModelOutput(result.data as Uint8Array, mw, mh);
-    const inpainted = mw === crop.w && mh === crop.h ? inpaintedSmall : resizeBilinear(inpaintedSmall, crop.w, crop.h);
-    return { pixels: compositeCrop(src, inpainted, crop, mask), crop, ms, backend: this.backend };
+    let ms = 0;
+    const predict = async (tile: Pixels, tileMask: Mask): Promise<Pixels> => {
+      const { image, mask: m } = toModelInputs(tile, tileMask, { x: 0, y: 0, w: tile.width, h: tile.height });
+      const inputImage = new ort.Tensor('uint8', image, [1, 3, tile.height, tile.width]);
+      const inputMask = new ort.Tensor('uint8', m, [1, 1, tile.height, tile.width]);
+      let output: Awaited<ReturnType<InferenceSession['run']>> | undefined;
+      const t0 = performance.now();
+      try {
+        output = await this.session!.run({ image: inputImage, mask: inputMask });
+        const tensor = (output.result ?? Object.values(output)[0])!;
+        return fromModelOutput(tensor.data as Uint8Array, tile.width, tile.height);
+      } finally {
+        ms += performance.now() - t0;
+        inputImage.dispose();
+        inputMask.dispose();
+        if (output) Object.values(output).forEach((t) => t.dispose());
+      }
+    };
+    // The pipeline network is trained at 512. Keep source pixels at native scale by tiling,
+    // rather than shrinking a large region into one 512px inference.
+    const tileSide = Math.max(64, Math.min(512, Math.floor(opts.maxSide ?? 512)));
+    if (Math.max(crop.w, crop.h) > tileSide) {
+      const pixels = await inpaintTiled(src, mask, crop, predict, tileSide);
+      return { pixels, crop, ms, backend: this.backend };
+    }
+    const tile = extractCrop(src, crop),
+      tileMask = resizeMaskCrop(mask, crop, crop.w, crop.h);
+    const filled = await predict(tile, tileMask),
+      pixels = compositeCrop(src, filled, crop, mask);
+    for (let y = crop.y; y < crop.y + crop.h; y++)
+      for (let x = crop.x; x < crop.x + crop.w; x++) {
+        const i = (y * src.width + x) * 4;
+        if (!mask.data[i / 4]) continue;
+        const alpha = innerFeatherWeight(mask, x, y);
+        for (let c = 0; c < 3; c++)
+          pixels.data[i + c] = Math.round(src.data[i + c]! * (1 - alpha) + pixels.data[i + c]! * alpha);
+        pixels.data[i + 3] = src.data[i + 3]!;
+      }
+    return { pixels, crop, ms, backend: this.backend };
   }
 
   async dispose() {

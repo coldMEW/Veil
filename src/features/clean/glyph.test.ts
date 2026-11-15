@@ -111,7 +111,7 @@ describe('inpaint outlier repair', () => {
     };
     const r = await runClean({ src, srcSha256: 'x', mask, expansionPx: 0, method: 'migan_inpaint', inpainter, inpaintMaxSide: 1400 }).catch((e) => e);
     // encodePng needs a browser canvas; in node we only assert the repair call sequence before export
-    expect(calls).toEqual([1400, 1024]);
+    expect(calls).toEqual([1400, 448]);
     void r;
   });
 });
