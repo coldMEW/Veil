@@ -46,6 +46,8 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   const [step, setStep] = useState('');
   const [result, setResult] = useState<Result | null>(null);
   const finishing = useRef(false);
+  const assetRef = useRef<string | null>(null);
+  assetRef.current = ready?.asset.id ?? null;
 
   useEffect(() => {
     setStage('options');
@@ -55,6 +57,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   const finish = async (base: ImageBitmap, removed: number, unresolved = 0) => {
     if (!ready || finishing.current) return;
     finishing.current = true;
+    const startedOn = ready.asset.id;
     try {
       setStage('working');
       let pixels = bitmapToImageData(base);
@@ -80,10 +83,15 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
 
       setStep('Adding it to your vault');
       const fp = await engines.fingerprint();
-      const pdq = fp ? (await fp.pdqHash(bitmapToImageData(bitmap, 512))).hash : null;
+      const print = fp ? await fp.pdqHash(bitmapToImageData(bitmap, 512)) : null;
+      const pdq = print && print.quality >= 50 ? print.hash : null;
       const name = ready.fileName.replace(/\.[^.]+$/, '');
       const entry = { id: uid('P'), name, addedAt: Date.now(), pdq, mark: markHex, sha256: await sha256Hex(bytes), thumb: await thumbnail(bitmap, 160) };
       vaultPhotos.set((list) => [...list, entry]);
+      if (assetRef.current !== startedOn) {
+        bitmap.close();
+        return; // another photo was opened while this one was being shielded
+      }
       setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, unresolved, name: `${name}-veil.jpg` });
       setStage('done');
     } catch (e) {
@@ -145,10 +153,10 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
   return (
     <div className="tool tool-split">
       <section className="stage" aria-label="The photo">
-        {stage === 'done' && result ? <BeforeAfter before={ready.bitmap} after={result.bitmap} /> : <PhotoView bitmap={ready.bitmap} label={ready.fileName} />}
+        {stage === 'done' && result ? <BeforeAfter before={ready.bitmap} after={result.bitmap} afterLabel={cleanOnly ? 'Cleaned' : 'Shielded'} /> : <PhotoView bitmap={ready.bitmap} label={ready.fileName} />}
         <div className="stage-bar">
           <span className="stage-name">{ready.fileName}</span>
-          <button className="btn btn-ghost-dark btn-sm" onClick={() => closeImage()}>
+          <button className="btn btn-ghost-dark btn-sm" disabled={stage === 'working'} onClick={() => closeImage()}>
             Open another
           </button>
         </div>
@@ -206,10 +214,11 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
           <>
             <div className="verdict" data-tone="paper">
               <h1>Remove these?</h1>
-              <p>Two reads support these details. Confirm what to remove.</p>
+              <p>Veil only lists details that two separate reads agree on. Untick anything you want to keep.</p>
             </div>
-            <ul className="candidates">
-              {[...clean.state.candidates].sort((x, y) => Number(y.selected) - Number(x.selected)).map((c) => (
+            {clean.state.candidates.some((c) => c.verified !== false) ? (
+              <ul className="candidates">
+                {clean.state.candidates.filter((c) => c.verified !== false).map((c) => (
                 <li key={c.id}>
                   <label className="choice">
                     <input type="checkbox" checked={c.selected} onChange={() => clean.toggle(c.id)} />
@@ -219,8 +228,31 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                     </span>
                   </label>
                 </li>
-              ))}
-            </ul>
+                ))}
+              </ul>
+            ) : (
+              <p className="note">Nothing was confirmed by two reads in this photo.</p>
+            )}
+            {clean.state.candidates.some((c) => c.verified === false) && (
+              <details className="maybe">
+                <summary>
+                  {clean.state.candidates.filter((c) => c.verified === false).length} more that might be a street name or plate (not confirmed)
+                </summary>
+                <ul className="candidates">
+                  {clean.state.candidates.filter((c) => c.verified === false).map((c) => (
+                <li key={c.id}>
+                  <label className="choice">
+                    <input type="checkbox" checked={c.selected} onChange={() => clean.toggle(c.id)} />
+                    <span>
+                      <strong>{CATEGORY[c.category] ?? 'Text'}</strong>
+                      {c.text && <span>“{c.text}”</span>}
+                    </span>
+                  </label>
+                </li>
+                  ))}
+                </ul>
+              </details>
+            )}
             <div className="td-actions">
               <button
                 className="btn btn-lime"
@@ -273,7 +305,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                     .catch((e) => toast(String(e)))
                 }
               >
-                Save the shielded copy
+                {cleanOnly ? 'Save the clean copy' : 'Save the shielded copy'}
               </button>
               <button className="btn btn-ghost-dark" onClick={() => setStage('options')}>
                 Start over

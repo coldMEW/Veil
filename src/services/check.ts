@@ -10,8 +10,8 @@ import {
   orientThumbnailLike,
   type ThumbnailComparison,
 } from '../features/inspect/forensics/exifThumbnail';
-import {comparisonFromResult} from './compareResult';
 import { compareImages } from '../features/inspect/compare';
+import { changedRegions } from './compareRegions';
 import { bitmapToImageData, engines, type Face, type MarkResult } from './engines';
 import { markKey, payloadHex, vaultPhotos } from './vault';
 
@@ -19,19 +19,25 @@ import { markKey, payloadHex, vaultPhotos } from './vault';
 export interface Evidence {
   id: 'credentials' | 'metadata' | 'ai-model' | 'preview' | 'mark' | 'original';
   tone: 'fake' | 'real' | 'source';
+  /** 'proof' is a fact about the file; 'signal' is a model's opinion and can be wrong. */
+  strength?: 'proof' | 'signal';
   title: string;
   says: string;
   how: string;
 }
 
-export type Verdict = 'checking' | 'fake' | 'derived' | 'signed' | 'unclear';
+export type Verdict = 'checking' | 'fake' | 'suspect' | 'derived' | 'signed' | 'unclear';
 
 const AI_TYPES = new Set(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgorithmicMedia', 'algorithmicMedia', 'compositeSynthetic']);
 
 export function provenanceEvidence(r: ProvenanceResult): Evidence[] {
   const out: Evidence[] = [];
   const c = r.credentials;
-  const aiTypes = [...new Set([...c.sourceTypes, ...r.hints.sourceTypes])].filter((t) => AI_TYPES.has(t));
+  // Signed declarations (inside the manifest) and loose metadata hints are kept apart.
+  const signedAi = c.sourceTypes.filter((t) => AI_TYPES.has(t));
+  const hintedAi = r.hints.sourceTypes.filter((t) => AI_TYPES.has(t));
+  // Trust lists are not checked on the device, so an 'untrusted signer' code is expected; anything else is a real failure.
+  const realFailures = c.failures.filter((f) => !/untrusted/i.test(f.code));
   if (c.present && c.contentChanged) {
     out.push({
       id: 'credentials',
@@ -40,32 +46,33 @@ export function provenanceEvidence(r: ProvenanceResult): Evidence[] {
       says: `This picture carries Content Credentials${c.signer ? ` signed by ${c.signer}` : ''}, but its pixels no longer match what was signed.`,
       how: 'C2PA signature check with the official Content Authenticity SDK, on this device.',
     });
-  } else if (c.present && aiTypes.length) {
+  } else if (c.present && signedAi.length && !realFailures.length) {
     out.push({
       id: 'credentials',
       tone: 'fake',
       title: 'Made with AI, by its own label',
-      says: `${AI_SOURCE_TYPES[aiTypes[0]!] ?? aiTypes[0]}${c.generator ? ` (${c.generator})` : ''}. The label is signed${c.signer ? ` by ${c.signer}` : ''} and still matches the picture.`,
-      how: 'C2PA Content Credentials, read and verified on this device.',
+      says: `${AI_SOURCE_TYPES[signedAi[0]!] ?? signedAi[0]}${c.generator ? ` (${c.generator})` : ''}. The label is signed${c.signer ? ` in the name of ${c.signer}` : ''} and still matches the picture.`,
+      how: 'C2PA Content Credentials: the signature matches the picture. The signer was not checked against a trust list on this device.',
     });
-  } else if (c.present && c.sourceTypes.includes('digitalCapture') && !c.contentChanged) {
+  } else if (c.present && c.sourceTypes.includes('digitalCapture') && !c.contentChanged && !realFailures.length && c.validationState !== 'Invalid') {
     out.push({
       id: 'credentials',
       tone: 'real',
-      title: 'Signed by the camera, unchanged',
-      says: `The camera${c.signer ? ` (${c.signer})` : ''} signed this picture when it was taken, and not a pixel has changed since.`,
-      how: 'C2PA Content Credentials, read and verified on this device.',
+      title: 'Camera credentials intact',
+      says: `Content Credentials${c.signer ? ` in the name of ${c.signer}` : ''} say a camera took this picture, and the picture still matches what was signed.`,
+      how: 'C2PA signature check on this device. The signer was not checked against a trust list, so this is not proof of which camera.',
     });
   }
-  if (!out.length && (r.hints.toolNames.length || aiTypes.length)) {
+  if (!out.length && (r.hints.toolNames.length || hintedAi.length)) {
     const names = [...new Set(r.hints.toolNames)].slice(0, 3);
     out.push({
       id: 'metadata',
       tone: 'fake',
+      strength: 'signal',
       title: 'The file names an AI tool',
       says: names.length
-        ? `Hidden file data says it was made or edited with ${names.join(', ')}.`
-        : `Hidden file data declares it as ${AI_SOURCE_TYPES[aiTypes[0]!] ?? 'AI-made'}.`,
+        ? `Hidden file data names ${names.join(', ')}. Anyone can edit this data, so it is a lead, not proof.`
+        : `Hidden file data declares it as ${AI_SOURCE_TYPES[hintedAi[0]!] ?? 'AI-made'}. Anyone can edit this data, so it is a lead, not proof.`,
       how: 'Read from the XMP, EXIF and PNG text inside the original file.',
     });
   }
@@ -78,8 +85,9 @@ export function previewEvidence(cmp: ThumbnailComparison): Evidence | null {
   return {
     id: 'preview',
     tone: 'fake',
-    title: 'The hidden preview shows something else',
-    says: 'Cameras store a small preview inside each photo. This one no longer matches the picture: the picture was edited after it was taken.',
+    strength: 'signal',
+    title: 'The hidden preview differs',
+    says: 'Cameras store a small preview inside each photo. This one does not match the picture. Editing causes that, but so can an app that crops or rotates without updating the preview.',
     how: 'The embedded EXIF preview compared with the full image, cell by cell.',
   };
 }
@@ -89,8 +97,9 @@ export function aiEvidence(maxProbability: number): Evidence | null {
   return {
     id: 'ai-model',
     tone: 'fake',
-    title: 'Looks AI-generated to our model',
-    says: `Our detector, trained on images from thousands of generators, scores this picture ${Math.round(maxProbability * 100)} out of 100 for AI-made.`,
+    strength: 'signal',
+    title: 'Our AI-image model flags it',
+    says: `Our detector, trained on images from thousands of generators, scores this picture ${Math.round(maxProbability * 100)} out of 100 for AI-made. A model can be wrong: treat this as a lead, not proof.`,
     how: 'Community Forensics ViT (MIT), run on this device over three views of the picture.',
   };
 }
@@ -102,7 +111,7 @@ export function markEvidence(mark: MarkResult): Evidence | null {
   return {
     id: 'mark',
     tone: 'source',
-    title: 'Made from your photo',
+    title: 'Your Veil mark is inside',
     says: photo
       ? `Your invisible Veil mark is still inside. This picture was made from "${photo.name}", which you shielded on ${new Date(photo.addedAt).toLocaleDateString()}.`
       : 'Your invisible Veil mark is inside: this picture was made from a photo you shielded with Veil.',
@@ -121,6 +130,8 @@ export interface OriginalComparison {
   says: string;
   regions: Array<{ x: number; y: number; w: number; h: number }>;
   changed: boolean;
+  /** Aligned and compared, with no area that differs. */
+  same?: boolean;
 }
 
 /** Runs every strong check on the open image and keeps only the decisive ones. */
@@ -194,7 +205,15 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
         const a = bitmapToImageData(original, 1600);
         const b = bitmapToImageData(input.bitmap, 1600);
         const r = compareImages({ width: a.width, height: a.height, data: a.data }, { width: b.width, height: b.height, data: b.data }, input.assetId);
-        setComparison(comparisonFromResult(r));
+        const regions = changedRegions(r);
+        // A failed alignment carries evidence.alignment === null; a successful one always has it.
+        const aligned = r.execution === 'complete' && Boolean((r.evidence as { alignment?: unknown } | undefined)?.alignment);
+        setComparison({
+          says: regions.length ? r.observation : aligned ? 'Lined up with your original, nothing differs.' : r.observation,
+          regions,
+          changed: regions.length > 0,
+          same: aligned && regions.length === 0,
+        });
       } catch (e) {
         setComparison({ says: e instanceof Error ? e.message : 'The two pictures could not be compared.', regions: [], changed: false });
       }
@@ -246,8 +265,10 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
   }
   const modelFailed = model.state.status === 'failed' ? model.state.message : null;
 
-  const verdict: Verdict = evidence.some((e) => e.tone === 'fake')
+  const verdict: Verdict = evidence.some((e) => e.tone === 'fake' && e.strength !== 'signal')
     ? 'fake'
+    : evidence.some((e) => e.tone === 'fake')
+      ? 'suspect'
     : evidence.some((e) => e.tone === 'source')
       ? 'derived'
     : pending.length

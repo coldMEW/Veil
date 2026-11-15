@@ -100,7 +100,9 @@ export function platformFor(url: string): Destination | null {
 export function defaultLaw(hasOriginal: boolean): Law {
   const c = profile.get().country;
   if (c === 'EU' || c === 'UK') return 'gdpr';
-  return hasOriginal ? 'dmca' : 'policy';
+  // Copyright needs the person to confirm they took the original; Veil never assumes it.
+  void hasOriginal;
+  return 'policy';
 }
 
 export function createTicket(input: {
@@ -144,6 +146,8 @@ export function updateTicket(id: string, patch: Partial<Ticket> | ((t: Ticket) =
     list.map((t) => {
       if (t.id !== id) return t;
       const p = typeof patch === 'function' ? patch(t) : patch;
+      // The same destination is never listed twice (lookups can run more than once).
+      if (p.destinations) p.destinations = p.destinations.filter((d, i, all) => all.findIndex((o) => (o.email ?? o.reportUrl ?? o.name) === (d.email ?? d.reportUrl ?? d.name)) === i);
       return { ...t, ...p, log: logText ? [...t.log, { at: Date.now(), text: logText }] : t.log };
     }),
   );
@@ -154,7 +158,8 @@ export function deleteTicket(id: string) {
 }
 
 export function timeLeft(t: Ticket, now = Date.now()): number | null {
-  if (!t.sentAt || t.status === 'removed' || t.status === 'rejected') return null;
+  // The 48-hour removal window exists in the TAKE IT DOWN Act only; other routes have no fixed clock.
+  if (!t.sentAt || t.law !== 'take-it-down' || t.status === 'removed' || t.status === 'rejected') return null;
   return t.sentAt + HOURS_48 - now;
 }
 
@@ -169,9 +174,9 @@ export function formatLeft(ms: number): string {
 
 /** What was found, in words a person understands at a glance. */
 export function matchLabel(t: Ticket): string {
-  if (t.match.kind === 'face') return t.match.score !== null ? `Your face · ${Math.round(t.match.score * 100)}% match` : 'Your face';
+  if (t.match.kind === 'face') return t.match.score !== null ? `Matches your face (similarity ${t.match.score.toFixed(2)})` : 'Matches your face';
   if (t.match.kind === 'copy') return 'A copy of your photo';
-  if (t.match.kind === 'mark') return 'Made from your photo (Veil mark)';
+  if (t.match.kind === 'mark') return 'Carries your Veil mark';
   return 'You reported it from Check';
 }
 
@@ -198,7 +203,7 @@ export function statusLabel(t: Ticket, now = Date.now()): { label: string; tone:
     }
     default: {
       const left = timeLeft(t, now);
-      if (left === null) return { label: `Sent ${via}`.trim(), tone: 'paper' };
+      if (left === null) return { label: `Sent ${via}`.trim() + (t.sentAt ? ` · ${hours(now - t.sentAt)} ago` : ''), tone: 'paper' };
       return left < 0 ? { label: `No reply, ${formatLeft(left)}`, tone: 'alarm' } : { label: `Waiting for reply · ${formatLeft(left)}`, tone: 'paper' };
     }
   }

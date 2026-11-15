@@ -33,10 +33,56 @@ export function isLocal(url: string): boolean {
 const native = isAndroid();
 const UA = 'Mozilla/5.0 (Linux; Android 14) VeilScanner/1.0';
 
+/** Private, loopback, link-local and reserved IPv4 ranges. */
+export function privateV4(ip: string): boolean {
+  const [a = 0, b = 0] = ip.split('.').map(Number);
+  return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
+}
+
+const hostChecked = new Map<string, boolean>();
+/**
+ * The phone fetches pages itself, so it must refuse anything that is not on the public internet:
+ * a page being scanned could otherwise point Veil at a router or another device on the home network.
+ * Hostnames are resolved over DNS-over-HTTPS first; names that do not resolve to public addresses are refused.
+ */
+export async function assertPublicHost(raw: string): Promise<URL> {
+  const u = new URL(raw);
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new Error('Only http and https addresses can be scanned.');
+  if (u.username || u.password) throw new Error('Addresses with passwords are not scanned.');
+  const host = u.hostname.toLowerCase();
+  if (host.startsWith('[') || host.includes(':')) throw new Error('IPv6 addresses are not scanned.');
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {
+    if (privateV4(host)) throw new Error('Private network addresses are not scanned.');
+    return u;
+  }
+  if (host === 'localhost' || !host.includes('.') || /\.(local|internal|lan|home|localhost)$/.test(host)) throw new Error('Private network addresses are not scanned.');
+  let ok = hostChecked.get(host);
+  if (ok === undefined) {
+    const r = await CapacitorHttp.get({ url: `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(host)}&type=A`, headers: { accept: 'application/dns-json' }, connectTimeout: 8000, readTimeout: 8000 });
+    const data = (typeof r.data === 'string' ? JSON.parse(r.data) : r.data) as { Answer?: Array<{ type: number; data: string }> };
+    const ips = (data.Answer ?? []).filter((x) => x.type === 1).map((x) => x.data);
+    ok = ips.length > 0 && !ips.some(privateV4);
+    hostChecked.set(host, ok);
+  }
+  if (!ok) throw new Error('That address is not on the public internet, so Veil will not open it.');
+  return u;
+}
+
+/** Native GET with every redirect hop checked before it is followed. */
 async function nativeGet(url: string, responseType: 'text' | 'blob') {
-  const r = await CapacitorHttp.get({ url, headers: { 'user-agent': UA }, responseType, connectTimeout: 9000, readTimeout: 15000 });
-  const type = String(r.headers['Content-Type'] ?? r.headers['content-type'] ?? '').split(';')[0]!.trim();
-  return { status: r.status, type, data: r.data as string, url: r.url || url };
+  let target = url;
+  for (let hop = 0; hop < 5; hop++) {
+    await assertPublicHost(target);
+    const r = await CapacitorHttp.get({ url: target, headers: { 'user-agent': UA }, responseType, connectTimeout: 9000, readTimeout: 15000, disableRedirects: true });
+    const headers = Object.fromEntries(Object.entries(r.headers ?? {}).map(([k, v]) => [k.toLowerCase(), String(v)]));
+    if (r.status >= 300 && r.status < 400 && headers.location) {
+      target = new URL(headers.location, target).href;
+      continue;
+    }
+    const type = String(headers['content-type'] ?? '').split(';')[0]!.trim();
+    return { status: r.status, type, data: r.data as string, url: target };
+  }
+  throw new Error('Too many redirects.');
 }
 
 async function call<T>(action: string, url: string): Promise<T> {

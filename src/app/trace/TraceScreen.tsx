@@ -9,22 +9,6 @@ import { toast } from '../App';
 import { pendingTrace } from './pending';
 import { ArtFace, ArtTrace } from '../shared/Art';
 
-async function thumbOf(bitmap: ImageBitmap, face: Face): Promise<string> {
-  const pad = 0.35;
-  const x = Math.max(0, (face.box.x - face.box.w * pad) * bitmap.width);
-  const y = Math.max(0, (face.box.y - face.box.h * pad) * bitmap.height);
-  const w = Math.min(bitmap.width - x, face.box.w * (1 + 2 * pad) * bitmap.width);
-  const h = Math.min(bitmap.height - y, face.box.h * (1 + 2 * pad) * bitmap.height);
-  const c = new OffscreenCanvas(96, 96);
-  c.getContext('2d')!.drawImage(bitmap, x, y, w, h, 0, 0, 96, 96);
-  const blob = await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
-  return await new Promise((r) => {
-    const fr = new FileReader();
-    fr.onload = () => r(String(fr.result));
-    fr.readAsDataURL(blob);
-  });
-}
-
 async function enrol(bitmap: ImageBitmap, face?: Face): Promise<string | null> {
   const fe = await engines.face();
   if (!fe) return 'The face engine is not in this build yet.';
@@ -32,7 +16,7 @@ async function enrol(bitmap: ImageBitmap, face?: Face): Promise<string | null> {
   if (!faces.length) return 'No face found in that picture. Try a clear, front-facing selfie.';
   if (faces.length > 1 && !face) return 'That picture has more than one face. Use a selfie with only you in it.';
   const f = faces[0]!;
-  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), await thumbOf(bitmap, f));
+  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), '');
   return null;
 }
 
@@ -52,6 +36,9 @@ export default function TraceScreen() {
   const [progress, setProgress] = useState<ScanProgress | null>(null);
   const [hunt, setHunt] = useState<HuntProgress | null>(null);
   const abort = useRef<AbortController | null>(null);
+
+  // Leaving the screen stops any search in flight.
+  useEffect(() => () => abort.current?.abort(), []);
 
   // A face handed over from Check is added once, with consent implied by the tap that sent it.
   useEffect(() => {
@@ -115,7 +102,7 @@ export default function TraceScreen() {
           <ul className="vault-list">
             {faces.map((f) => (
               <li key={f.id}>
-                <img src={f.thumb} alt="" width="56" height="56" />
+                <span className="vault-avatar" aria-hidden="true"><ArtFace /></span>
                 <span>
                   <strong>{f.label}</strong>
                   <span className="num">added {new Date(f.addedAt).toLocaleDateString()}</span>
@@ -274,7 +261,7 @@ function HitGrid({ hits }: { hits: ScanHit[] }) {
           <div>
             <p className="hit-label" data-kind={h.kind}>
               {h.label}
-              {h.kind === 'face' && <span className="num"> · {Math.round(h.score * 100)}</span>}
+              {h.kind === 'face' && <span className="num hit-score"> similarity {h.score.toFixed(2)}</span>}
             </p>
             <p className="small hit-url">{siteOf(h.pageUrl)}</p>
             <a className="btn btn-alarm btn-sm" href={href('tickets', h.ticketId)}>Open ticket</a>
@@ -303,7 +290,8 @@ function HuntResults({ p }: { p: HuntProgress }) {
           {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> candidates against your face, on this device</>}
           {p.stage === 'done' && (p.hits.length
             ? <><strong className="num">{p.hits.length}</strong> of {p.candidates} candidates are confirmed as your face on this device. Tickets are open.</>
-            : <>None of the {p.candidates} candidates is your face{p.faces ? ` (${p.faces} other faces checked)` : ''}. Similar-looking pictures are not counted.</>)}
+            : <>Your face was not found in the {p.checked} candidates Veil could check{p.skipped ? `; ${p.skipped} more could not be loaded` : ''}. This covers what the search engines returned, not the whole web.</>)}
+          {p.stage === 'cancelled' && <>Search stopped before it finished.</>}
           {p.stage === 'failed' && <>The search failed: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}
@@ -323,7 +311,8 @@ function Results({ p }: { p: ScanProgress }) {
           {p.stage === 'checking' && <>Checking <span className="num">{p.done}</span> of <span className="num">{p.total}</span> pictures</>}
           {p.stage === 'done' && (p.hits.length
             ? <><strong className="num">{p.hits.length}</strong> {p.hits.length === 1 ? 'picture shows' : 'pictures show'} you. Tickets are open.</>
-            : <>No picture on this page matches your face{p.faces ? ` (${p.faces} other faces seen)` : ''}.</>)}
+            : <>Your face was not found in the {p.done - p.skipped} pictures Veil could read on this page{p.skipped ? `; ${p.skipped} could not be loaded` : ''}.</>)}
+          {p.stage === 'cancelled' && <>Scan stopped before it finished.</>}
           {p.stage === 'failed' && <>Could not scan: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}

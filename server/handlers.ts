@@ -65,7 +65,8 @@ async function assertPublic(raw: string): Promise<URL> {
   if (url.username || url.password) throw new HttpError(400, 'Addresses with passwords are not scanned.');
   const host = url.hostname.replace(/^\[|\]$/g, '');
   const addresses = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => []);
-  if (!addresses.length) throw new HttpError(404, `Could not find ${host}.`);
+  // 502, not 404: a failed lookup says nothing about whether the page still exists.
+  if (!addresses.length) throw new HttpError(502, `Could not find ${host}.`);
   if (addresses.some((a) => privateAddress(a.address)))
     throw new HttpError(400, 'Private network addresses are not scanned.');
   return url;
@@ -179,7 +180,7 @@ export async function urlStatus(raw: string): Promise<{ status: number; gone: bo
     await res.body?.cancel();
     return { status: res.status, gone: res.status === 404 || res.status === 410 || res.status === 451 };
   } catch (e) {
-    if (e instanceof HttpError && e.status === 404) return { status: 404, gone: true };
+    // Only an HTTP answer from the site can show removal. Lookup errors and timeouts are unknown.
     throw e;
   }
 }

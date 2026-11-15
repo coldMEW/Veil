@@ -360,3 +360,14 @@
   .tool-check .photo { max-height: 34svh; }
   .tool-check .photo canvas { max-height: calc(34svh - 24px); }
 }
+
+.maybe { background: var(--char-2); border-radius: var(--r-card); padding: 4px 16px; }
+.maybe summary { cursor: pointer; min-height: 48px; display: flex; align-items: center; font-weight: 600; font-size: 15px; color: var(--on-dark-soft); }
+.maybe[open] { padding-bottom: 12px; }
+.maybe .choice { background: var(--char-3); }
+.vault-avatar { width: 56px; height: 56px; border-radius: 50%; background: rgba(17,17,17,0.1); display: grid; place-items: center; overflow: hidden; color: var(--ink); } .vault-avatar .art { width: 90%; }
+
+@media (max-width: 860px) {
+  .tabs-inline { flex-wrap: nowrap; }
+  .tabs-inline button { flex: 1 1 0; min-width: 0; font-size: 15px !important; padding: 0 8px !important; line-height: 1.05; white-space: normal; }
+}

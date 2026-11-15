@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { HeroBook } from './HeroBook';
-import { CheckChapter, TraceChapter, TakedownChapter, ShieldChapter, RulesChapter, Faq, Closing, Footer } from './Chapters';
+import { CheckChapter, TraceChapter, TakedownChapter, ShieldChapter, RulesChapter, Pricing, Faq, Closing, Footer } from './Chapters';
 import { navigate, href } from '../router';
 import { openImageFile } from '../../lib/runtime/imageSession';
 import './home.css';
@@ -10,6 +10,7 @@ const SECTIONS = [
   { id: 'trace', label: 'Find my face', colour: 'sky' },
   { id: 'takedown', label: 'Take it down', colour: 'alarm' },
   { id: 'shield', label: 'Shield', colour: 'paper' },
+  { id: 'pricing', label: 'Pricing', colour: 'char' },
   { id: 'questions', label: 'Questions', colour: 'char' },
 ];
 
@@ -86,6 +87,7 @@ export function Home() {
       <TakedownChapter />
       <ShieldChapter />
       <RulesChapter />
+      <Pricing />
       <Faq />
       <Closing onPick={pick} />
       <Footer />

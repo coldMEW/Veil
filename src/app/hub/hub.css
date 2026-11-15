@@ -66,3 +66,9 @@
   .hub { padding-top: 24px; }
   .hub-cards { grid-template-columns: 1fr 1fr; }
 }
+
+.hub-card:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 150px; grid-template-columns: 1.4fr 1fr; grid-template-rows: 1fr; align-items: center; }
+.hub-card:last-child:nth-child(odd) .hub-card-art { width: 70%; max-width: 160px; }
+.hub-card[data-colour='char'] { background: var(--char-3); color: var(--on-dark); }
+.hub-card[data-colour='char'] .hub-card-go { background: rgba(255, 255, 255, 0.12); }
+.hub-card[data-colour='char'] .hub-card-art { color: var(--on-dark); }

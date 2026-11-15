@@ -1,6 +1,6 @@
 # One-command local verification
 
-From the repository root, install the locked Node dependencies (`npm ci`), Chromium (`npx playwright install chromium`) and Python3.11 dependencies (`python -m pip install Pillow numpy`). Fetch pinned models with `node scripts/fetch-models.mjs` and `node scripts/export/fetch-models.mjs --only migan,ocr-det-v3,ocr-rec-en,ocr-dict-en`. No other Python packages are used.
+From the repository root, install the locked Node dependencies (`npm ci`), Chromium (`npx playwright install chromium`) and Python3.11 dependencies (`python -m pip install Pillow numpy`). Fetch pinned models with `node scripts/fetch-models.mjs` and `node scripts/export/fetch-models.mjs --only migan,ocr-det-v3,ocr-rec-en,ocr-dict-en`. The backend step additionally needs `backend/requirements.txt` installed in an external virtual environment.
 
 ```powershell
 python scripts/verify/run.py --serve --url http://localhost:5192/
@@ -21,3 +21,23 @@ Acceptance:
 Drivers emit a single VEIL_VERIFY_JSON record and use VEIL_URL/VEIL_OUT. Arbitrary driver stdout is not persisted, protecting private error details. Drivers use fresh browser contexts. Shield keeps one context across export/repost so its private mark key persists. Repeated uploads use full document navigation to prevent hitting the comparison-original picker on a stale screen.
 
 Synthetic Python tests: `python -m unittest discover -s scripts/verify -p test_run.py`. Server tests: `npx vitest run server --testTimeout=20000`. DNS/fetch are mocked in server tests; the existing validation-then-fetch DNS rebinding race is not eliminated by these guard tests.
+
+
+## Python backend acceptance
+
+Install `backend/requirements.txt` in an external Python 3.11 virtual environment. The verification runner now
+boots its own backend on port 8787 with a fresh SQLite database in its external output folder, then tests
+real `/api/scan`, `/api/host`, `/api/hunt` (a public Wikimedia landmark), SSRF rejection and ticket events.
+It does not send an email. Bing/Lens failures remain explicit; Yandex must return the source page for acceptance.
+The runner fails if port 8787 is occupied instead of taking over another server.
+
+```powershell
+python scripts/verify/run.py --backend-only --backend-python C:\path\to\venv\Scripts\python.exe
+# Standalone acceptance (no numpy needed):
+C:\path\to\venv\Scripts\python.exe scripts/verify/backend_acceptance.py --out C:\private\backend-new
+```
+
+The complete runner still needs numpy/Pillow in its invoking interpreter. `--backend-python` selects only
+the interpreter used to start the backend and its acceptance script. Real network conditions can fail this
+step; no cached response replaces a live provider failure. `--existing` on the standalone script deliberately
+uses an existing backend and should only target a disposable acceptance database.

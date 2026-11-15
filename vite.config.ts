@@ -12,8 +12,13 @@ const isolationHeaders = {
 };
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), veilApi()],
-  server: { headers: isolationHeaders },
+  plugins: [react(), tailwindcss(), ...(process.env.VEIL_BACKEND === 'python' ? [] : [veilApi()])],
+  server: {
+    headers: isolationHeaders,
+    ...(process.env.VEIL_BACKEND === 'python'
+      ? { proxy: { '/api': { target: 'http://127.0.0.1:8787', changeOrigin: false } } }
+      : {}),
+  },
   preview: { headers: isolationHeaders },
   build: {
     sourcemap: false,

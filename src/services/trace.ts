@@ -16,7 +16,7 @@ export interface ScanHit {
 }
 
 export interface ScanProgress {
-  stage: 'reading' | 'checking' | 'done' | 'failed';
+  stage: 'reading' | 'checking' | 'done' | 'failed' | 'cancelled';
   page: string;
   total: number;
   done: number;
@@ -26,11 +26,14 @@ export interface ScanProgress {
   error?: string;
 }
 
+/** Below this PDQ quality a hash is not distinctive enough to compare (Meta's guidance is 50). */
+export const PDQ_MIN_QUALITY = 50;
+
 export const watchlist = persisted<Array<{ url: string; addedAt: number; lastScan: number | null; hits: number }>>('veil.watch.v1', []);
 
 const MAX_IMAGES = 40;
 
-export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHit | null | 'faces'> {
+export async function examine(imageUrl: string, pageUrl: string, signal?: AbortSignal): Promise<ScanHit | null | 'faces'> {
   const blob = await fetchImageBytes(imageUrl);
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   try {
@@ -51,8 +54,9 @@ export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHi
     }
     // 2. A copy of a photo you registered (PDQ, survives resizing and recompression).
     if (!best && fp && vaultPhotos.get().length) {
-      const { hash } = await fp.pdqHash(bitmapToImageData(bitmap, 512));
-      for (const p of vaultPhotos.get()) {
+      const { hash, quality } = await fp.pdqHash(bitmapToImageData(bitmap, 512));
+      // Flat or near-empty pictures hash alike (quality near 0); they can never count as a copy.
+      for (const p of quality >= PDQ_MIN_QUALITY ? vaultPhotos.get() : []) {
         if (!p.pdq) continue;
         const d = fp.hamming(hash, p.pdq);
         if (d <= (fp.PDQ_MATCH_THRESHOLD ?? PDQ_MATCH)) {
@@ -79,6 +83,8 @@ export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHi
     }
     if (!best) return sawFace ? 'faces' : null;
 
+    // A cancelled search must not leave tickets behind.
+    if (signal?.aborted) return null;
     const thumb = await thumbnail(bitmap);
     const sha = await sha256Hex(new Uint8Array(await blob.arrayBuffer()));
     const detail =
@@ -116,7 +122,7 @@ export async function scan(url: string, onProgress: (p: ScanProgress) => void, s
       while (next < images.length && !signal?.aborted) {
         const img = images[next++]!;
         try {
-          const r = await examine(img.url, page.pageUrl);
+          const r = await examine(img.url, page.pageUrl, signal);
           if (r === 'faces') p.faces++;
           else if (r) {
             p.faces++;
@@ -130,13 +136,14 @@ export async function scan(url: string, onProgress: (p: ScanProgress) => void, s
       }
     };
     await Promise.all([worker(), worker(), worker()]);
-    p.stage = 'done';
+    p.stage = signal?.aborted ? 'cancelled' : 'done';
   } catch (e) {
     p.stage = 'failed';
     p.error = e instanceof Error ? e.message : 'The page could not be scanned.';
   }
   onProgress({ ...p });
-  watchlist.set((list) => list.map((w) => (w.url === url ? { ...w, lastScan: Date.now(), hits: p.hits.length } : w)));
+  // Only a finished scan updates the watchlist; a failed or cancelled one keeps the earlier result.
+  if (p.stage === 'done') watchlist.set((list) => list.map((w) => (w.url === url ? { ...w, lastScan: Date.now(), hits: p.hits.length } : w)));
   return p;
 }
 

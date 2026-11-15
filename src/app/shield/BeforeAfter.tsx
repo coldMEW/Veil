@@ -9,7 +9,7 @@ function draw(c: HTMLCanvasElement | null, b: ImageBitmap) {
 }
 
 /** Drag to compare. The handle follows the pointer; arrow keys move it too. */
-export function BeforeAfter({ before, after }: { before: ImageBitmap; after: ImageBitmap }) {
+export function BeforeAfter({ before, after, afterLabel = 'Shielded' }: { before: ImageBitmap; after: ImageBitmap; afterLabel?: string }) {
   const a = useRef<HTMLCanvasElement>(null);
   const b = useRef<HTMLCanvasElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -51,7 +51,7 @@ export function BeforeAfter({ before, after }: { before: ImageBitmap; after: Ima
           }}
         />
         <span className="ba-tag ba-tag-l">Before</span>
-        <span className="ba-tag ba-tag-r">Shielded</span>
+        <span className="ba-tag ba-tag-r">{afterLabel}</span>
       </div>
     </div>
   );

@@ -428,3 +428,25 @@ details[open] .plus::after { transform: rotate(0deg); }
   .hero-copy { grid-template-columns: 1fr !important; top: calc(64px + 1vh) !important; }
   .hero-copy h1 { font-size: 15vw !important; }
 }
+
+/* ---------- Pricing ---------- */
+.ch-pricing { display: grid; gap: 40px; }
+.pricing-head { display: grid; gap: 16px; }
+.plans { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: stretch; }
+.plan { border-radius: 30px; padding: 28px 26px; display: grid; gap: 14px; align-content: start; grid-template-rows: auto auto auto 1fr auto auto; }
+.plan h3 { font-size: 34px; }
+.plan-price { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.plan-price strong { font-family: var(--display); font-weight: 800; font-size: 72px; line-height: 0.9; }
+.plan-price span { font-size: 16px; font-weight: 500; }
+.plan-line { font-size: 18px; font-weight: 500; }
+.plan ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 16px; align-content: start; }
+.plan li { padding-left: 22px; position: relative; }
+.plan li::before { content: ''; position: absolute; left: 0; top: 0.5em; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); }
+.plan-why { font-size: 14px; line-height: 1.45; padding: 12px 14px; border-radius: 16px; background: rgba(17, 17, 17, 0.08); }
+.plan-soon { font-weight: 600; font-size: 15px; min-height: 52px; display: flex; align-items: center; }
+.plan-schools { border-radius: 30px; padding: 28px 26px; background: var(--char-2); display: grid; grid-template-columns: minmax(0, 1.6fr) auto; gap: 24px; align-items: center; }
+.plan-schools h3 { font-size: 34px; margin-bottom: 10px; }
+.plan-schools p { font-size: 17px; max-width: 62ch; }
+.plan-schools .plan-price strong { color: var(--lime); }
+@media (max-width: 1000px) { .plans { grid-template-columns: 1fr; } .plan-schools { grid-template-columns: 1fr; } }
+.chapter, .ch-takedown { scroll-margin-top: 72px; }
