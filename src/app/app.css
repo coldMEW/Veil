@@ -337,3 +337,8 @@
 .empty-note > :not(.empty-art) { grid-column: 1; }
 .empty-note .empty-art { grid-column: 2; grid-row: 1 / span 3; width: min(420px, 100%); justify-self: center; }
 @media (max-width: 860px) { .empty-note { grid-template-columns: 1fr; } .empty-note .empty-art { grid-column: 1; grid-row: auto; width: 70%; } }
+.replies { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.replies li { background: var(--white); border-radius: var(--r-card); padding: 12px 14px; border-left: 6px solid var(--paper-3); font-size: 15px; }
+.replies li[data-verdict='removed'] { border-left-color: var(--ok); }
+.replies li[data-verdict='rejected'], .replies li[data-verdict='needs_info'] { border-left-color: var(--alarm); }
+.replies li p { margin-top: 4px; color: var(--ink-soft); }

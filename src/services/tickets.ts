@@ -2,7 +2,7 @@ import { persisted, uid } from './store';
 
 export type MatchKind = 'face' | 'copy' | 'mark' | 'manual';
 export type Law = 'policy' | 'take-it-down' | 'dmca' | 'gdpr';
-export type TicketStatus = 'ready' | 'sent' | 'removed';
+export type TicketStatus = 'ready' | 'sent' | 'acknowledged' | 'needs_info' | 'rejected' | 'removed';
 
 export interface Destination {
   name: string;
@@ -33,6 +33,9 @@ export interface Ticket {
   lastCheckedAt: number | null;
   lastCheck: string | null;
   log: Array<{ at: number; text: string }>;
+  sentVia?: 'gmail' | 'mail-app' | 'form' | 'mailto' | null;
+  gmailThreadId?: string | null;
+  replies?: Array<{ at: number; from: string; snippet: string; verdict: string; messageId: string }>;
 }
 
 export const tickets = persisted<Ticket[]>('veil.tickets.v1', []);
@@ -151,7 +154,7 @@ export function deleteTicket(id: string) {
 }
 
 export function timeLeft(t: Ticket, now = Date.now()): number | null {
-  if (t.status !== 'sent' || !t.sentAt) return null;
+  if (!t.sentAt || t.status === 'removed' || t.status === 'rejected') return null;
   return t.sentAt + HOURS_48 - now;
 }
 
