@@ -251,7 +251,11 @@ export async function hostInfo(raw: string): Promise<HostInfo> {
 }
 
 /** Route a request path to a handler. Returns a web Response. */
-export async function handleApi(pathname: string, params: URLSearchParams): Promise<Response> {
+export async function handleApi(pathname: string, params: URLSearchParams, request?: Request): Promise<Response> {
+  if (pathname === '/api/hunt') {
+    const { POST } = await import('../api/hunt');
+    return POST(request ?? new Request('http://localhost/api/hunt'));
+  }
   const target = params.get('url') ?? '';
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {

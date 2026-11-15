@@ -18,7 +18,7 @@ const CATEGORY: Record<string, string> = {
   plate: 'Licence plate',
   email: 'Email address',
   phone: 'Phone number',
-  room_or_id_number: 'House, room or ID number',
+  room_or_id_number: 'Number',
   other_text: 'Other text',
   manual: 'Area you marked',
   face: 'Face',
@@ -30,6 +30,7 @@ interface Result {
   bitmap: ImageBitmap;
   marked: boolean;
   removed: number;
+  unresolved: number;
   name: string;
 }
 
@@ -51,7 +52,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
     setResult(null);
   }, [ready?.asset.id]);
 
-  const finish = async (base: ImageBitmap, removed: number) => {
+  const finish = async (base: ImageBitmap, removed: number, unresolved = 0) => {
     if (!ready || finishing.current) return;
     finishing.current = true;
     try {
@@ -83,7 +84,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
       const name = ready.fileName.replace(/\.[^.]+$/, '');
       const entry = { id: uid('P'), name, addedAt: Date.now(), pdq, mark: markHex, sha256: await sha256Hex(bytes), thumb: await thumbnail(bitmap, 160) };
       vaultPhotos.set((list) => [...list, entry]);
-      setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, name: `${name}-veil.jpg` });
+      setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, unresolved, name: `${name}-veil.jpg` });
       setStage('done');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Shielding failed.');
@@ -95,7 +96,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
 
   // Clean finished: carry on with its pixels.
   useEffect(() => {
-    if (clean.state.status === 'done' && stage === 'working') void finish(clean.state.preview, clean.state.selectedCount);
+    if (clean.state.status === 'done' && stage === 'working') { const remaining = clean.state.rescan.stillDetected.length; void finish(clean.state.preview, Math.max(0, clean.state.selectedCount - remaining), remaining); }
     if (clean.state.status === 'review' && stage === 'working') {
       if (clean.state.candidates.length === 0 && ready) void finish(ready.bitmap, 0);
       else setStage('review');
@@ -205,7 +206,7 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
           <>
             <div className="verdict" data-tone="paper">
               <h1>Remove these?</h1>
-              <p>Veil picked the ones that give away where you are. Untick anything you want to keep.</p>
+              <p>Two reads support these details. Confirm what to remove.</p>
             </div>
             <ul className="candidates">
               {[...clean.state.candidates].sort((x, y) => Number(y.selected) - Number(x.selected)).map((c) => (
@@ -253,9 +254,11 @@ export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'c
                   <h2>
                     {result.removed} {result.removed === 1 ? 'detail' : 'details'} painted out
                   </h2>
-                  <p>Veil scanned the new copy again and no longer finds the selected text. That is not a guarantee nothing else gives your location away.</p>
+                  <p>The export was scanned again. Review any remaining-text warning and inspect the copy before posting.</p>
                 </li>
               )}
+              {result.unresolved > 0 && <li data-tone="alarm"><h2>Text still needs review</h2><p>Some selected text was detected again. Check the copy before posting.</p></li>}
+              {wipe && result.removed === 0 && result.unresolved === 0 && <li data-tone="source"><h2>Review the visible details</h2><p>No private text passed the double-check. Nothing was painted out.</p></li>}
               <li data-tone="real">
                 <h2>No location data</h2>
                 <p>The new file was written from pixels only, so GPS, camera and time data are gone.</p>

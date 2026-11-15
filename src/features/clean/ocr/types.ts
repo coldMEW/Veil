@@ -18,12 +18,16 @@ export interface OcrBox extends Omit<Detection, 'quad'> {
   category?: PrivacyCategory;
   text: string;
   recScore: number;
+  /** Agreement on a second crop, not proof that text is private or correct. */
+  verification?: { matched: boolean; score: number };
 }
 export interface TensorData {
   data: Float32Array;
   dims: readonly number[];
 }
 export interface ScanOptions {
+  /** Re-read privacy candidates on a slightly expanded original-pixel crop. */
+  verifyCandidates?: boolean;
   /** Extra counterclockwise quarter-turn detector pass for steep/vertical lines. */
   rotateTiles?: boolean;
   tileSize?: number;
