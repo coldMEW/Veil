@@ -25,8 +25,9 @@ export function Home() {
   return (
     <div className="home">
       <header className="home-bar">
-        <a className="wordmark" href={href('home')}>
-          Veil
+        <a className="brand" href={href('home')} aria-label="Veil home">
+          <img src="/brand/veil-64.png" alt="" width="38" height="38" />
+          <span className="wordmark">Veil</span>
         </a>
         <a className="home-bar-link" href={href('tickets')}>
           My tickets

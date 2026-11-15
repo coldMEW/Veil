@@ -16,8 +16,9 @@ export function Shell({ route, children }: { route: Route; children: ReactNode }
   return (
     <div className="app" data-chapter={colour}>
       <header className="bar">
-        <a className="wordmark" href={href('home')} aria-label="Veil home">
-          Veil
+        <a className="brand" href={href('home')} aria-label="Veil home">
+          <img src="/brand/veil-64.png" alt="" width="38" height="38" />
+          <span className="wordmark">Veil</span>
         </a>
         <nav className="bar-nav" aria-label="Tools">
           {CHAPTERS.map((c) => (
