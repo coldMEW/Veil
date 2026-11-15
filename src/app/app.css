@@ -273,3 +273,22 @@
   .tabs a:not([aria-current])::before { inset: 0 18px auto 18px; border-radius: 0 0 4px 4px; }
   .brand img { width: 32px; height: 32px; border-radius: 9px; }
 }
+
+/* ---------- Tab bar v2: five tabs, icon over label, the current one is a coloured pill ---------- */
+@media (max-width: 860px) {
+  .tabs { grid-template-columns: repeat(5, 1fr) !important; }
+  .tabs a { display: grid !important; place-items: center; align-content: center; gap: 2px; font-size: 13px !important; font-family: var(--text) !important; font-weight: 600 !important; text-transform: none !important; min-height: 58px !important; }
+  .tabs a:not([aria-current]) { background: transparent !important; color: var(--on-dark-soft) !important; }
+  .tabs a:not([aria-current])::before { display: none; }
+  .tabs a[aria-current='page'] { transform: none !important; }
+  .tabs a[data-colour='home'][aria-current='page'] { background: var(--white); color: var(--ink); }
+  .tabs a svg { transition: transform var(--t-med) var(--ease); }
+  .tabs a[aria-current='page'] svg { transform: translateY(-1px) scale(1.08); }
+  .tabs .count { top: 4px !important; right: 10px !important; }
+}
+.app[data-chapter='night'] { --ch: var(--char); --ch-ink: var(--on-dark); }
+.app[data-chapter='night'] .bar { background: var(--night); }
+.bar-nav a { border-radius: 14px; margin: 8px 0; }
+.bar-nav a::after { display: none; }
+.bar-nav a[aria-current='page'] { outline: 3px solid var(--ch-ink); outline-offset: -3px; }
+.empty-art { width: min(320px, 70vw); color: var(--ch, var(--lime)); }

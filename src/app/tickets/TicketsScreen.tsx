@@ -17,6 +17,7 @@ import { evidencePack, LAW_LABEL, LAW_NOTE, mailtoFor, noticeBody, noticeSubject
 import { hostInfo, urlStatus } from '../../services/api';
 import { href, navigate } from '../router';
 import { toast } from '../App';
+import { ArtTakedown } from '../shared/Art';
 
 function useNow(ms = 30000) {
   const [now, setNow] = useState(Date.now());
@@ -47,6 +48,7 @@ export default function TicketsScreen({ ticketId }: { ticketId: string | null })
         <h1 id="tickets-title">Take it down</h1>
         {list.length === 0 ? (
           <div className="empty-note">
+            <div className="empty-art"><ArtTakedown /></div>
             <p>No tickets yet. A ticket opens by itself when Veil finds your face or your photo somewhere, or when you report a fake from Check.</p>
             <a className="btn btn-alarm" href={href('trace')}>
               Find my face online

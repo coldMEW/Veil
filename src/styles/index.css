@@ -8,27 +8,27 @@
 
 /* Veil — "Colour chapters". Black-and-white night scene, then one flat field per job. */
 :root {
-  --night: #141414;
-  --char: #1f1f1f;
-  --char-2: #2a2a2a;
-  --char-3: #363636;
-  --char-4: #4a4a4a;
+  --night: #101114;
+  --char: #17181c;
+  --char-2: #1f2026;
+  --char-3: #2a2b33;
+  --char-4: #3b3c46;
   --char-5: #6e6e6e;
-  --paper: #f2f1ec;
-  --paper-2: #e6e4dd;
-  --paper-3: #d8d5cc;
+  --paper: #f5efe4;
+  --paper-2: #ebe3d4;
+  --paper-3: #ddd3c1;
   --white: #ffffff;
   --ink: #111111;
   --ink-soft: #3a3a3a;
   --on-dark: #f5f5f2;
   --on-dark-soft: #c4c4bf;
 
-  --lime: #d4f36b;      /* the accent: primary action, "Check" chapter */
-  --lime-2: #c2e650;
-  --sky: #7cc4ff;       /* "Trace" chapter */
-  --sky-2: #5fb3f7;
-  --alarm: #ff5a45;     /* "Take down" chapter, and found fakes */
-  --alarm-2: #f04530;
+  --lime: #c8f56a;      /* the accent: primary action, "Check" chapter */
+  --lime-2: #b7e852;
+  --sky: #8fcaff;       /* "Trace" chapter */
+  --sky-2: #74bbf8;
+  --alarm: #ff6f5b;     /* "Take down" chapter, and found fakes */
+  --alarm-2: #f25a45;
   --alarm-ink: #5c0d04;
   --ok: #1d7a3a;
 
@@ -83,6 +83,7 @@ p { margin: 0; }
 
 /* ---------- Buttons: one shape (square, 4px), flat fills ---------- */
 .btn {
+  border-radius: var(--r-pill) !important;
   display: inline-flex; align-items: center; justify-content: center; gap: 10px;
   min-height: 52px; max-width: 100%; padding: 10px 24px; border: 0; border-radius: var(--radius);
   font-family: var(--display); font-weight: 700; font-size: 21px; line-height: 1.05; letter-spacing: 0.01em; text-transform: uppercase;

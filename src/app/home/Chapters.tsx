@@ -57,7 +57,6 @@ export function CheckChapter({ onPick }: { onPick: () => void }) {
           <p className="verdict-title">{c.title}</p>
           <p className="verdict-says">{c.says}</p>
         </div>
-        <p className="check-fact">{c.fact}</p>
       </div>
       <div className="check-list">
         <h2 id="check-title">Is it really you?</h2>
@@ -71,6 +70,7 @@ export function CheckChapter({ onPick }: { onPick: () => void }) {
             </li>
           ))}
         </ul>
+        <p className="check-fact" aria-live="polite">{c.fact}</p>
         <button className="btn btn-ink" onClick={onPick}>
           Check an image
         </button>

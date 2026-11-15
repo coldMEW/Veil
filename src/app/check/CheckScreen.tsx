@@ -8,6 +8,7 @@ import { navigate } from '../router';
 import { toast } from '../App';
 import { PhotoView } from '../shared/PhotoView';
 import { DropZone } from '../shared/DropZone';
+import { ArtCheck } from '../shared/Art';
 import { pendingTrace } from '../trace/pending';
 
 const VERDICT: Record<Verdict, { title: string; line: string; tone: string }> = {
@@ -74,6 +75,7 @@ export default function CheckScreen() {
     return (
       <div className="tool tool-empty">
         <DropZone
+          art={<ArtCheck />}
           title="Is it really you?"
           line="Drop a picture, or choose one. Veil checks it on your device and shows only what it can prove."
           busy={session.status === 'loading' || loadingUrl}

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { HeroBook } from './HeroBook';
 import { CheckChapter, TraceChapter, TakedownChapter, ShieldChapter, RulesChapter, Faq, Closing, Footer } from './Chapters';
 import { navigate, href } from '../router';
@@ -15,6 +15,17 @@ const SWATCHES = [
 
 export function Home() {
   const fileRef = useRef<HTMLInputElement>(null);
+  const [active, setActive] = useState<string | null>(null);
+  // The rail marks the chapter you are reading.
+  useEffect(() => {
+    const ids = SWATCHES.map((s) => s.id);
+    const io = new IntersectionObserver(
+      (entries) => entries.forEach((e) => e.isIntersecting && setActive(e.target.id)),
+      { rootMargin: '-45% 0px -50% 0px' },
+    );
+    ids.forEach((id) => { const el = document.getElementById(id); if (el) io.observe(el); });
+    return () => io.disconnect();
+  }, []);
   const pick = () => fileRef.current?.click();
   const onFile = (file: File | undefined) => {
     if (!file) return;
@@ -36,7 +47,7 @@ export function Home() {
 
       <nav className="swatches" aria-label="Sections">
         {SWATCHES.map((s) => (
-          <a key={s.id} href={`#${s.id}`} data-colour={s.colour} onClick={(e) => {
+          <a key={s.id} href={`#${s.id}`} data-colour={s.colour} data-active={active === s.id || undefined} onClick={(e) => {
             e.preventDefault();
             document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth' });
           }}>

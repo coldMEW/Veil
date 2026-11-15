@@ -8,6 +8,7 @@ import { isAndroid } from '../../platform/environment';
 import { saveCleanCopy } from '../../platform/native';
 import { uid } from '../../services/store';
 import { DropZone } from '../shared/DropZone';
+import { ArtShield } from '../shared/Art';
 import { PhotoView } from '../shared/PhotoView';
 import { BeforeAfter } from './BeforeAfter';
 import { toast } from '../App';
@@ -122,6 +123,7 @@ export default function ShieldScreen() {
     return (
       <div className="tool tool-empty">
         <DropZone
+          art={<ArtShield />}
           title="Shield it first"
           line="Before you post a photo, Veil hides your mark in it, removes location data and paints out street signs and house numbers."
           busy={session.status === 'loading'}

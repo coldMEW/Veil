@@ -7,8 +7,10 @@ export function DropZone({
   error,
   onFile,
   cta = 'Choose a picture',
+  art,
   children,
 }: {
+  art?: ReactNode;
   title: string;
   line: string;
   busy?: boolean;
@@ -35,6 +37,7 @@ export function DropZone({
         if (f) onFile(f);
       }}
     >
+      {art && <div className="empty-art">{art}</div>}
       <h1>{title}</h1>
       <p className="dropzone-line">{line}</p>
       <button className="btn btn-lime" disabled={busy} onClick={() => input.current?.click()}>
