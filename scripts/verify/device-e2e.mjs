@@ -1,7 +1,9 @@
 // Drives the installed Android app through its WebView debug port (debug builds only).
 // adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>, then: node scripts/verify/device-e2e.mjs
 import { chromium } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+const ADB = process.env.ADB ?? 'C:/Users/DSU/Android/Sdk/platform-tools/adb.exe';
 const out = process.env.VEIL_OUT ?? '../scratch-eval/shots';
 const browser = await chromium.connectOverCDP('http://localhost:9333');
 const page = browser.contexts()[0].pages()[0];
@@ -18,7 +20,8 @@ const give = async (selector, path, name) => {
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, [selector, b64, name]);
 };
-const shot = (n) => page.screenshot({ path: `${out}/device-${n}.png` });
+// WebView screenshots over CDP can stall on fonts; the phone's own screencap is what a person sees anyway.
+const shot = async (n) => writeFileSync(`${out}/device-${n}.png`, execFileSync(ADB, ['exec-out', 'screencap', '-p'], { maxBuffer: 64 << 20 }));
 await page.evaluate(() => { localStorage.clear(); location.hash = '#/trace'; location.reload(); });
 await page.waitForSelector('#vault-title', { timeout: 30000 });
 let t = Date.now();

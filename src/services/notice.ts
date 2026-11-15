@@ -130,6 +130,7 @@ export function evidencePack(t: Ticket): Blob {
     ['Legal route', LAW_LABEL[t.law]],
     ['Sent', t.sentAt ? date(t.sentAt) : 'not yet'],
   ];
+  // taste-skill-ignore: the evidence file is a printable record with a real table.
   const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Veil evidence ${esc(t.id)}</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;max-width:760px;margin:40px auto;padding:0 20px;color:#111}h1{font-size:28px;margin:0 0 4px}table{border-collapse:collapse;width:100%;margin:20px 0}td{padding:8px 10px;vertical-align:top;border-bottom:1px solid #ddd;word-break:break-all}td:first-child{width:160px;color:#555}pre{white-space:pre-wrap;background:#f4f4f1;padding:16px}img{max-width:320px;border:1px solid #ccc}</style></head><body>
 <h1>Evidence record ${esc(t.id)}</h1><p>Prepared with Veil on ${esc(date(Date.now()))}.</p>

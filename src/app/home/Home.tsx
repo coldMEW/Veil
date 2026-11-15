@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { HeroStory } from './HeroStory';
+import { HeroBook } from './HeroBook';
 import { CheckChapter, TraceChapter, TakedownChapter, ShieldChapter, RulesChapter, Faq, Closing, Footer } from './Chapters';
 import { navigate, href } from '../router';
 import { openImageFile } from '../../lib/runtime/imageSession';
@@ -45,7 +45,7 @@ export function Home() {
         ))}
       </nav>
 
-      <HeroStory onCheck={pick} onTrace={() => navigate('trace')} />
+      <HeroBook onCheck={pick} onTrace={() => navigate('trace')} />
 
       <nav className="swatches-phone" aria-label="Tools">
         <a href={href('check')} data-colour="lime">Check an image</a>

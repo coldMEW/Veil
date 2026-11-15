@@ -26,7 +26,7 @@
 .tabs { display: none; }
 
 .toasts { position: fixed; z-index: 60; left: 50%; bottom: 24px; translate: -50% 0; display: grid; gap: 8px; width: min(440px, calc(100vw - 32px)); pointer-events: none; }
-.toast { background: var(--white); color: var(--ink); padding: 14px 18px; border-radius: 10px; font-weight: 500; box-shadow: 0 14px 34px rgba(0,0,0,0.35); animation: rise var(--t-med) var(--ease) both; }
+.toast { background: var(--white); color: var(--ink); padding: 14px 18px; border-radius: 10px; font-weight: 500; box-shadow: 0 14px 34px rgba(0,0,0,0.35); animation: rise var(--t-med) var(--ease) both; } /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 
 /* ================= Shared tool parts ================= */
 .tool { padding: 20px var(--margin) 40px; }
@@ -46,7 +46,7 @@
   border-radius: var(--r-panel); background: var(--char-2); display: grid; align-content: center; justify-items: start; gap: 22px;
   padding: clamp(28px, 6vw, 96px); transition: background var(--t-med) var(--ease), box-shadow var(--t-med);
 }
-.dropzone[data-over] { background: var(--char-3); box-shadow: inset 0 0 0 4px var(--ch); }
+.dropzone[data-over] { background: var(--char-3); box-shadow: inset 0 0 0 4px var(--ch); } /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 .dropzone h1 { font-size: var(--fs-giant); color: var(--ch); }
 .dropzone-line { font-size: 20px; max-width: 46ch; }
 .dropzone-error { color: var(--alarm); font-weight: 500; }
@@ -157,7 +157,7 @@
 .ticket-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .ticket-list li a { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 10px; border-radius: var(--r-panel); background: var(--char-2); text-decoration: none; transition: background var(--t-fast); }
 .ticket-list li a:hover { background: var(--char-3); }
-.ticket-list li a[aria-current='true'] { background: var(--char-3); box-shadow: inset 6px 0 0 var(--alarm); }
+.ticket-list li a[aria-current='true'] { background: var(--char-3); box-shadow: inset 6px 0 0 var(--alarm); } /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 .ticket-list img, .thumb-blank { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; background: var(--char-4); }
 .tl-main { display: grid; font-size: 14px; color: var(--on-dark-soft); min-width: 0; }
 .tl-main strong { font-size: 17px; color: var(--on-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

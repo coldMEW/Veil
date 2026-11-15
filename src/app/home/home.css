@@ -51,7 +51,7 @@
 .notify {
   position: absolute; left: 50%; top: 38%; translate: 20px 0;
   background: var(--white); color: var(--ink); padding: 12px 16px; border-radius: 12px; font-size: 16px; max-width: 280px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 }
 .notify strong { font-weight: 600; }
 
@@ -298,7 +298,6 @@ details[open] .plus::after { transform: rotate(0deg); }
 
 .verdict-card, .ticket-card, .match-panel { border-radius: var(--r-panel); }
 .shield-pair svg { border-radius: var(--r-card); }
-.disc { box-shadow: none; }
 @media (prefers-reduced-motion: no-preference) {
   .chapter h2, .chapter-lede, .check-list ul, .trace-block, .ticket-card, .rule-tile, .faq-list details { animation: pop linear both; animation-timeline: view(); animation-range: entry 0% entry 40%; }
 }
@@ -317,9 +316,9 @@ details[open] .plus::after { transform: rotate(0deg); }
 .book-beat {
   position: absolute; left: 0; right: 0; bottom: 8svh; margin: 0 auto; width: min(560px, 86%);
   text-align: center; font-size: clamp(19px, 1.6vw, 24px); font-weight: 500; color: #ececec; letter-spacing: 0.01em;
-  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9); /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 }
-.book .hero-copy h1, .book .hero-copy p { text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); }
+.book .hero-copy h1, .book .hero-copy p { text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); } /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 .book-static .hero-stage { position: relative; height: 100svh; }
 @media (max-width: 860px) {
   .book-frame { object-position: 50% 70%; }

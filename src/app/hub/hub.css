@@ -1,0 +1,68 @@
+.hub { max-width: 640px; margin: 0 auto; padding: 8px 0 32px; display: grid; gap: 14px; }
+.hub-head { display: grid; gap: 8px; padding: 10px 4px 6px; }
+.hub-head h1 { font-size: clamp(44px, 12vw, 68px); color: var(--on-dark); }
+.hub-head p { color: var(--on-dark-soft); font-size: 17px; }
+
+.hub-face {
+  display: grid; grid-template-columns: 76px 1fr auto; gap: 14px; align-items: center; text-decoration: none;
+  background: var(--paper); color: var(--ink); border-radius: var(--r-panel); padding: 12px 18px 12px 12px;
+}
+.hub-face-art { width: 76px; height: 76px; border-radius: 50%; background: #e9e1d2; display: grid; place-items: center; overflow: hidden; }
+.hub-face-art .art { width: 92%; }
+.hub-face > span:nth-child(2) { display: grid; gap: 2px; }
+.hub-face strong { font-family: var(--display); font-size: 24px; text-transform: uppercase; line-height: 1; }
+.hub-face span span { font-size: 15px; color: var(--ink-soft); }
+
+.hub-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.hub-card {
+  position: relative; display: grid; grid-template-rows: auto 1fr; min-height: 230px; padding: 20px 18px 16px;
+  border-radius: 30px; text-decoration: none; overflow: hidden; isolation: isolate;
+  transition: transform var(--t-med) var(--ease);
+}
+.hub-card:first-child { grid-column: 1 / -1; min-height: 210px; grid-template-columns: 1.1fr 1fr; grid-template-rows: 1fr; align-items: center; }
+.hub-card-copy { display: grid; gap: 6px; align-content: start; position: relative; z-index: 1; }
+.hub-card strong { font-family: var(--display); font-weight: 800; font-size: 28px; line-height: 0.95; text-transform: uppercase; }
+.hub-card:first-child strong { font-size: 38px; }
+.hub-card-copy > span { font-size: 15px; line-height: 1.35; opacity: 0.85; }
+.hub-card-art { align-self: end; justify-self: center; width: 78%; max-width: 220px; color: var(--ink); }
+.hub-card:first-child .hub-card-art { width: 100%; }
+.hub-card-go {
+  position: absolute; right: 14px; top: 14px; width: 40px; height: 40px; border-radius: 50%;
+  display: grid; place-items: center; background: rgba(17, 17, 17, 0.1); transition: transform var(--t-med) var(--ease), background-color var(--t-fast);
+}
+.hub-card:hover .hub-card-go { transform: translateX(3px); background: rgba(17, 17, 17, 0.18); }
+.hub-card:active { transform: scale(0.98); }
+.hub-help { font-size: 14px; color: var(--on-dark-soft); padding: 8px 4px; }
+.hub-help a { color: var(--on-dark); font-weight: 600; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .hub-head, .hub-face { animation: pop 460ms var(--ease) both; }
+  .hub-card { animation: pop 520ms var(--ease) both; animation-delay: calc(80ms + var(--k, 0) * 70ms); }
+}
+
+/* ---------- First-run onboarding ---------- */
+.onboard {
+  position: fixed; inset: 0; z-index: 50; background: var(--night); color: var(--on-dark);
+  display: grid; grid-template-rows: auto 1fr auto auto auto auto; justify-items: center; gap: 18px;
+  padding: calc(20px + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))) 24px calc(28px + var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)));
+  text-align: center;
+}
+.onboard-skip { justify-self: end; background: none; border: 0; color: var(--on-dark-soft); font-weight: 600; min-height: 44px; padding: 0 8px; }
+.onboard-art {
+  align-self: center; width: min(78vw, 340px); aspect-ratio: 1; border-radius: 50%; background: var(--char-2);
+  display: grid; place-items: center; color: var(--lime); animation: pop 520ms var(--ease) both;
+}
+.onboard-art .art { width: 82%; }
+.onboard-copy { display: grid; gap: 10px; max-width: 420px; animation: pop 520ms 80ms var(--ease) both; }
+.onboard-copy h1 { font-size: clamp(40px, 11vw, 60px); }
+.onboard-copy p { font-size: 17px; color: var(--on-dark-soft); }
+.onboard-dots { display: flex; gap: 8px; }
+.onboard-dots span { width: 8px; height: 8px; border-radius: 4px; background: var(--char-4); transition: width var(--t-med) var(--ease), background-color var(--t-med); }
+.onboard-dots span[data-on] { width: 28px; background: var(--lime); }
+.onboard-next { width: min(420px, 100%); }
+.onboard-later { background: none; border: 0; color: var(--on-dark-soft); font-weight: 600; min-height: 44px; }
+
+@media (min-width: 861px) {
+  .hub { padding-top: 24px; }
+  .hub-cards { grid-template-columns: 1fr 1fr; }
+}
