@@ -6,6 +6,9 @@ const root = resolve('dist');
 const manifest = JSON.parse(await readFile('scripts/export/models.json', 'utf8'));
 const core = manifest.artifacts.filter((m) => m.feature === 'clean');
 const keep = new Set(core.map((m) => `models/${m.dir}/${m.file}`));
+// Face detection and identity models are core too: Find my face runs offline on the phone.
+const face = JSON.parse(await readFile('src/engine/face/models.json', 'utf8'));
+for (const m of Object.values(face)) if (m && typeof m === 'object' && m.servedAs) keep.add(m.servedAs.replace(/^\//, ''));
 async function trim(dir) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const path = join(dir, entry.name);
@@ -24,7 +27,7 @@ for (const m of core) {
 const csp =
   "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' blob: data:; font-src 'self'; worker-src 'self' blob:; " +
-  "connect-src 'self' https://huggingface.co https://cas-bridge.xethub.hf.co https://us.aws.cdn.hf.co; " +
+  "connect-src 'self' https: ; " +
   "object-src 'none'; base-uri 'none'; form-action 'none'";
 let html = await readFile(join(root, 'index.html'), 'utf8');
 html = html.replace('<head>', `<head>\n<meta http-equiv="Content-Security-Policy" content="${csp}">`);

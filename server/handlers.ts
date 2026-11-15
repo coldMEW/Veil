@@ -94,32 +94,7 @@ export interface ScanResult {
   images: Array<{ url: string; alt: string | null }>;
 }
 
-const decode = (s: string) => s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-
-export function extractImages(html: string, base: string): Array<{ url: string; alt: string | null }> {
-  const found = new Map<string, string | null>();
-  const add = (src: string | undefined, alt: string | null = null) => {
-    if (!src || src.startsWith('data:')) return;
-    try {
-      const abs = new URL(decode(src.trim()), base);
-      if (abs.protocol === 'http:' || abs.protocol === 'https:') if (!found.has(abs.href)) found.set(abs.href, alt);
-    } catch {
-      /* skip malformed */
-    }
-  };
-  for (const m of html.matchAll(/<meta[^>]+(?:property|name)=["'](?:og:image|twitter:image)(?::src)?["'][^>]*>/gi)) {
-    add(m[0].match(/content=["']([^"']+)["']/i)?.[1]);
-  }
-  for (const m of html.matchAll(/<img\b[^>]*>/gi)) {
-    const tag = m[0];
-    const alt = tag.match(/\balt=["']([^"']*)["']/i)?.[1] ?? null;
-    const srcset = tag.match(/\b(?:data-)?srcset=["']([^"']+)["']/i)?.[1];
-    const largest = srcset?.split(',').map((s) => s.trim().split(/\s+/)[0]).pop();
-    add(largest ?? tag.match(/\b(?:data-src|data-original|src)=["']([^"']+)["']/i)?.[1], alt ? decode(alt) : null);
-  }
-  for (const m of html.matchAll(/<a\b[^>]+href=["']([^"']+\.(?:jpe?g|png|webp)(?:\?[^"']*)?)["']/gi)) add(m[1]);
-  return [...found].slice(0, 80).map(([url, alt]) => ({ url, alt }));
-}
+import { decode, extractImages } from './extract';
 
 export async function scanPage(raw: string): Promise<ScanResult> {
   const res = await guardedFetch(raw, 'text/html,application/xhtml+xml,image/*;q=0.9,*/*;q=0.5');
