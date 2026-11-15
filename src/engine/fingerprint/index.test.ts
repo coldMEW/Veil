@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import sharp from 'sharp';
+import official from './official-vectors.json';
 import { pdqHash, hamming, MATCH_THRESHOLD } from './index';
 function noise(n: number) {
   const data = new Uint8ClampedArray(n * n * 4);
@@ -31,6 +32,7 @@ export function texture(n = 512, phase = 0) {
   return { width: n, height: n, data };
 }
 describe('PDQ', () => {
+  it('matches the published upstream hash-pair distance',()=>expect(hamming(official.hashes[0]!,official.hashes[1]!)).toBe(official.distance));
   it.each([
     [64, 'c17f6931dd484240395b2d918b27672e1f6df97312aab798631b9560dde0cd32'],
     [128, 'baa916943c4cfca4bb76351a550c6e8778e09d6e5ca22d0e5b7910bc2dd35e45'],
