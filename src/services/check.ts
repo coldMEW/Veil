@@ -11,6 +11,7 @@ import {
   type ThumbnailComparison,
 } from '../features/inspect/forensics/exifThumbnail';
 import { compareImages } from '../features/inspect/compare';
+import { changedRegions } from './compareRegions';
 import { bitmapToImageData, engines, type Face, type MarkResult } from './engines';
 import { markKey, payloadHex, vaultPhotos } from './vault';
 
@@ -18,12 +19,14 @@ import { markKey, payloadHex, vaultPhotos } from './vault';
 export interface Evidence {
   id: 'credentials' | 'metadata' | 'ai-model' | 'preview' | 'mark' | 'original';
   tone: 'fake' | 'real' | 'source';
+  /** 'proof' is a fact about the file; 'signal' is a model's opinion and can be wrong. */
+  strength?: 'proof' | 'signal';
   title: string;
   says: string;
   how: string;
 }
 
-export type Verdict = 'checking' | 'fake' | 'derived' | 'signed' | 'unclear';
+export type Verdict = 'checking' | 'fake' | 'suspect' | 'derived' | 'signed' | 'unclear';
 
 const AI_TYPES = new Set(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgorithmicMedia', 'algorithmicMedia', 'compositeSynthetic']);
 
@@ -88,8 +91,9 @@ export function aiEvidence(maxProbability: number): Evidence | null {
   return {
     id: 'ai-model',
     tone: 'fake',
-    title: 'Looks AI-generated to our model',
-    says: `Our detector, trained on images from thousands of generators, scores this picture ${Math.round(maxProbability * 100)} out of 100 for AI-made.`,
+    strength: 'signal',
+    title: 'Our AI-image model flags it',
+    says: `Our detector, trained on images from thousands of generators, scores this picture ${Math.round(maxProbability * 100)} out of 100 for AI-made. A model can be wrong: treat this as a lead, not proof.`,
     how: 'Community Forensics ViT (MIT), run on this device over three views of the picture.',
   };
 }
@@ -120,6 +124,8 @@ export interface OriginalComparison {
   says: string;
   regions: Array<{ x: number; y: number; w: number; h: number }>;
   changed: boolean;
+  /** Aligned and compared, with no area that differs. */
+  same?: boolean;
 }
 
 /** Runs every strong check on the open image and keeps only the decisive ones. */
@@ -193,8 +199,14 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
         const a = bitmapToImageData(original, 1600);
         const b = bitmapToImageData(input.bitmap, 1600);
         const r = compareImages({ width: a.width, height: a.height, data: a.data }, { width: b.width, height: b.height, data: b.data }, input.assetId);
-        const regions = (r.overlays ?? []).flatMap((o) => ('rect' in o && o.rect ? [{ x: o.rect.x, y: o.rect.y, w: o.rect.width, h: o.rect.height }] : []));
-        setComparison({ says: r.observation, regions, changed: r.finding === 'inconsistent' || regions.length > 0 });
+        const regions = changedRegions(r);
+        const aligned = r.execution === 'complete' && !r.reason;
+        setComparison({
+          says: regions.length ? r.observation : aligned ? 'Lined up with your original, nothing differs.' : r.observation,
+          regions,
+          changed: regions.length > 0,
+          same: aligned && regions.length === 0,
+        });
       } catch (e) {
         setComparison({ says: e instanceof Error ? e.message : 'The two pictures could not be compared.', regions: [], changed: false });
       }
@@ -246,8 +258,10 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
   }
   const modelFailed = model.state.status === 'failed' ? model.state.message : null;
 
-  const verdict: Verdict = evidence.some((e) => e.tone === 'fake')
+  const verdict: Verdict = evidence.some((e) => e.tone === 'fake' && e.strength !== 'signal')
     ? 'fake'
+    : evidence.some((e) => e.tone === 'fake')
+      ? 'suspect'
     : evidence.some((e) => e.tone === 'source')
       ? 'derived'
     : pending.length
