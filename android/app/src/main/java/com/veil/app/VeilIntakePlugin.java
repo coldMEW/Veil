@@ -119,12 +119,12 @@ public class VeilIntakePlugin extends Plugin {
             Uri uri = null;
             try {
                 byte[] bytes = Base64.decode(data, Base64.DEFAULT);
-                if (bytes.length < 8 || bytes[0] != (byte)137 || bytes[1] != 80 || bytes[2] != 78) {
-                    throw new Exception("Only a clean PNG export can be saved.");
-                }
+                boolean png = bytes.length >= 8 && bytes[0] == (byte)137 && bytes[1] == 80 && bytes[2] == 78;
+                boolean jpeg = bytes.length >= 3 && bytes[0] == (byte)0xFF && bytes[1] == (byte)0xD8 && bytes[2] == (byte)0xFF;
+                if (!png && !jpeg) throw new Exception("Only a Veil PNG or JPEG export can be saved.");
                 android.content.ContentValues values = new android.content.ContentValues();
                 values.put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, finalName);
-                values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/png");
+                values.put(android.provider.MediaStore.Images.Media.MIME_TYPE, png ? "image/png" : "image/jpeg");
                 values.put(android.provider.MediaStore.Images.Media.RELATIVE_PATH, "Pictures/Veil");
                 values.put(android.provider.MediaStore.Images.Media.IS_PENDING, 1);
                 uri = getContext().getContentResolver().insert(

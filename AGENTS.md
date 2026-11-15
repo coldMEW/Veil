@@ -8,23 +8,21 @@ Read the externally supplied team plan (kept outside this repository) before wor
 - Read new comments **and replies** at every handoff and at least every 10 minutes while active.
 - One task, one owner, one branch, one small PR. No direct pushes to `main`.
 
-## Ownership
+## Ownership (pivot, 2026-11-14)
 | Path | Owner |
 |---|---|
-| `src/features/inspect/physics/shadow/`, shadow annotation UI | Sandeep (reassigned from Sushant, see Decisions and Contracts) |
-| `src/features/inspect/physics/eyes/`, physics fixtures + acceptance, Inspect wording review | Bibek (reassigned from Sushant) |
-| `src/app/`, `src/components/`, `src/styles/`, `src/features/inspect/model/`, `src/lib/runtime/`, `public/`, CI/deploy | Sandeep |
-| `src/features/clean/`, `src/features/protect/`, `src/features/report/`, `src/features/inspect/spectrum/`, `src/features/inspect/provenance/`, `scripts/eval/`, `scripts/export/`, `tests/e2e/` | Bibek |
-| `src/contracts/` | Bibek (schema), Sandeep (integration review), Sandeep (shadow fields), Bibek (eye fields) |
-
-Edit a contract only after posting the proposed change in Decisions and Contracts.
+| `src/app/`, `src/styles/`, `src/services/`, `src/platform/`, `server/`, `public/demo/` | Bibek (UI and app built with Claude) |
+| `src/engine/` (face, fingerprint, watermark), `src/features/clean/`, `scripts/verify/` | Bibek (engines built with Codex) |
+| `src/features/inspect/` (provenance, model, forensics/exifThumbnail, compare) | Bibek |
+| `src/contracts/` | Bibek |
 
 ## Commands
 `npm ci`, `npm run dev`, `npm run typecheck`, `npm test`, `npm run build`.
 
 ## Hard rules
-- No cloud image calls by default. No API keys in client code, `VITE_` variables or localStorage.
+- No cloud image calls by default; reverse search only after the person taps it. No API keys in client code, `VITE_` variables or localStorage.
+- The server fetches only public pages the person asked to scan; never send their photo or face data.
 - Never persist input images, OCR text or reports automatically.
-- A failed/timed-out check is `inconclusive`, never a clean result. No global real/fake verdict or confidence score.
+- A failed or timed-out check is never shown as a clean result. Check shows a headline only from strong evidence, and lists only checks with a strong result.
 - Never claim model, browser, GPU or phone success without results from that environment.
 - Private photos and fixtures stay outside Git; CI uses synthetic fixtures.

@@ -73,7 +73,8 @@ export async function initializeNative(): Promise<void> {
 /** Only an explicit export writes a temporary file, then opens Android's save/share chooser. */
 export async function saveCleanCopy(bytes: Uint8Array, name: string): Promise<void> {
   if (!isAndroid()) {
-    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: 'image/png' }));
+    const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
+    const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: jpeg ? 'image/jpeg' : 'image/png' }));
     const a = document.createElement('a');
     a.href = url;
     a.download = name;

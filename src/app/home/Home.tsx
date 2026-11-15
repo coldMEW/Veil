@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { HeroStory } from './HeroStory';
+import { HeroBook } from './HeroBook';
 import { CheckChapter, TraceChapter, TakedownChapter, ShieldChapter, RulesChapter, Faq, Closing, Footer } from './Chapters';
 import { navigate, href } from '../router';
 import { openImageFile } from '../../lib/runtime/imageSession';
@@ -25,8 +25,9 @@ export function Home() {
   return (
     <div className="home">
       <header className="home-bar">
-        <a className="wordmark" href={href('home')}>
-          Veil
+        <a className="brand" href={href('home')} aria-label="Veil home">
+          <img src="/brand/veil-64.png" alt="" width="38" height="38" />
+          <span className="wordmark">Veil</span>
         </a>
         <a className="home-bar-link" href={href('tickets')}>
           My tickets
@@ -44,7 +45,7 @@ export function Home() {
         ))}
       </nav>
 
-      <HeroStory onCheck={pick} onTrace={() => navigate('trace')} />
+      <HeroBook onCheck={pick} onTrace={() => navigate('trace')} />
 
       <nav className="swatches-phone" aria-label="Tools">
         <a href={href('check')} data-colour="lime">Check an image</a>

@@ -3,11 +3,13 @@ import { useRoute } from './router';
 import { Home } from './home/Home';
 import { Shell } from './shell/Shell';
 import './app.css';
+import { isAndroid } from '../platform/environment';
 
 const CheckScreen = lazy(() => import('./check/CheckScreen'));
 const TraceScreen = lazy(() => import('./trace/TraceScreen'));
 const TicketsScreen = lazy(() => import('./tickets/TicketsScreen'));
 const ShieldScreen = lazy(() => import('./shield/ShieldScreen'));
+const AppHome = lazy(() => import('./hub/AppHome'));
 
 function Toasts() {
   const [items, setItems] = useState<Array<{ id: number; text: string }>>([]);
@@ -34,11 +36,12 @@ export function App() {
   const { route, param } = useRoute();
   return (
     <>
-      {route === 'home' ? (
+      {route === 'home' && !isAndroid() ? (
         <Home />
       ) : (
-        <Shell route={route}>
+        <Shell route={route === 'home' ? 'app' : route}>
           <Suspense fallback={<div className="screen-loading" aria-busy="true" />}>
+            {(route === 'app' || route === 'home') && <AppHome />}
             {route === 'check' && <CheckScreen />}
             {route === 'trace' && <TraceScreen />}
             {route === 'tickets' && <TicketsScreen ticketId={param} />}

@@ -3,3 +3,4 @@
   padding: 0 var(--safe-area-inset-right, env(safe-area-inset-right, 0px)) 0 var(--safe-area-inset-left, env(safe-area-inset-left, 0px));
 }
 .veil-android .bar, .veil-android .home-bar { padding-top: var(--safe-area-inset-top, env(safe-area-inset-top, 0px)); height: calc(var(--bar-h) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px))); }
+.veil-android .hero-copy { top: calc(var(--bar-h) + var(--safe-area-inset-top, env(safe-area-inset-top, 0px)) + 1vh); }

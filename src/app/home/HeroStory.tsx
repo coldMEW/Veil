@@ -103,7 +103,7 @@ function Stamp({ p, at, children }: { p: MotionValue<number>; at: number; childr
   );
 }
 
-function Feed({ p, static: isStatic }: { p: MotionValue<number>; static?: boolean }) {
+export function Feed({ p, static: isStatic }: { p: MotionValue<number>; static?: boolean }) {
   const scroll = useTransform(p, [0.66, 0.82], ['0%', '-58%']);
   const scan = useTransform(p, [0.82, 0.9], ['-10%', '110%']);
   const done = useTransform(p, [0.9, 0.93], [0, 1]);

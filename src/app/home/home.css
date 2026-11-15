@@ -51,7 +51,7 @@
 .notify {
   position: absolute; left: 50%; top: 38%; translate: 20px 0;
   background: var(--white); color: var(--ink); padding: 12px 16px; border-radius: 12px; font-size: 16px; max-width: 280px;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.35); /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
 }
 .notify strong { font-weight: 600; }
 
@@ -71,8 +71,8 @@
 .post-caption { padding: 10px 14px 0; color: var(--on-dark-soft); }
 .post-caption strong { color: var(--on-dark); font-weight: 600; }
 .stamp {
-  position: absolute; left: 14px; bottom: 14px; padding: 8px 12px; background: var(--alarm); color: var(--ink);
-  font-family: var(--display); font-weight: 800; font-size: 20px; text-transform: uppercase; border-radius: var(--radius);
+  position: absolute; left: 14px; bottom: 14px; padding: 8px 14px; background: var(--alarm); color: var(--ink);
+  font-family: var(--display); font-weight: 800; font-size: 20px; text-transform: uppercase; border-radius: 10px;
 }
 .feed-scan { position: absolute; left: 0; right: 0; height: 4px; background: var(--lime); }
 .feed-done {
@@ -198,15 +198,15 @@
 /* Rules: large marks on tiles */
 .ch-rules { display: grid; align-content: center; }
 .rules-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-.rules-head { grid-column: span 2; background: var(--lime); color: var(--ink); border-radius: var(--radius); padding: 24px; display: grid; gap: 14px; align-content: space-between; min-height: 220px; }
+.rules-head { grid-column: span 2; background: var(--lime); color: var(--ink); border-radius: var(--r-panel); padding: 24px; display: grid; gap: 14px; align-content: space-between; min-height: 220px; }
 .rules-head h2 { font-size: clamp(40px, 3.6vw, 60px); }
-.rule-tile { background: var(--char-3); border-radius: var(--radius); padding: 24px; min-height: 220px; font-family: var(--display); font-weight: 800; font-size: clamp(28px, 2.4vw, 36px); line-height: 1; text-transform: uppercase; }
+.rule-tile { background: var(--char-3); border-radius: var(--r-panel); padding: 24px; min-height: 220px; font-family: var(--display); font-weight: 800; font-size: clamp(28px, 2.4vw, 36px); line-height: 1; text-transform: uppercase; }
 
 /* FAQ: accordion of filled tiles */
 .ch-faq { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 0 24px; }
 .ch-faq h2 { grid-column: 1 / span 4; position: sticky; top: 96px; align-self: start; font-size: clamp(48px, 5vw, 80px); }
 .faq-list { grid-column: 5 / span 8; display: grid; gap: 8px; }
-.faq-list details { background: var(--char-2); border-radius: var(--radius); transition: background var(--t-med); }
+.faq-list details { background: var(--char-2); border-radius: var(--r-card); transition: background var(--t-med); }
 .faq-list details[open] { background: var(--lime); color: var(--ink); }
 .faq-list summary { list-style: none; cursor: pointer; min-height: 72px; padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; gap: 20px; font-size: 20px; font-weight: 500; }
 .faq-list summary::-webkit-details-marker { display: none; }
@@ -231,7 +231,7 @@ details[open] .plus::after { transform: rotate(0deg); }
 .footer { background: var(--night); padding: 48px var(--margin) 40px; margin-right: min(15vw, 220px); display: grid; gap: 48px; }
 .block-mark { height: 34svh; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; align-items: end; }
 .block-mark span {
-  display: grid; place-items: center; border-radius: var(--radius); font-family: var(--display); font-weight: 800;
+  display: grid; place-items: center; border-radius: var(--r-panel); font-family: var(--display); font-weight: 800;
   font-size: clamp(80px, 14vw, 240px); line-height: 0.8; text-transform: uppercase; color: var(--night);
 }
 .footer-links { display: grid; grid-template-columns: repeat(3, max-content); gap: 10px 48px; font-size: 16px; }
@@ -257,7 +257,8 @@ details[open] .plus::after { transform: rotate(0deg); }
   .hero .scene-wrap { top: 42%; }
 
   .swatches-phone { display: grid; }
-  .swatches-phone a { display: block; min-height: 56px; padding: 16px var(--margin); font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; text-decoration: none; }
+  .swatches-phone { gap: 8px; padding: 12px var(--margin); background: var(--night); }
+  .swatches-phone a { display: block; min-height: 56px; padding: 16px 20px; border-radius: var(--r-card); font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; text-decoration: none; }
 
   .chapter { min-height: auto; padding: 72px var(--margin); }
   .chapter-lede { font-size: 18px; }
@@ -293,4 +294,33 @@ details[open] .plus::after { transform: rotate(0deg); }
   .ch-closing h2 { font-size: 11vw; }
   .block-mark { height: 22svh; }
   .footer-links { grid-template-columns: 1fr 1fr; }
+}
+
+.verdict-card, .ticket-card, .match-panel { border-radius: var(--r-panel); }
+.shield-pair svg { border-radius: var(--r-card); }
+@media (prefers-reduced-motion: no-preference) {
+  .chapter h2, .chapter-lede, .check-list ul, .trace-block, .ticket-card, .rule-tile, .faq-list details { animation: pop linear both; animation-timeline: view(); animation-range: entry 0% entry 40%; }
+}
+
+/* ---------- Picture-book hero (monochrome scene only) ---------- */
+.book .hero-stage { background: #050505; }
+.book-room { position: absolute; inset: 0; will-change: transform; }
+.book-frame { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 62%; user-select: none; }
+.book-mist {
+  position: absolute; inset: auto -20% 0 0; height: 48%; pointer-events: none; opacity: 0.55;
+  background: url('/story/story-mist.webp') repeat-x bottom / auto 100%; mix-blend-mode: screen;
+}
+.book-dust { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.book-phone { position: absolute; inset: 0; transform-origin: 50% 50%; }
+.book-phone img { width: 100%; height: 100%; object-fit: cover; }
+.book-beat {
+  position: absolute; left: 0; right: 0; bottom: 8svh; margin: 0 auto; width: min(560px, 86%);
+  text-align: center; font-size: clamp(19px, 1.6vw, 24px); font-weight: 500; color: #ececec; letter-spacing: 0.01em;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.9); /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
+}
+.book .hero-copy h1, .book .hero-copy p { text-shadow: 0 2px 30px rgba(0, 0, 0, 0.6); } /* taste-skill-ignore: overlay, state outline or legibility over the painted scene */
+.book-static .hero-stage { position: relative; height: 100svh; }
+@media (max-width: 860px) {
+  .book-frame { object-position: 50% 70%; }
+  .book-beat { bottom: 5svh; }
 }

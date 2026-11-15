@@ -17,6 +17,8 @@ async function trim(dir) {
   }
 }
 await trim(join(root, 'models'));
+// Verification sources are test fixtures, not app content.
+await rm(join(root, 'demo', 'source'), { recursive: true, force: true });
 for (const m of core) {
   const bytes = await readFile(join(root, 'models', m.dir, m.file));
   if (bytes.length !== m.bytes || createHash('sha256').update(bytes).digest('hex') !== m.sha256) {

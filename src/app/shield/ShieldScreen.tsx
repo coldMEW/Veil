@@ -69,8 +69,8 @@ export default function ShieldScreen() {
       setStep('Writing a fresh file with no location data');
       const canvas = new OffscreenCanvas(pixels.width, pixels.height);
       canvas.getContext('2d')!.putImageData(pixels, 0, 0);
-      const png = isAndroid();
-      const blob = await canvas.convertToBlob(png ? { type: 'image/png' } : { type: 'image/jpeg', quality: 0.93 });
+      // JPEG at 0.92 keeps the mark (tested through re-posting at q72) at a few MB instead of a 10+ MB PNG.
+      const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
       const bytes = new Uint8Array(await blob.arrayBuffer());
       const bitmap = await createImageBitmap(blob);
 
@@ -80,7 +80,7 @@ export default function ShieldScreen() {
       const name = ready.fileName.replace(/\.[^.]+$/, '');
       const entry = { id: uid('P'), name, addedAt: Date.now(), pdq, mark: markHex, sha256: await sha256Hex(bytes), thumb: await thumbnail(bitmap, 160) };
       vaultPhotos.set((list) => [...list, entry]);
-      setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, name: `${name}-veil.${png ? 'png' : 'jpg'}` });
+      setResult({ bytes, url: URL.createObjectURL(blob), bitmap, marked: Boolean(markHex), removed, name: `${name}-veil.jpg` });
       setStage('done');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Shielding failed.');
@@ -150,7 +150,7 @@ export default function ShieldScreen() {
           <>
             <div className="verdict" data-tone="paper">
               <h1>Shield this photo</h1>
-              <p>You get a new copy to post. The photo you opened is not changed.</p>
+              <p>You get a new copy to post. It does not stop AI apps from seeing the photo; nothing invisible can. It lets Veil prove a fake was made from it, and keeps where you live out of it.</p>
             </div>
             <div className="choices">
               <label className="choice">
