@@ -1,4 +1,4 @@
-﻿# Reverse-image candidate search
+# Reverse-image candidate search
 
 Pure TypeScript engine entry: `server/hunt/index.ts`. No Node/native dependencies in production modules. `hunt({bytes,type}, transport, opts)` uploads only after an explicit user action. This sends pixels to third-party providers; callers must explain that and obtain consent. `huntByUrl(publicHttpsUrl, transport, opts)` supports Bing/Lens URL mode without hosting an image. These are candidate URLs, never face-match or deepfake verdicts. Match faces on-device before creating tickets.
 
@@ -17,7 +17,7 @@ Each engine independently returns `{engine,ok,hits,error?,ms}`. Only http(s) res
 
 Rate limiting is per-process10/min: trusted Vercel forwarded IP in Vercel; otherwise conservative shared bucket unless an adapter injects a trusted key. Enforcement precedes body parsing; memory capped. This is not a distributed limiter.
 
-IMPORTANT: the existing Vite middleware still drops POST bodies. Its small stream-forwarding patch is outside this task's ownership and was handed to Claude at scratch-eval/hunt01-vite-body.patch. The exported POST handler passed a real HTTP-server+provider test independently; local Vite and the Android/UI integrations must be wired by their owner before claiming full app acceptance. The app-facing scan/image SSRF guard retains its previously documented DNS-rebinding limitation.
+The release integration forwards POST request streams through Vite dev/preview into the same handler. A real5.28MB landmark upload through Vite returned60Yandex candidates including the original Wikipedia file page. Android adapter code is present in the app but physical-device hunt acceptance is not yet verified. The app-facing scan/image SSRF guard retains its previously documented DNS-rebinding limitation.
 
 ## Verification
 

@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PrivacyCandidate, TransformRecord } from '../../contracts';
+import {verifiedPrivacyCandidates} from './verifiedCandidates';
 import { OcrEngine, type ScanProgress } from './ocr/engine';
 import { MiganInpainter, MIGAN_MODEL } from './inpaint';
 import type { Pixels } from './mask';
 import {
-  candidatesFromOcr,
   rescanExport,
   runClean,
   textRemovalMask,
@@ -98,10 +98,11 @@ export function useClean(assetId: string | null, sha256: string | null, bitmap: 
     try {
       const e = await engine();
       const boxes = await e.scan(pixels(), {
+        verifyCandidates: true,
         onProgress: (p) => run === runRef.current && setState({ status: 'scanning', progress: p }),
       });
       if (run !== runRef.current) return;
-      const candidates = candidatesFromOcr(sha256, boxes);
+      const candidates = verifiedPrivacyCandidates(sha256, boxes);
       setState({ status: 'review', candidates });
       if (opts.auto && candidates.some((c) => c.selected)) await cleanWithRef.current?.(candidates, 'migan_inpaint');
     } catch (err) {

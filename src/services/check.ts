@@ -10,6 +10,7 @@ import {
   orientThumbnailLike,
   type ThumbnailComparison,
 } from '../features/inspect/forensics/exifThumbnail';
+import {comparisonFromResult} from './compareResult';
 import { compareImages } from '../features/inspect/compare';
 import { bitmapToImageData, engines, type Face, type MarkResult } from './engines';
 import { markKey, payloadHex, vaultPhotos } from './vault';
@@ -193,8 +194,7 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
         const a = bitmapToImageData(original, 1600);
         const b = bitmapToImageData(input.bitmap, 1600);
         const r = compareImages({ width: a.width, height: a.height, data: a.data }, { width: b.width, height: b.height, data: b.data }, input.assetId);
-        const regions = (r.overlays ?? []).flatMap((o) => ('rect' in o && o.rect ? [{ x: o.rect.x, y: o.rect.y, w: o.rect.width, h: o.rect.height }] : []));
-        setComparison({ says: r.observation, regions, changed: r.finding === 'inconsistent' || regions.length > 0 });
+        setComparison(comparisonFromResult(r));
       } catch (e) {
         setComparison({ says: e instanceof Error ? e.message : 'The two pictures could not be compared.', regions: [], changed: false });
       }

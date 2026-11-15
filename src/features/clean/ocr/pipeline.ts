@@ -3,6 +3,7 @@ import { validateImage } from './image';
 import { classifyText } from '../filter';
 import { decodeCtc, preprocessRecognition } from './rec';
 import { createTiles, mapToOriginal, mergeDetections } from './tiles';
+import { verifyCandidate } from './verification';
 import type { Detection, OcrBox, OcrModels, RgbaImage, ScanOptions, ScanProgress, Profile } from './types';
 
 export function normalizeQuad(quad: [number, number][], width: number, height: number): OcrBox['quad'] {
@@ -130,11 +131,16 @@ export async function scanImage(
         [x, y + h],
       ];
       const quad = normalizeQuad(pixelQuad as [number, number][], image.width, image.height);
+      const category = classifyText(decoded.text).category;
+      const verification = opts.verifyCandidates
+        ? await verifyCandidate(image, models, pixelQuad as [number, number][], decoded, box.detScore, category, profile)
+        : undefined;
       result.push({
         ...box,
         quad,
         ...decoded,
-        category: classifyText(decoded.text).category,
+        category,
+        ...(verification ? { verification } : {}),
         rect: { x: x / image.width, y: y / image.height, w: w / image.width, h: h / image.height },
       });
     }
