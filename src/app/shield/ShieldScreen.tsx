@@ -8,6 +8,7 @@ import { isAndroid } from '../../platform/environment';
 import { saveCleanCopy } from '../../platform/native';
 import { uid } from '../../services/store';
 import { DropZone } from '../shared/DropZone';
+import { ArtCheck, ArtShield } from '../shared/Art';
 import { PhotoView } from '../shared/PhotoView';
 import { BeforeAfter } from './BeforeAfter';
 import { toast } from '../App';
@@ -32,11 +33,13 @@ interface Result {
   name: string;
 }
 
-export default function ShieldScreen() {
+/** 'clean' is the same pipeline opened for one job: find personal details and paint them out. */
+export default function ShieldScreen({ mode = 'shield' }: { mode?: 'shield' | 'clean' }) {
+  const cleanOnly = mode === 'clean';
   const session = useImageSession();
   const ready = session.status === 'ready' ? session : null;
   const clean = useClean(ready?.asset.id ?? null, ready?.asset.sha256 ?? null, ready?.bitmap ?? null);
-  const [mark, setMark] = useState(true);
+  const [mark, setMark] = useState(!cleanOnly);
   const [wipe, setWipe] = useState(true);
   const [stage, setStage] = useState<'options' | 'working' | 'review' | 'done'>('options');
   const [step, setStep] = useState('');
@@ -122,8 +125,13 @@ export default function ShieldScreen() {
     return (
       <div className="tool tool-empty">
         <DropZone
-          title="Shield it first"
-          line="Before you post a photo, Veil hides your mark in it, removes location data and paints out street signs and house numbers."
+          art={cleanOnly ? <ArtCheck /> : <ArtShield />}
+          title={cleanOnly ? 'Remove personal details' : 'Shield it first'}
+          line={
+            cleanOnly
+              ? 'Veil reads the text in your photo, finds street names, house and room numbers, plates, emails and phone numbers, and paints out the ones you choose.'
+              : 'Before you post a photo, Veil hides your mark in it, removes location data and paints out street signs and house numbers.'
+          }
           busy={session.status === 'loading'}
           error={session.status === 'error' ? session.reason : null}
           onFile={(f) => void openImageFile(f)}
@@ -149,7 +157,7 @@ export default function ShieldScreen() {
         {stage === 'options' && (
           <>
             <div className="verdict" data-tone="paper">
-              <h1>Shield this photo</h1>
+              <h1>{cleanOnly ? 'Clean this photo' : 'Shield this photo'}</h1>
               <p>You get a new copy to post. It does not stop AI apps from seeing the photo; nothing invisible can. It lets Veil prove a fake was made from it, and keeps where you live out of it.</p>
             </div>
             <div className="choices">
@@ -230,7 +238,7 @@ export default function ShieldScreen() {
         {stage === 'done' && result && (
           <>
             <div className="verdict" data-tone="lime">
-              <h1>Shielded</h1>
+              <h1>{cleanOnly ? 'Cleaned' : 'Shielded'}</h1>
               <p>Drag across the photo to compare. The new copy is ready to post.</p>
             </div>
             <ol className="evidence">

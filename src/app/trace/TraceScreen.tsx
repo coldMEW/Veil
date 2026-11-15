@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { addFace, removeFace, vaultFaces } from '../../services/vault';
 import { engines, type Face } from '../../services/engines';
-import { scan, SEARCH_ENGINES, watchlist, type ScanProgress } from '../../services/trace';
+import { scan, watchlist, type ScanHit, type ScanProgress } from '../../services/trace';
+import { faceCrop as searchCrop, huntConsent, huntFace, hunts, type HuntProgress } from '../../services/hunt';
 import { href } from '../router';
 import { siteOf } from '../../services/tickets';
 import { toast } from '../App';
 import { pendingTrace } from './pending';
-import { useImageSession } from '../../lib/runtime/imageSession';
+import { ArtFace, ArtTrace } from '../shared/Art';
 
-async function faceCrop(bitmap: ImageBitmap, face: Face): Promise<string> {
+async function thumbOf(bitmap: ImageBitmap, face: Face): Promise<string> {
   const pad = 0.35;
   const x = Math.max(0, (face.box.x - face.box.w * pad) * bitmap.width);
   const y = Math.max(0, (face.box.y - face.box.h * pad) * bitmap.height);
@@ -31,21 +32,25 @@ async function enrol(bitmap: ImageBitmap, face?: Face): Promise<string | null> {
   if (!faces.length) return 'No face found in that picture. Try a clear, front-facing selfie.';
   if (faces.length > 1 && !face) return 'That picture has more than one face. Use a selfie with only you in it.';
   const f = faces[0]!;
-  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), await faceCrop(bitmap, f));
+  addFace(`Face ${vaultFaces.get().length + 1}`, await fe.embedFace(bitmap, f), await thumbOf(bitmap, f));
   return null;
 }
 
-type Tab = 'page' | 'engines' | 'watch';
+type Tab = 'web' | 'page' | 'watch';
 
 export default function TraceScreen() {
   const faces = vaultFaces.use();
   const watch = watchlist.use();
-  const session = useImageSession();
+  const past = hunts.use();
+  const consent = huntConsent.use();
   const selfie = useRef<HTMLInputElement>(null);
-  const [tab, setTab] = useState<Tab>('page');
+  const searchPhoto = useRef<HTMLInputElement>(null);
+  const [tab, setTab] = useState<Tab>('web');
   const [url, setUrl] = useState('');
   const [busy, setBusy] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [progress, setProgress] = useState<ScanProgress | null>(null);
+  const [hunt, setHunt] = useState<HuntProgress | null>(null);
   const abort = useRef<AbortController | null>(null);
 
   // A face handed over from Check is added once, with consent implied by the tap that sent it.
@@ -55,11 +60,14 @@ export default function TraceScreen() {
     void enrol(p.bitmap, p.face).then((err) => toast(err ?? 'Face added. Veil kept only its numbers.'));
   }, []);
 
+  const needFace = () => {
+    if (faces.length) return false;
+    toast('Add your face first, so Veil knows what to look for.');
+    return true;
+  };
+
   const runScan = async (target: string) => {
-    if (!faces.length) {
-      toast('Add your face first, so Veil knows what to look for.');
-      return;
-    }
+    if (needFace()) return;
     abort.current?.abort();
     abort.current = new AbortController();
     setBusy(true);
@@ -68,14 +76,41 @@ export default function TraceScreen() {
     if (result.hits.length) toast(`${result.hits.length} ${result.hits.length === 1 ? 'match' : 'matches'}: takedown tickets opened.`);
   };
 
-  const demo = new URL('demo/leaks.html', window.location.href).href;
-  const openPicture = session.status === 'ready' ? session : null;
+  const runHunt = async (file: File) => {
+    if (needFace()) return;
+    abort.current?.abort();
+    abort.current = new AbortController();
+    setBusy(true);
+    try {
+      const bmp = await createImageBitmap(file, { imageOrientation: 'from-image' });
+      const crop = await searchCrop(bmp);
+      bmp.close();
+      const r = await huntFace(crop, setHunt, abort.current.signal);
+      if (r.hits.length) toast(`${r.hits.length} ${r.hits.length === 1 ? 'match' : 'matches'} on the web: takedown tickets opened.`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'The search failed.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startHunt = () => {
+    if (needFace()) return;
+    if (!consent) return setAsking(true);
+    searchPhoto.current?.click();
+  };
+
+  const rescanAll = async () => {
+    const pages = [...new Set([...watch.map((w) => w.url), ...past.flatMap((h) => h.pages)])];
+    for (const p of pages) await runScan(p);
+  };
 
   return (
     <div className="tool tool-trace">
       <section className="vault" aria-labelledby="vault-title">
+        <div className="vault-art">{faces.length ? <ArtTrace /> : <ArtFace />}</div>
         <h1 id="vault-title">Your face</h1>
-        <p>Veil turns a selfie into 128 numbers and keeps only those, on this device. It never stores or sends the photo.</p>
+        <p>Veil turns a selfie into 128 numbers and keeps only those, on this device. It never stores the photo.</p>
         {faces.length > 0 && (
           <ul className="vault-list">
             {faces.map((f) => (
@@ -115,14 +150,12 @@ export default function TraceScreen() {
       </section>
 
       <section className="scan" aria-labelledby="scan-title">
-        <h2 id="scan-title" className="sr-only">
-          Look for your face
-        </h2>
+        <h2 id="scan-title" className="sr-only">Look for your face</h2>
         <div className="tabs-inline" role="tablist" aria-label="Where to look">
           {([
-            ['page', 'Scan a page'],
-            ['engines', 'Search engines'],
-            ['watch', `Watchlist${watch.length ? ` (${watch.length})` : ''}`],
+            ['web', 'Search the web'],
+            ['page', 'Check a page I know'],
+            ['watch', `Watchlist${watch.length + past.length ? ` (${watch.length + past.length})` : ''}`],
           ] as const).map(([id, label]) => (
             <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
               {label}
@@ -130,9 +163,42 @@ export default function TraceScreen() {
           ))}
         </div>
 
+        {tab === 'web' && (
+          <div className="scan-body">
+            <p className="scan-lede">Veil runs reverse image searches with your face across the web, opens every page that comes back, and checks each picture against your face on this device. Matches become takedown tickets.</p>
+            <button className="btn btn-sky hunt-go" disabled={busy} onClick={startHunt}>
+              {busy && hunt && hunt.stage !== 'done' ? 'Searching…' : 'Search the web for my face'}
+            </button>
+            {asking && (
+              <div className="consent" role="dialog" aria-labelledby="consent-title">
+                <h3 id="consent-title">Before the first search</h3>
+                <p>To search the web, Veil sends a crop of your face from the photo you pick to Yandex and Bing image search. Your selfie and face numbers stay on this device. Results are checked on this device.</p>
+                <div className="td-actions">
+                  <button className="btn btn-sky" onClick={() => { huntConsent.set(true); setAsking(false); searchPhoto.current?.click(); }}>
+                    I understand, search
+                  </button>
+                  <button className="btn btn-ghost-dark" onClick={() => setAsking(false)}>Not now</button>
+                </div>
+              </div>
+            )}
+            <input
+              ref={searchPhoto}
+              type="file"
+              accept="image/jpeg,image/png"
+              hidden
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = '';
+                if (f) void runHunt(f);
+              }}
+            />
+            {hunt && <HuntResults p={hunt} />}
+          </div>
+        )}
+
         {tab === 'page' && (
           <div className="scan-body">
-            <p className="scan-lede">Paste a page where fakes get posted, or the address of one picture. Veil reads every picture on it and compares each face with yours, on this device.</p>
+            <p className="scan-lede">Already know a page where fakes of you are posted? Paste it. Veil reads every picture on it and compares each face with yours.</p>
             <form
               className="url-row url-row-big"
               onSubmit={(e) => {
@@ -140,9 +206,7 @@ export default function TraceScreen() {
                 if (url.trim()) void runScan(url.trim());
               }}
             >
-              <label className="sr-only" htmlFor="scan-url">
-                Page or picture address
-              </label>
+              <label className="sr-only" htmlFor="scan-url">Page or picture address</label>
               <input id="scan-url" type="url" inputMode="url" placeholder="https://" value={url} onChange={(e) => setUrl(e.target.value)} />
               <button className="btn btn-ink" type="submit" disabled={busy || !url.trim()}>
                 {busy ? 'Scanning…' : 'Scan'}
@@ -150,7 +214,7 @@ export default function TraceScreen() {
             </form>
             <p className="small">
               Try it on the{' '}
-              <button className="link-quiet linkish" onClick={() => { setUrl(demo); void runScan(demo); }}>
+              <button className="link-quiet linkish" onClick={() => { const demo = new URL('demo/leaks.html', window.location.href).href; setUrl(demo); void runScan(demo); }}>
                 demo leaks page
               </button>
               .{' '}
@@ -164,71 +228,87 @@ export default function TraceScreen() {
           </div>
         )}
 
-        {tab === 'engines' && (
-          <div className="scan-body">
-            <p className="scan-lede">Search engines index billions of pictures Veil cannot reach. Each button sends the picture to that company, so only use the ones you trust.</p>
-            {openPicture ? (
-              <ul className="engines">
-                {SEARCH_ENGINES.map((e) => (
-                  <li key={e.id}>
-                    <button
-                      className="btn btn-ink"
-                      onClick={async () => {
-                        try {
-                          const blob = await new Promise<Blob>((r) => {
-                            const c = document.createElement('canvas');
-                            c.width = openPicture.bitmap.width;
-                            c.height = openPicture.bitmap.height;
-                            c.getContext('2d')!.drawImage(openPicture.bitmap, 0, 0);
-                            c.toBlob((b) => r(b!), 'image/png');
-                          });
-                          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-                          toast(`Picture copied. Paste it into ${e.name}.`);
-                        } catch {
-                          toast(`Upload the picture on ${e.name}.`);
-                        }
-                        window.open(e.upload, '_blank', 'noopener');
-                      }}
-                    >
-                      {e.name}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p>
-                Open a picture in <a className="link-quiet" href={href('check')}>Check</a> first, then come back here to search for it.
-              </p>
-            )}
-          </div>
-        )}
-
         {tab === 'watch' && (
           <div className="scan-body">
-            <p className="scan-lede">Pages you want Veil to keep an eye on. Scan them again whenever you open Veil.</p>
-            {watch.length ? (
-              <ul className="watch">
-                {watch.map((w) => (
-                  <li key={w.url}>
-                    <span className="watch-url">{w.url}</span>
-                    <span className="small num">{w.lastScan ? `checked ${new Date(w.lastScan).toLocaleString()} · ${w.hits} found` : 'not checked yet'}</span>
-                    <span className="watch-actions">
-                      <button className="btn btn-ink btn-sm" disabled={busy} onClick={() => { setTab('page'); setUrl(w.url); void runScan(w.url); }}>
-                        Scan
-                      </button>
-                      <button className="btn btn-ghost-light btn-sm" onClick={() => watchlist.set((l) => l.filter((x) => x.url !== w.url))}>
-                        Remove
-                      </button>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+            <p className="scan-lede">Pages Veil keeps an eye on: the ones you added and the ones earlier searches found. Check them all again in one go.</p>
+            {watch.length + past.length ? (
+              <>
+                <button className="btn btn-sky" disabled={busy} onClick={() => void rescanAll()}>
+                  {busy ? 'Checking…' : 'Check them all again'}
+                </button>
+                <ul className="watch">
+                  {past.map((h) => (
+                    <li key={h.at}>
+                      <span className="watch-url">Web search, {new Date(h.at).toLocaleString()}</span>
+                      <span className="small num">{h.candidates} pictures checked · {h.matches} matches · {h.pages.length} pages watched</span>
+                    </li>
+                  ))}
+                  {watch.map((w) => (
+                    <li key={w.url}>
+                      <span className="watch-url">{w.url}</span>
+                      <span className="small num">{w.lastScan ? `checked ${new Date(w.lastScan).toLocaleString()} · ${w.hits} found` : 'not checked yet'}</span>
+                      <span className="watch-actions">
+                        <button className="btn btn-ink btn-sm" disabled={busy} onClick={() => { setTab('page'); setUrl(w.url); void runScan(w.url); }}>Scan</button>
+                        <button className="btn btn-ghost-light btn-sm" onClick={() => watchlist.set((l) => l.filter((x) => x.url !== w.url))}>Remove</button>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             ) : (
-              <p>Nothing on the watchlist yet. Scan a page, then add it.</p>
+              <p>Nothing watched yet. Run a web search or add a page, and it will appear here.</p>
             )}
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function HitGrid({ hits }: { hits: ScanHit[] }) {
+  return (
+    <ul className="hits">
+      {hits.map((h) => (
+        <li key={h.imageUrl}>
+          <img src={h.thumb} alt="Matching picture" />
+          <div>
+            <p className="hit-label" data-kind={h.kind}>
+              {h.label}
+              {h.kind === 'face' && <span className="num"> · {Math.round(h.score * 100)}</span>}
+            </p>
+            <p className="small hit-url">{siteOf(h.pageUrl)}</p>
+            <a className="btn btn-alarm btn-sm" href={href('tickets', h.ticketId)}>Open ticket</a>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function HuntResults({ p }: { p: HuntProgress }) {
+  const pct = p.candidates ? Math.round((p.checked / p.candidates) * 100) : 0;
+  return (
+    <div className="results" aria-live="polite">
+      <ul className="engine-list">
+        {p.stage === 'searching' && !p.engines.length && <li><span className="pending-bar" aria-hidden="true" />Asking image search engines…</li>}
+        {p.engines.map((e) => (
+          <li key={e.engine} data-ok={e.ok || undefined}>
+            <strong>{{ yandex: 'Yandex', bing: 'Bing', lens: 'Google Lens', web: 'Web' }[e.engine] ?? e.engine}</strong>
+            <span className="num">{e.ok ? `${e.hits.length} candidates, not yet checked` : `no usable results (${e.error ?? 'unavailable'})`}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="results-head">
+        <p>
+          {p.stage === 'checking' && <>Checking <span className="num">{p.checked}</span> of <span className="num">{p.candidates}</span> candidates against your face, on this device</>}
+          {p.stage === 'done' && (p.hits.length
+            ? <><strong className="num">{p.hits.length}</strong> of {p.candidates} candidates are confirmed as your face on this device. Tickets are open.</>
+            : <>None of the {p.candidates} candidates is your face{p.faces ? ` (${p.faces} other faces checked)` : ''}. Similar-looking pictures are not counted.</>)}
+          {p.stage === 'failed' && <>The search failed: {p.error}</>}
+        </p>
+        {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}
+      </div>
+      {p.hits.length > 0 && <HitGrid hits={p.hits} />}
     </div>
   );
 }
@@ -240,42 +320,15 @@ function Results({ p }: { p: ScanProgress }) {
       <div className="results-head">
         <p>
           {p.stage === 'reading' && 'Reading the page…'}
-          {p.stage === 'checking' && (
-            <>
-              Checking <span className="num">{p.done}</span> of <span className="num">{p.total}</span> pictures
-            </>
-          )}
-          {p.stage === 'done' &&
-            (p.hits.length ? (
-              <>
-                <strong className="num">{p.hits.length}</strong> {p.hits.length === 1 ? 'picture shows' : 'pictures show'} you. Tickets are open.
-              </>
-            ) : (
-              <>No picture on this page matches your face{p.faces ? ` (${p.faces} other faces seen)` : ''}.</>
-            ))}
+          {p.stage === 'checking' && <>Checking <span className="num">{p.done}</span> of <span className="num">{p.total}</span> pictures</>}
+          {p.stage === 'done' && (p.hits.length
+            ? <><strong className="num">{p.hits.length}</strong> {p.hits.length === 1 ? 'picture shows' : 'pictures show'} you. Tickets are open.</>
+            : <>No picture on this page matches your face{p.faces ? ` (${p.faces} other faces seen)` : ''}.</>)}
           {p.stage === 'failed' && <>Could not scan: {p.error}</>}
         </p>
         {p.stage === 'checking' && <div className="meter" style={{ ['--pct' as string]: `${pct}%` }} />}
       </div>
-      {p.hits.length > 0 && (
-        <ul className="hits">
-          {p.hits.map((h) => (
-            <li key={h.imageUrl} className="rise">
-              <img src={h.thumb} alt="Matching picture" />
-              <div>
-                <p className="hit-label" data-kind={h.kind}>
-                  {h.label}
-                  {h.kind === 'face' && <span className="num"> · {Math.round(h.score * 100)}</span>}
-                </p>
-                <p className="small hit-url">{siteOf(h.pageUrl)}</p>
-                <a className="btn btn-alarm btn-sm" href={href('tickets', h.ticketId)}>
-                  Open ticket
-                </a>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {p.hits.length > 0 && <HitGrid hits={p.hits} />}
     </div>
   );
 }

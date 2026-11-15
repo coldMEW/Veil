@@ -29,6 +29,7 @@ await give('input[type=file]', 'public/demo/source/selfie-1.jpg', 'selfie-1.jpg'
 await page.waitForSelector('.vault-list li', { timeout: 120000 });
 console.log('enrol ms', Date.now() - t);
 t = Date.now();
+await page.getByRole('tab', { name: 'Check a page I know' }).click();
 await page.getByRole('button', { name: 'demo leaks page' }).click();
 await page.waitForFunction(() => /pictures show you|matches your face|Could not scan/.test(document.querySelector('.results-head')?.textContent ?? ''), null, { timeout: 300000 });
 console.log('scan ms', Date.now() - t, '|', (await page.locator('.results-head').innerText()).replace(/\s+/g, ' '));

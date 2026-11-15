@@ -10,6 +10,7 @@ const TraceScreen = lazy(() => import('./trace/TraceScreen'));
 const TicketsScreen = lazy(() => import('./tickets/TicketsScreen'));
 const ShieldScreen = lazy(() => import('./shield/ShieldScreen'));
 const AppHome = lazy(() => import('./hub/AppHome'));
+const CleanScreen = lazy(() => import('./shield/ShieldScreen').then((m) => ({ default: () => <m.default mode="clean" /> })));
 
 function Toasts() {
   const [items, setItems] = useState<Array<{ id: number; text: string }>>([]);
@@ -46,6 +47,7 @@ export function App() {
             {route === 'trace' && <TraceScreen />}
             {route === 'tickets' && <TicketsScreen ticketId={param} />}
             {route === 'shield' && <ShieldScreen />}
+            {route === 'clean' && <CleanScreen />}
           </Suspense>
         </Shell>
       )}

@@ -30,7 +30,7 @@ export const watchlist = persisted<Array<{ url: string; addedAt: number; lastSca
 
 const MAX_IMAGES = 40;
 
-async function examine(imageUrl: string, pageUrl: string): Promise<ScanHit | null | 'faces'> {
+export async function examine(imageUrl: string, pageUrl: string): Promise<ScanHit | null | 'faces'> {
   const blob = await fetchImageBytes(imageUrl);
   const bitmap = await createImageBitmap(blob, { imageOrientation: 'from-image' });
   try {

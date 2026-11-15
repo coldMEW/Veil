@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { FacePortrait } from './Woman';
 import { href } from '../router';
+import { ArtShield } from '../shared/Art';
 
 /* ---------------- Check: object on a disc ---------------- */
 
@@ -57,7 +58,6 @@ export function CheckChapter({ onPick }: { onPick: () => void }) {
           <p className="verdict-title">{c.title}</p>
           <p className="verdict-says">{c.says}</p>
         </div>
-        <p className="check-fact">{c.fact}</p>
       </div>
       <div className="check-list">
         <h2 id="check-title">Is it really you?</h2>
@@ -71,6 +71,7 @@ export function CheckChapter({ onPick }: { onPick: () => void }) {
             </li>
           ))}
         </ul>
+        <p className="check-fact" aria-live="polite">{c.fact}</p>
         <button className="btn btn-ink" onClick={onPick}>
           Check an image
         </button>
@@ -135,16 +136,15 @@ export function TraceChapter() {
           </label>
         </div>
         <div className="trace-block">
-          <p className="block-claim">Scan the places fakes turn up.</p>
-          <p>Paste any page and Veil reads every picture on it. Or send the picture to Google Lens, Bing, Yandex and TinEye in one tap, and keep a watchlist that is checked again for you.</p>
+          <p className="block-claim">Veil searches the web for you.</p>
+          <p>Tap once. Veil runs reverse image searches with your face, opens every page that comes back and checks each picture against your face on your phone. Pages it finds go on your watchlist and are checked again.</p>
           <div className="segmented" role="radiogroup" aria-label="Where the match came from">
             {(['all', 'page', 'search', 'watch'] as const).map((s) => (
               <button key={s} role="radio" aria-checked={source === s} onClick={() => setSource(s)}>
-                {{ all: 'All', page: 'Pages', search: 'Search engines', watch: 'Watchlist' }[s]}
+                {{ all: 'All', page: 'Leak pages', search: 'Web search', watch: 'Watchlist' }[s]}
               </button>
             ))}
-          </div>
-        </div>
+          </div></div>
         <div className="trace-block">
           <p className="block-claim">Copies, even cropped or recoloured.</p>
           <p>Every picture is also fingerprinted with PDQ, the hash StopNCII and the big platforms use, so re-uploads of your own photo are caught too.</p>
@@ -223,9 +223,14 @@ export function ShieldChapter() {
             <strong>No street name in sight.</strong> Signs, house numbers and plates are found and painted out.
           </li>
         </ul>
-        <a className="btn btn-ink" href={href('shield')}>
-          Shield a photo
-        </a>
+        <div className="hero-actions">
+          <a className="btn btn-ink" href={href('shield')}>
+            Shield a photo
+          </a>
+          <a className="btn btn-ghost-light" href={href('clean')}>
+            Only remove personal details
+          </a>
+        </div>
       </div>
       <div className="shield-pair" data-ui aria-hidden="true">
         <figure>
@@ -307,6 +312,7 @@ export function Closing({ onPick }: { onPick: () => void }) {
         now.
       </h2>
       <p>It opens on your phone. Nothing is uploaded unless you ask Veil to search the web.</p>
+      <div className="closing-art"><ArtShield /></div>
     </section>
   );
 }

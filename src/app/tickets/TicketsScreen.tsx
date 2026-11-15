@@ -9,14 +9,21 @@ import {
   tickets,
   timeLeft,
   updateTicket,
+  matchLabel,
+  statusLabel,
   type Destination,
   type Law,
   type Ticket,
 } from '../../services/tickets';
 import { evidencePack, LAW_LABEL, LAW_NOTE, mailtoFor, noticeBody, noticeSubject } from '../../services/notice';
 import { hostInfo, urlStatus } from '../../services/api';
+import { connectGmail, gmail, GOOGLE_CLIENT_ID, hasToken, mailAccount } from '../../services/mail';
+import { isAndroid } from '../../platform/environment';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { href, navigate } from '../router';
 import { toast } from '../App';
+import { ArtTakedown } from '../shared/Art';
 
 function useNow(ms = 30000) {
   const [now, setNow] = useState(Date.now());
@@ -27,18 +34,62 @@ function useNow(ms = 30000) {
   return now;
 }
 
-function statusOf(t: Ticket, now: number): { label: string; tone: string } {
-  if (t.status === 'removed') return { label: 'Removed', tone: 'lime' };
-  if (t.status === 'sent') {
-    const left = timeLeft(t, now) ?? 0;
-    return left < 0 ? { label: formatLeft(left), tone: 'alarm' } : { label: formatLeft(left), tone: 'paper' };
-  }
-  return { label: 'Ready to send', tone: 'alarm' };
+
+/** While Tickets is open: read replies (Gmail) and re-check whether pictures are gone, on their own. */
+function useAutoChecks(list: Ticket[]) {
+  useEffect(() => {
+    let live = true;
+    const run = async () => {
+      const open = tickets.get().filter((t) => t.sentAt && t.status !== 'removed' && t.status !== 'rejected');
+      if (hasToken() && open.some((t) => t.gmailThreadId)) {
+        try {
+          const g = await gmail();
+          const access = await connectGmail(); // returns the live token; never opens a window here (hasToken() was checked)
+          const replies = await g.fetchReplies(access, open.map((t) => t.id));
+          for (const r of replies) {
+            const t = tickets.get().find((x) => x.id === r.ticketId);
+            if (!t || (t.replies ?? []).some((x) => x.messageId === r.messageId)) continue;
+            const verdict = g.classifyReply(r.subject, r.snippet);
+            const status = verdict === 'unknown' ? t.status : verdict;
+            updateTicket(
+              t.id,
+              (cur) => ({
+                status: status as Ticket['status'],
+                removedAt: status === 'removed' ? Date.now() : cur.removedAt,
+                replies: [...(cur.replies ?? []), { at: Date.parse(r.date) || Date.now(), from: r.from, snippet: r.snippet, verdict, messageId: r.messageId }],
+              }),
+              `Reply from ${r.from}: ${verdict === 'unknown' ? 'read it below' : verdict.replace('_', ' ')}.`,
+            );
+          }
+        } catch {
+          /* replies are retried on the next round */
+        }
+      }
+      for (const t of open) {
+        if (!live) return;
+        if (t.lastCheckedAt && Date.now() - t.lastCheckedAt < 10 * 60 * 1000) continue;
+        try {
+          const r = await urlStatus(t.imageUrl ?? t.pageUrl);
+          if (r.gone) updateTicket(t.id, { status: 'removed', removedAt: Date.now(), lastCheckedAt: Date.now(), lastCheck: `Gone (${r.status})` }, `Checked automatically: the picture is gone (${r.status}). Ticket closed.`);
+          else updateTicket(t.id, { lastCheckedAt: Date.now(), lastCheck: `Still up (${r.status})` });
+        } catch {
+          /* offline or blocked; try again later */
+        }
+      }
+    };
+    void run();
+    const timer = window.setInterval(() => void run(), 2 * 60 * 1000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [list.length]);
 }
 
 export default function TicketsScreen({ ticketId }: { ticketId: string | null }) {
   const list = tickets.use();
   const now = useNow();
+  useAutoChecks(list);
   const selected = list.find((t) => t.id === ticketId) ?? null;
 
   return (
@@ -47,6 +98,7 @@ export default function TicketsScreen({ ticketId }: { ticketId: string | null })
         <h1 id="tickets-title">Take it down</h1>
         {list.length === 0 ? (
           <div className="empty-note">
+            <div className="empty-art"><ArtTakedown /></div>
             <p>No tickets yet. A ticket opens by itself when Veil finds your face or your photo somewhere, or when you report a fake from Check.</p>
             <a className="btn btn-alarm" href={href('trace')}>
               Find my face online
@@ -55,14 +107,15 @@ export default function TicketsScreen({ ticketId }: { ticketId: string | null })
         ) : (
           <ul>
             {list.map((t) => {
-              const s = statusOf(t, now);
+              const s = statusLabel(t, now);
               return (
                 <li key={t.id}>
                   <a href={href('tickets', t.id)} aria-current={t.id === ticketId ? 'true' : undefined}>
                     {t.thumb ? <img src={t.thumb} alt="" width="64" height="64" /> : <span className="thumb-blank" />}
                     <span className="tl-main">
                       <strong>{t.site}</strong>
-                      <span className="num">{t.id}</span>
+                      <span>{matchLabel(t)}</span>
+                      <span className="num tl-meta">Found {new Date(t.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} · {t.id}</span>
                     </span>
                     <span className="pill num" data-colour={s.tone}>
                       {s.label}
@@ -91,7 +144,7 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
   const me = profile.use();
   const [finding, setFinding] = useState(false);
   const [checking, setChecking] = useState(false);
-  const s = statusOf(t, now);
+  const s = statusLabel(t, now);
 
   // Find who to tell, automatically, the first time a ticket is opened.
   useEffect(() => {
@@ -149,6 +202,53 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
   };
 
   const emails = t.destinations.filter((d) => d.email);
+  const account = mailAccount.use();
+  const [sending, setSending] = useState(false);
+
+  const sendGmail = async () => {
+    if (!emails.length) return toast('There is no email address for this site. Use the report form or Google Search removal.');
+    if (!me.name.trim() || !me.email.trim()) return toast('Add your name and email first; the notice is signed with them.');
+    setSending(true);
+    try {
+      const access = await connectGmail();
+      const g = await gmail();
+      const evidence = new Uint8Array(await evidencePack(t).arrayBuffer());
+      const mime = g.buildMime({
+        from: mailAccount.get().email ?? me.email,
+        to: emails.map((d) => d.email!),
+        replyTo: me.email,
+        subject: g.tagSubject(t.id, noticeSubject(t)),
+        text: noticeBody(t),
+        attachment: { name: `veil-evidence-${t.id}.html`, type: 'text/html', bytes: evidence },
+      });
+      const sent = await g.sendGmail(access, mime);
+      updateTicket(t.id, { status: 'sent', sentAt: Date.now(), sentVia: 'gmail', gmailThreadId: sent.threadId }, `Sent from ${mailAccount.get().email ?? me.email} to ${emails.map((d) => d.email).join(', ')} with the evidence file. The 48-hour clock started.`);
+      toast('Sent. Veil will watch for their reply.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Sending failed.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendWithMailApp = async () => {
+    setSending(true);
+    try {
+      const html = await evidencePack(t).text();
+      const file = await Filesystem.writeFile({ path: `veil-evidence-${t.id}.html`, data: html, directory: Directory.Cache, encoding: 'utf8' as never });
+      await Share.share({
+        title: noticeSubject(t),
+        text: `To: ${emails.map((d) => d.email).join(', ') || '(the address on the report form)'}\n\n${noticeBody(t)}`,
+        files: [file.uri],
+        dialogTitle: 'Send the notice with',
+      });
+      updateTicket(t.id, { status: 'sent', sentAt: Date.now(), sentVia: 'mail-app' }, 'Handed to your mail app with the evidence file. The 48-hour clock started.');
+    } catch (e) {
+      if (!/cancel/i.test(String(e))) toast(e instanceof Error ? e.message : 'Could not open your mail app.');
+    } finally {
+      setSending(false);
+    }
+  };
   const forms = t.destinations.filter((d) => d.reportUrl);
   const left = timeLeft(t, now);
 
@@ -164,7 +264,8 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
           <p className="num small">
             {t.id} · opened {new Date(t.createdAt).toLocaleString()}
           </p>
-          <p>{t.match.detail}</p>
+          <p className="td-what">{matchLabel(t)}</p>
+          <p className="small">{t.match.detail}</p>
           <a className="link-quiet small td-url" href={t.pageUrl} target="_blank" rel="noreferrer noopener">
             {t.pageUrl}
           </a>
@@ -244,9 +345,19 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
           {noticeBody(t)}
         </pre>
         <div className="td-actions">
-          {emails[0] && (
-            <a className="btn btn-alarm" href={mailtoFor(t, emails.map((d) => d.email).join(','))}>
-              Email it
+          {!isAndroid() && GOOGLE_CLIENT_ID && emails[0] && (
+            <button className="btn btn-alarm" disabled={sending} onClick={() => void sendGmail()}>
+              {sending ? 'Sending…' : account.email ? `Send from ${account.email}` : 'Send from my Gmail'}
+            </button>
+          )}
+          {isAndroid() && (
+            <button className="btn btn-alarm" disabled={sending} onClick={() => void sendWithMailApp()}>
+              Send with my email app
+            </button>
+          )}
+          {!isAndroid() && emails[0] && (
+            <a className="btn btn-ghost-light" href={mailtoFor(t, emails.map((d) => d.email).join(','))} onClick={() => window.setTimeout(() => updateTicket(t.id, (c) => (c.sentAt ? {} : { sentVia: 'mailto' })), 0)}>
+              Open in my mail app
             </a>
           )}
           {forms[0] && (
@@ -283,6 +394,16 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
           )}
         </div>
         {t.lastCheck && <p className="small">Last check: {t.lastCheck}, {t.lastCheckedAt ? new Date(t.lastCheckedAt).toLocaleString() : ''}</p>}
+        {(t.replies ?? []).length > 0 && (
+          <ul className="replies">
+            {t.replies!.map((r) => (
+              <li key={r.messageId} data-verdict={r.verdict}>
+                <strong>{r.from}</strong> <span className="num">{new Date(r.at).toLocaleString()}</span>
+                <p>{r.snippet}</p>
+              </li>
+            ))}
+          </ul>
+        )}
         <ol className="log">
           {t.log.map((l) => (
             <li key={l.at + l.text}>

@@ -23,7 +23,7 @@ export interface Evidence {
   how: string;
 }
 
-export type Verdict = 'checking' | 'fake' | 'signed' | 'unclear';
+export type Verdict = 'checking' | 'fake' | 'derived' | 'signed' | 'unclear';
 
 const AI_TYPES = new Set(['trainedAlgorithmicMedia', 'compositeWithTrainedAlgorithmicMedia', 'algorithmicMedia', 'compositeSynthetic']);
 
@@ -248,6 +248,8 @@ export function useCheck(input: CheckInput | null, original: ImageBitmap | null)
 
   const verdict: Verdict = evidence.some((e) => e.tone === 'fake')
     ? 'fake'
+    : evidence.some((e) => e.tone === 'source')
+      ? 'derived'
     : pending.length
       ? 'checking'
       : evidence.some((e) => e.tone === 'real')
