@@ -254,6 +254,7 @@ details[open] .plus::after { transform: rotate(0deg); }
   .hero-end { right: var(--margin); bottom: 3svh; }
   .hero-end h2 { font-size: 13vw; }
   .phone-screen { height: 64svh; top: 42%; }
+  .hero .scene-wrap { top: 42%; }
 
   .swatches-phone { display: grid; }
   .swatches-phone a { display: block; min-height: 56px; padding: 16px var(--margin); font-family: var(--display); font-weight: 700; font-size: 22px; text-transform: uppercase; text-decoration: none; }

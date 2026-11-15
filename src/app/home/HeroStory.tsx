@@ -13,24 +13,27 @@ const FAKES = [
   { user: 'anon_uploads', caption: 'more in my bio', bg: '#262626', outfit: '#7cc4ff', accent: '#555', tag: 'Face swap' },
 ];
 
-function useOrigin(ref: React.RefObject<HTMLDivElement | null>) {
-  const [origin, setOrigin] = useState({ x: 0, y: 0, W: 1, H: 1 });
+function useOrigin(stage: React.RefObject<HTMLDivElement | null>, wrap: React.RefObject<HTMLDivElement | null>) {
+  const [o, setO] = useState({ x: 0, y: 0, W: 1, H: 1, dx: 0, dy: 0 });
   useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
+    const st = stage.current;
+    const el = wrap.current;
+    if (!st || !el) return;
     const measure = () => {
-      const { width: W, height: H } = el.getBoundingClientRect();
+      // offset* sizes ignore the zoom transform, so this is the scene's resting geometry.
+      const W = el.offsetWidth;
+      const H = el.offsetHeight;
       const s = Math.max(W / VB_W, H / VB_H);
       const x = (W - VB_W * s) / 2 + (PHONE_FLOOR.x - VB_X) * s;
       const y = (H - VB_H * s) / 2 + PHONE_FLOOR.y * s;
-      setOrigin({ x, y, W, H });
+      setO({ x, y, W: st.offsetWidth, H: st.offsetHeight, dx: st.offsetWidth / 2 - x, dy: st.offsetHeight / 2 - el.offsetTop - y });
     };
     measure();
     const ro = new ResizeObserver(measure);
-    ro.observe(el);
+    ro.observe(st);
     return () => ro.disconnect();
-  }, [ref]);
-  return origin;
+  }, [stage, wrap]);
+  return o;
 }
 
 function Room() {
@@ -146,7 +149,8 @@ export function HeroStory({ onCheck, onTrace }: { onCheck: () => void; onTrace: 
   const reduce = useReducedMotion();
   const ref = useRef<HTMLDivElement>(null);
   const stage = useRef<HTMLDivElement>(null);
-  const origin = useOrigin(stage);
+  const wrap = useRef<HTMLDivElement>(null);
+  const origin = useOrigin(stage, wrap);
   const { scrollYProgress: p } = useScroll({ target: ref, offset: ['start start', 'end end'] });
 
   const titleOpacity = useTransform(p, [0, 0.1], [1, 0]);
@@ -155,8 +159,8 @@ export function HeroStory({ onCheck, onTrace }: { onCheck: () => void; onTrace: 
   const notifyY = useTransform(p, [0.1, 0.13], [16, 0]);
   const scream = useTransform(p, [0.18, 0.32], [0, 1]);
   const sceneScale = useTransform(p, [0.48, 0.66], [1, 7]);
-  const sceneX = useTransform(p, [0.48, 0.66], [0, origin.W / 2 - origin.x]);
-  const sceneY = useTransform(p, [0.48, 0.66], [0, origin.H / 2 - origin.y]);
+  const sceneX = useTransform(p, [0.48, 0.66], [0, origin.dx]);
+  const sceneY = useTransform(p, [0.48, 0.66], [0, origin.dy]);
   const narrow = origin.W < 860;
   const phoneX = useTransform(p, [0.88, 0.94], ['0vw', narrow ? '0vw' : '20vw']);
   const phoneY = useTransform(p, [0.88, 0.94], ['0svh', narrow ? '-14svh' : '0svh']);
@@ -207,7 +211,7 @@ export function HeroStory({ onCheck, onTrace }: { onCheck: () => void; onTrace: 
     <section className="hero" ref={ref} aria-labelledby="hero-title">
       <div className="hero-sticky">
         <div className="hero-stage" ref={stage}>
-          <motion.div className="scene-wrap" style={{ scale: sceneScale, opacity: sceneOpacity, transformOrigin: `${origin.x}px ${origin.y}px`, x: sceneX, y: sceneY }}>
+          <motion.div className="scene-wrap" ref={wrap} style={{ scale: sceneScale, opacity: sceneOpacity, transformOrigin: `${origin.x}px ${origin.y}px`, x: sceneX, y: sceneY }}>
             <motion.div className="scene-shake" style={{ x: shake }}>
             <svg className="scene" viewBox={`${VB_X} 0 ${VB_W} ${VB_H}`} preserveAspectRatio="xMidYMid slice" role="img" aria-label="A woman at home looks at her phone, sees a deepfake of herself, screams and drops the phone.">
               <Room />

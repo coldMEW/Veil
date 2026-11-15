@@ -155,9 +155,9 @@
 .ticket-list { display: grid; gap: 16px; }
 .ticket-list h1 { color: var(--alarm); }
 .ticket-list ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.ticket-list a { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 10px; border-radius: 6px; background: var(--char-2); text-decoration: none; transition: background var(--t-fast); }
-.ticket-list a:hover { background: var(--char-3); }
-.ticket-list a[aria-current='true'] { background: var(--char-3); box-shadow: inset 6px 0 0 var(--alarm); }
+.ticket-list li a { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: center; padding: 10px; border-radius: 6px; background: var(--char-2); text-decoration: none; transition: background var(--t-fast); }
+.ticket-list li a:hover { background: var(--char-3); }
+.ticket-list li a[aria-current='true'] { background: var(--char-3); box-shadow: inset 6px 0 0 var(--alarm); }
 .ticket-list img, .thumb-blank { width: 64px; height: 64px; border-radius: 4px; object-fit: cover; background: var(--char-4); }
 .tl-main { display: grid; font-size: 14px; color: var(--on-dark-soft); min-width: 0; }
 .tl-main strong { font-size: 17px; color: var(--on-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -208,8 +208,13 @@
     position: relative; min-height: 60px; display: grid; place-items: center; text-decoration: none;
     font-family: var(--display); font-weight: 700; font-size: 18px; text-transform: uppercase; transition: transform var(--t-med) var(--ease);
   }
-  .tabs a:not([aria-current]) { filter: saturate(0.25) brightness(0.55); }
+  .tabs a:not([aria-current]) { background: var(--char-2); color: var(--on-dark); }
+  .tabs a:not([aria-current])::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--tab); }
   .tabs a[aria-current='page'] { transform: translateY(-6px); }
+  .tabs a[data-colour='lime'] { --tab: var(--lime); }
+  .tabs a[data-colour='sky'] { --tab: var(--sky); }
+  .tabs a[data-colour='alarm'] { --tab: var(--alarm); }
+  .tabs a[data-colour='paper'] { --tab: var(--paper); }
   .tabs .count { position: absolute; top: 6px; right: 8px; }
   .toasts { bottom: 84px; }
 

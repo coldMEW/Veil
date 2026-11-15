@@ -48,7 +48,7 @@ export default function TicketsScreen({ ticketId }: { ticketId: string | null })
         {list.length === 0 ? (
           <div className="empty-note">
             <p>No tickets yet. A ticket opens by itself when Veil finds your face or your photo somewhere, or when you report a fake from Check.</p>
-            <a className="btn btn-ink" href={href('trace')}>
+            <a className="btn btn-alarm" href={href('trace')}>
               Find my face online
             </a>
           </div>
