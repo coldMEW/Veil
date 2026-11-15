@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="A local-first video evidence passport for preserving facts, provenance signals, and reviewer observations."
+    />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob: data:; media-src blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'" />
+    <title>Veil — Video Evidence Passport</title>
+    <link rel="stylesheet" href="src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <section class="startup-fallback">
+        <p class="eyebrow">VEIL / VIDEO EVIDENCE PASSPORT</p>
+        <h1>Start Veil from its local server.</h1>
+        <p>From the project folder, run <code>npm run dev</code>, then open <code>http://localhost:5173</code>. Opening this HTML file directly can prevent the browser from loading the application modules.</p>
+      </section>
+    </main>
+    <noscript>
+      <section class="startup-fallback">
+        <p class="eyebrow">JAVASCRIPT REQUIRED</p>
+        <h1>Veil needs JavaScript to inspect a local video.</h1>
+      </section>
+    </noscript>
+    <script type="module" src="src/app.js"></script>
+  </body>
+</html>
