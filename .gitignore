@@ -1,2 +1,3 @@
 .veil-evidence/
+node_modules/
 *.log

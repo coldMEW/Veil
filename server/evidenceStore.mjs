@@ -149,6 +149,34 @@ function sanitizeAnalysis(value) {
     inspectedAt: text(value.inspectedAt, 64),
     sampledFrames: nonNegativeNumber(value.sampledFrames),
     frameIntervalEstimate: nonNegativeNumber(value.frameIntervalEstimate),
+    syntheticMedia:
+      value.syntheticMedia && typeof value.syntheticMedia === 'object'
+        ? {
+            status: text(value.syntheticMedia.status, 50),
+            reason: text(value.syntheticMedia.reason, 1_000),
+            engine:
+              value.syntheticMedia.engine && typeof value.syntheticMedia.engine === 'object'
+                ? {
+                    id: text(value.syntheticMedia.engine.id, 160),
+                    modelRepository: text(value.syntheticMedia.engine.modelRepository, 300),
+                    modelRevision: text(value.syntheticMedia.engine.modelRevision, 160),
+                    modelUrl: text(value.syntheticMedia.engine.modelUrl, 1_000),
+                    expectedModelSha256: text(value.syntheticMedia.engine.expectedModelSha256, 128),
+                    expectedModelByteLength: nonNegativeNumber(value.syntheticMedia.engine.expectedModelByteLength),
+                    modelSha256: text(value.syntheticMedia.engine.modelSha256, 128),
+                    modelByteLength: nonNegativeNumber(value.syntheticMedia.engine.modelByteLength),
+                    integrityVerified: value.syntheticMedia.engine.integrityVerified === true,
+                    license: text(value.syntheticMedia.engine.license, 160),
+                    runtime: text(value.syntheticMedia.engine.runtime, 300),
+                    execution: text(value.syntheticMedia.engine.execution, 300),
+                    preprocessing: text(value.syntheticMedia.engine.preprocessing, 500),
+                    scope: text(value.syntheticMedia.engine.scope, 500),
+                  }
+                : null,
+            metrics: selectedNumbers(value.syntheticMedia.metrics, ['requestedFrames', 'sampledFrames', 'unscoredFrames', 'medianSyntheticScore', 'meanSyntheticScore', 'upperQuartileMean', 'maxSyntheticScore', 'flaggedFrames']),
+            signalCount: analysisSignalCount(value.syntheticMedia),
+          }
+        : null,
     temporal:
       value.temporal && typeof value.temporal === 'object'
         ? {
@@ -294,7 +322,7 @@ export class EvidenceStore {
     const receivedAt = new Date().toISOString();
     const clientHash = clientHashState(clientSha256, serverSha256);
     const payload = {
-      schema: 'veil-local-evidence-receipt/v0.2',
+      schema: 'veil-local-evidence-receipt/v0.3',
       case: {
         id: caseId,
         receivedAt,
@@ -333,7 +361,7 @@ export class EvidenceStore {
         'This prototype detects a C2PA container marker but does not validate a manifest signature, signer trust, or timestamp trust.',
         'Original evidence is stored locally; production use requires independently controlled retention, access, and timestamp services.',
       ],
-      software: { product: 'Veil Evidence Passport', version: '0.2.0', mode: 'local evidence vault' },
+      software: { product: 'Veil Evidence Passport', version: '0.3.0', mode: 'local evidence vault' },
     };
     const envelope = await this.signPayload(payload);
     await writeAtomic(join(target, 'receipt.json'), `${JSON.stringify(envelope, null, 2)}\n`, 0o600);

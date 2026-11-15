@@ -1,9 +1,15 @@
 import { formatTimestamp } from './videoFacts.js';
+import {
+  analyzeSyntheticFrames,
+  SYNTHETIC_MEDIA_INPUT_SIZE,
+  SYNTHETIC_MEDIA_RESIZE_SIZE,
+  SYNTHETIC_MEDIA_SAMPLE_LIMIT,
+} from './syntheticMediaModel.js';
 
 export const ANALYSIS_ENGINE = Object.freeze({
   id: 'veil-browser-evidence-scan',
-  version: '0.2.0',
-  mode: 'heuristic review signals; not a synthetic-media classifier',
+  version: '0.3.0',
+  mode: 'local temporal heuristics plus optional trained synthetic-media frame classification; not an authenticity verdict',
 });
 
 const MAX_SAMPLES = 42;
@@ -187,13 +193,37 @@ async function seek(video, time) {
 }
 
 function createCanvasFor(video) {
-  const scale = Math.min(1, 192 / video.videoWidth, 144 / video.videoHeight);
+  const scale = Math.min(1, 256 / video.videoWidth, 192 / video.videoHeight);
   const width = Math.max(1, Math.round(video.videoWidth * scale));
   const height = Math.max(1, Math.round(video.videoHeight * scale));
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
   return canvas;
+}
+
+function selectEvenlyIndexes(length, maximum) {
+  if (length <= maximum) return new Set(Array.from({ length }, (_, index) => index));
+  return new Set(Array.from({ length: maximum }, (_, index) => Math.round((index * (length - 1)) / (maximum - 1))));
+}
+
+function createModelCanvas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = SYNTHETIC_MEDIA_INPUT_SIZE;
+  canvas.height = SYNTHETIC_MEDIA_INPUT_SIZE;
+  return canvas;
+}
+
+/** Mirrors the model card's 440px-short-edge then 384px center-crop preprocessing without retaining a full-size frame. */
+function captureModelThumbnail(video, canvas) {
+  const context = canvas.getContext('2d');
+  if (!context) return null;
+  const shortestEdge = Math.min(video.videoWidth, video.videoHeight);
+  const sourceCrop = (SYNTHETIC_MEDIA_INPUT_SIZE / SYNTHETIC_MEDIA_RESIZE_SIZE) * shortestEdge;
+  const sourceX = (video.videoWidth - sourceCrop) / 2;
+  const sourceY = (video.videoHeight - sourceCrop) / 2;
+  context.drawImage(video, sourceX, sourceY, sourceCrop, sourceCrop, 0, 0, SYNTHETIC_MEDIA_INPUT_SIZE, SYNTHETIC_MEDIA_INPUT_SIZE);
+  return canvas.toDataURL('image/jpeg', 0.92);
 }
 
 function describePixels(imageData, width, height) {
@@ -381,6 +411,8 @@ export async function analyzeVideoFile(file, onProgress) {
     const canvas = createCanvasFor(video);
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) throw new Error('The browser could not create a frame-analysis canvas.');
+    const modelCanvas = createModelCanvas();
+    const modelFrameIndexes = selectEvenlyIndexes(sampleTimes.length, SYNTHETIC_MEDIA_SAMPLE_LIMIT);
     const faceDetector = availableFaceDetector();
     const frames = [];
     let previousPixels = null;
@@ -406,10 +438,20 @@ export async function analyzeVideoFile(file, onProgress) {
         ...transition,
         faces,
         thumbnail: canvas.toDataURL('image/jpeg', 0.72),
+        modelThumbnail: modelFrameIndexes.has(index) ? captureModelThumbnail(video, modelCanvas) : null,
       });
       previousPixels = imageData.data;
       onProgress?.({ phase: 'frames', completed: index + 1, total: sampleTimes.length });
     }
+    onProgress?.({ phase: 'model', stage: 'load', completed: 0, total: 1 });
+    const syntheticMedia = await analyzeSyntheticFrames(frames, (progress) => {
+      onProgress?.({
+        phase: 'model',
+        stage: progress.stage ?? 'load',
+        completed: progress.completed ?? progress.current ?? 0,
+        total: progress.total ?? 1,
+      });
+    });
     const temporal = analyzeTemporalDescriptors(frames);
     const faceStatus = faceDetector ? 'complete' : 'unavailable';
     const face = {
@@ -420,24 +462,26 @@ export async function analyzeVideoFile(file, onProgress) {
     };
     onProgress?.({ phase: 'audio', completed: 0, total: 1 });
     const audio = await analyzeAudio(file, onProgress);
-    const signals = deduplicateSignals([...temporal.signals, ...face.signals, ...audio.signals]);
+    const signals = deduplicateSignals([...syntheticMedia.signals, ...temporal.signals, ...face.signals, ...audio.signals]);
     return {
       engine: ANALYSIS_ENGINE,
       status: 'complete',
       inspectedAt: new Date().toISOString(),
       sampledFrames: frames.length,
       frameIntervalEstimate: frames.length > 1 ? frames[1].time - frames[0].time : null,
+      syntheticMedia,
       temporal,
       face,
       audio,
       unavailableChecks: [
         { id: 'lip_sync', reason: 'Requires a separately validated audiovisual speech model; Veil does not infer lip-sync from simple motion heuristics.' },
         { id: 'voice_clone', reason: 'Requires a separately validated voice-authenticity model and consented reference material.' },
-        { id: 'synthetic_media_classifier', reason: 'No broad AI/deepfake classifier is bundled in this local prototype.' },
+        ...(syntheticMedia.status === 'complete' ? [] : [{ id: 'synthetic_media_model', reason: syntheticMedia.reason || 'The local trained synthetic-media model did not complete.' }]),
       ],
       signals,
       limitations: [
         'The scan samples frames rather than evaluating every frame.',
+        'The trained model scores individual sampled frames and aggregates them; it is not calibrated as a universal video-authenticity probability.',
         'Temporal, audio, and face-track patterns can arise in genuine media.',
         'Signals are review prompts, never an AI-generation or fraud verdict.',
       ],

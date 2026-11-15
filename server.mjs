@@ -7,11 +7,16 @@ import { EvidenceStore, EvidenceStoreError, MAX_EVIDENCE_BYTES } from './server/
 const root = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const port = Number(process.env.PORT || 5173);
 const evidenceStore = new EvidenceStore(resolve(root, '.veil-evidence'));
+const ortDistribution = resolve(root, 'node_modules', 'onnxruntime-web', 'dist');
+const vendorAssets = Object.fromEntries(
+  ['ort.min.js', 'ort-wasm-simd-threaded.wasm', 'ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.jsep.wasm', 'ort-wasm-simd-threaded.jsep.mjs'].map((file) => [`/vendor/ort/${file}`, resolve(ortDistribution, file)]),
+);
 
 const mimeTypes = {
   '.css': 'text/css; charset=utf-8',
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
 };
@@ -23,15 +28,16 @@ const securityHeaders = {
   'Referrer-Policy': 'no-referrer',
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
-  'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: data:; media-src blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'",
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' blob: data:; media-src blob:; style-src 'self'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self' https://huggingface.co https://*.hf.co; worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'",
 };
 
 function safePath(pathname) {
+  if (Object.hasOwn(vendorAssets, pathname)) return vendorAssets[pathname];
   const requested = pathname === '/' ? '/index.html' : pathname;
   const full = resolve(root, `.${requested}`);
   const relativePath = relative(root, full);
   if (relativePath.startsWith('..') || isAbsolute(relativePath)) return null;
-  if (relativePath.split(/[\\/]/).some((part) => part.startsWith('.'))) return null;
+  if (relativePath.split(/[\\/]/).some((part) => part.startsWith('.') || part === 'node_modules')) return null;
   return full;
 }
 

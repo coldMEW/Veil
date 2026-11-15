@@ -40,11 +40,21 @@ test('seals a video receipt, verifies it, and records review observations', asyn
       engine: { id: 'test-scan', version: '1', mode: 'review only' },
       status: 'complete',
       sampledFrames: 12,
+      syntheticMedia: {
+        status: 'complete',
+        engine: { id: 'model-test', modelRepository: 'example/model', modelRevision: 'abc123', modelUrl: 'https://example.test/model.onnx', expectedModelSha256: 'a'.repeat(64), modelSha256: 'a'.repeat(64), integrityVerified: true, runtime: 'onnxruntime-web@1.22.0 WebAssembly', license: 'MIT' },
+        metrics: { requestedFrames: 8, sampledFrames: 8, medianSyntheticScore: 0.71, maxSyntheticScore: 0.91, ignored: 'not persisted' },
+        signalCount: 1,
+      },
       signals: [{ id: 'signal-12345678', check: 'temporal_edit', title: 'Abrupt transition', observation: 'Review this moment.', timeStart: 3.25, timeEnd: 3.25, thumbnail: 'data:image/jpeg;base64,should-not-be-stored' }],
     };
     const analyzed = await store.appendAnalysis('case-12345678', analysis);
     assert.equal(analyzed.payload.analysisRuns.length, 1);
     assert.equal(analyzed.payload.analysisRuns[0].analysis.signals[0].check, 'temporal_edit');
+    assert.equal(analyzed.payload.analysisRuns[0].analysis.syntheticMedia.metrics.medianSyntheticScore, 0.71);
+    assert.equal(analyzed.payload.analysisRuns[0].analysis.syntheticMedia.engine.runtime, 'onnxruntime-web@1.22.0 WebAssembly');
+    assert.equal(analyzed.payload.analysisRuns[0].analysis.syntheticMedia.engine.integrityVerified, true);
+    assert.equal('ignored' in analyzed.payload.analysisRuns[0].analysis.syntheticMedia.metrics, false);
     assert.equal(JSON.stringify(analyzed.payload.analysisRuns).includes('should-not-be-stored'), false);
     assert.equal(await store.verifyEnvelope(analyzed), true);
 

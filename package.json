@@ -1,6 +1,6 @@
 {
   "name": "veil-evidence-passport",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,5 +10,8 @@
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "onnxruntime-web": "1.22.0"
   }
 }

@@ -154,7 +154,7 @@ function frameHeader() {
 function emptyScreen() {
   return `
     <section class="hero" id="top">
-      <div class="eyebrow">VIDEO EVIDENCE PASSPORT / 0.2</div>
+      <div class="eyebrow">VIDEO EVIDENCE PASSPORT / 0.3</div>
       <h1>Preserve the record.<br /><em>Separate fact from suspicion.</em></h1>
       <p class="hero-copy">Veil helps claims teams and people document what is known about a video—its exact bytes, provenance signals, technical facts, and timestamped review notes—without claiming to decide whether a video is true.</p>
       <div class="principles" aria-label="Core principles">
@@ -252,12 +252,13 @@ function analysisStatus() {
     const progress = state.analysis.progress;
     const completed = progress?.completed ?? 0;
     const total = progress?.total ?? 1;
-    return { label: 'Scanning original video', tone: 'review', detail: `${progress?.phase === 'frames' ? 'Sampling frames' : 'Reviewing audio'} · ${completed}/${total}` };
+    const phase = progress?.phase === 'frames' ? 'Sampling frames' : progress?.phase === 'model' ? 'Loading trained local model' : 'Reviewing audio';
+    return { label: 'Scanning original video', tone: 'review', detail: `${phase} · ${completed}/${total}` };
   }
   if (state.analysis.status === 'failed') return { label: 'Scan did not complete', tone: 'danger', detail: state.analysis.error || 'The browser could not complete the scan.' };
   if (state.analysis.status === 'complete') {
     const count = state.analysis.result?.signals?.length ?? 0;
-    return { label: count ? `${count} review signal${count === 1 ? '' : 's'} found` : 'No heuristic signals found', tone: count ? 'review' : 'verified', detail: count ? 'Each signal is a timestamped prompt for human review, not a verdict.' : 'The sampled heuristics did not flag a moment; this does not prove authenticity.' };
+    return { label: count ? `${count} review signal${count === 1 ? '' : 's'} found` : 'No review signals found', tone: count ? 'review' : 'verified', detail: count ? 'Each signal is a timestamped prompt for human review, not a verdict.' : 'The model and sampled checks did not flag a moment; this does not prove authenticity.' };
   }
   return { label: 'Evidence scan not started', tone: 'unknown', detail: 'Run the browser-local scan to produce timestamped visual and audio review signals.' };
 }
@@ -271,24 +272,31 @@ function scanSection() {
   const scan = state.analysis;
   const result = scan.result;
   const temporalStatus = scan.status === 'running' ? 'running' : result?.temporal ? 'complete' : scan.status === 'failed' ? 'failed' : 'unavailable';
+  const syntheticStatus = scan.status === 'running' && scan.progress?.phase === 'model' ? 'running' : result?.syntheticMedia?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
   const audioStatus = scan.status === 'running' && scan.progress?.phase === 'audio' ? 'running' : result?.audio?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
   const faceStatus = result?.face?.status ?? (scan.status === 'failed' ? 'failed' : 'unavailable');
   const audioMetrics = result?.audio?.metrics;
   const audioDetail = result?.audio?.reason ?? (audioMetrics ? `${known(audioMetrics.channels, '?')} channel(s), ${Number.isFinite(audioMetrics.sampleRate) ? `${audioMetrics.sampleRate.toLocaleString()} Hz` : 'sample rate unavailable'}.` : 'Requires browser audio decoding.');
+  const syntheticMetrics = result?.syntheticMedia?.metrics;
+  const syntheticEngine = result?.syntheticMedia?.engine;
+  const syntheticDetail = syntheticMetrics
+    ? `${syntheticEngine?.id ?? 'trained model'}${syntheticEngine?.integrityVerified ? ' · pinned model fingerprint verified' : ''} · ${syntheticMetrics.sampledFrames}/${syntheticMetrics.requestedFrames ?? syntheticMetrics.sampledFrames} sampled frames · median model score ${Math.round((syntheticMetrics.medianSyntheticScore ?? 0) * 100)} / 100.${result?.syntheticMedia?.reason ? ` ${result.syntheticMedia.reason}` : ''}`
+    : result?.syntheticMedia?.reason ?? 'Loads the pinned local trained classifier before scoring sampled frames.';
   const status = analysisStatus();
   return `
     <section class="scan-section">
-      <div class="section-heading"><div><span class="eyebrow">AUTOMATED REVIEW</span><h2>Evidence signal scan</h2></div><p>The scan samples frames and audio locally. It generates review prompts, never a real/fake score.</p></div>
+      <div class="section-heading"><div><span class="eyebrow">AUTOMATED REVIEW</span><h2>Evidence signal scan</h2></div><p>Frames and audio stay local. The first model run downloads its model file only; it generates review prompts, never a final real/fake decision.</p></div>
       <div class="scan-layout">
         <div class="scan-lead ${status.tone}">
           <div><span class="eyebrow">SCAN STATUS</span><h3>${escapeHtml(status.label)}</h3><p data-scan-progress>${escapeHtml(status.detail)}</p></div>
           <button class="button primary no-print" data-action="run-scan" ${scan.status === 'running' ? 'disabled' : ''}>${scan.status === 'complete' ? 'Run scan again' : scan.status === 'running' ? 'Scanning original…' : 'Scan original video'}</button>
         </div>
         <div class="scan-check-grid">
+          ${analysisCheck('Trained synthetic-media model', syntheticStatus, syntheticDetail)}
           ${analysisCheck('Temporal continuity', temporalStatus, result?.temporal ? `${result.temporal.metrics.sampledFrames} sampled frames; detects abrupt and localized changes.` : 'Requires a completed frame scan.')}
           ${analysisCheck('Audio transitions', audioStatus, audioDetail)}
           ${analysisCheck('Face track', faceStatus, result?.face?.reason ?? (result?.face?.metrics ? `${result.face.metrics.framesWithFaces} sampled frames with detected faces.` : 'Uses the optional browser FaceDetector API.'))}
-          ${analysisCheck('Lip sync / voice / AI model', 'unavailable', 'Requires separately validated models; Veil does not fabricate these results.')}
+          ${analysisCheck('Lip sync / voice authenticity', 'unavailable', 'Requires separately validated audiovisual and voice models; Veil does not fabricate these results.')}
         </div>
       </div>
       ${result?.unavailableChecks?.length ? `<details class="unavailable-details"><summary>${result.unavailableChecks.length} intentionally unavailable checks</summary><ul>${result.unavailableChecks.map((check) => `<li><b>${escapeHtml(check.id.replaceAll('_', ' '))}:</b> ${escapeHtml(check.reason)}</li>`).join('')}</ul></details>` : ''}
@@ -434,7 +442,7 @@ function observationsList() {
         <li class="${item.source === 'automated' ? 'automated-observation' : ''}">
           <div class="timeline-marker"><span>${typeIcon(item.category)}</span></div>
           <button class="observation-time" type="button" data-action="seek" data-time="${escapeHtml(item.time.toFixed(3))}" aria-label="Jump to ${escapeHtml(formatTimestamp(item.time))}">${escapeHtml(formatTimestamp(item.time))}</button>
-          <div class="observation-body">${item.thumbnail ? `<img class="timeline-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="Sampled frame at ${escapeHtml(formatTimestamp(item.time))}" />` : ''}<span class="tag">${escapeHtml(item.source === 'automated' ? 'automated signal' : item.category)}</span><h3>${escapeHtml(item.title || 'Reviewer observation')}</h3><p>${escapeHtml(item.text)}</p><small>${item.source === 'automated' ? `${escapeHtml(item.check.replaceAll('_', ' '))} · heuristic review signal` : `Added ${escapeHtml(formatDate(item.createdAt))}`}</small></div>
+          <div class="observation-body">${item.thumbnail ? `<img class="timeline-thumbnail" src="${escapeHtml(item.thumbnail)}" alt="Sampled frame at ${escapeHtml(formatTimestamp(item.time))}" />` : ''}<span class="tag">${escapeHtml(item.source === 'automated' ? 'automated signal' : item.category)}</span><h3>${escapeHtml(item.title || 'Reviewer observation')}</h3><p>${escapeHtml(item.text)}</p><small>${item.source === 'automated' ? `${escapeHtml(item.check.replaceAll('_', ' '))} · ${item.check === 'synthetic_media_model' ? 'trained-model review signal' : 'heuristic review signal'}` : `Added ${escapeHtml(formatDate(item.createdAt))}`}</small></div>
           ${item.source === 'automated' ? '<span class="observation-sealed">signal</span>' : receiptPayload() ? '<span class="observation-sealed" title="This observation is retained in the local evidence record">sealed</span>' : `<button class="icon-button no-print" data-action="remove-observation" data-id="${escapeHtml(item.id)}" aria-label="Remove observation ${index + 1}">×</button>`}
         </li>`,
     )
@@ -576,6 +584,15 @@ function updateScanProgress(progress) {
   state.analysis.progress = progress;
   const status = app.querySelector('[data-scan-progress]');
   if (!status) return;
+  if (progress.phase === 'model') {
+    if (progress.stage === 'frames') {
+      status.textContent = `Scoring sampled frames with the local model · ${progress.completed}/${progress.total}`;
+      return;
+    }
+    const percent = progress.total > 0 ? Math.min(100, Math.round((progress.completed / progress.total) * 100)) : 0;
+    status.textContent = `Loading trained local model · ${percent}%`;
+    return;
+  }
   const phase = progress.phase === 'frames' ? 'Sampling frames' : 'Reviewing audio';
   status.textContent = `${phase} · ${progress.completed}/${progress.total}`;
 }
@@ -589,6 +606,15 @@ function analysisForVault(result) {
     inspectedAt: result.inspectedAt,
     sampledFrames: result.sampledFrames,
     frameIntervalEstimate: result.frameIntervalEstimate,
+    syntheticMedia: result.syntheticMedia
+      ? {
+          status: result.syntheticMedia.status,
+          reason: result.syntheticMedia.reason,
+          engine: result.syntheticMedia.engine,
+          metrics: result.syntheticMedia.metrics,
+          signalCount: result.syntheticMedia.signals?.length ?? 0,
+        }
+      : null,
     temporal: result.temporal
       ? {
           metrics: result.temporal.metrics,
@@ -733,7 +759,7 @@ function buildEvidencePackage() {
   const provenance = provenanceStatus();
   const receipt = receiptPayload();
   return {
-    schema: 'veil-evidence-package/v0.2',
+    schema: 'veil-evidence-package/v0.3',
     generatedAt: new Date().toISOString(),
     workflow: state.workflow === 'personal' ? 'personal_deepfake_incident' : 'insurance_evidence_review',
     case: {
@@ -768,9 +794,9 @@ function buildEvidencePackage() {
       'A file hash identifies exact bytes but does not establish who recorded the video or whether the depicted event occurred.',
       'Credential absence is not evidence of AI generation or manipulation.',
       'Reviewer observations are hypotheses requiring independent corroboration.',
-      'No automated deepfake detector ran in this local evidence-vault MVP.',
+      'The trained synthetic-media model is a sampled-frame review signal, not a universal AI-generated-video detector or a fraud conclusion.',
     ],
-    software: { product: 'Veil Evidence Passport', version: '0.2.0', mode: receipt ? 'local evidence vault' : 'browser-local fallback' },
+    software: { product: 'Veil Evidence Passport', version: '0.3.0', mode: receipt ? 'local evidence vault' : 'browser-local fallback' },
   };
 }
 
