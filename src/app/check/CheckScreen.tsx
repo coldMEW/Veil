@@ -14,6 +14,7 @@ import { pendingTrace } from '../trace/pending';
 const VERDICT: Record<Verdict, { title: string; line: string; tone: string }> = {
   checking: { title: 'Checking', line: 'Veil is looking at this picture on your device.', tone: 'char' },
   fake: { title: 'Signs it was faked', line: 'At least one check found strong evidence that this picture was made or changed by AI or an editor.', tone: 'alarm' },
+  derived: { title: 'Made from your photo', line: 'Your invisible Veil mark is inside this picture: it was made from a photo you shielded. If you did not post it, report it.', tone: 'sky' },
   signed: { title: 'Signed and unchanged', line: 'The camera that took it signed it, and it has not been changed since.', tone: 'lime' },
   unclear: { title: 'Nothing decisive', line: 'None of the checks found strong evidence either way. That does not prove the picture is real: add your original photo to compare.', tone: 'char' },
 };
@@ -106,7 +107,7 @@ export default function CheckScreen() {
   }
 
   const v = VERDICT[check.verdict];
-  const fake = check.verdict === 'fake';
+  const fake = check.verdict === 'fake' || check.verdict === 'derived';
   const face = check.faces?.[0];
 
   return (

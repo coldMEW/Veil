@@ -197,8 +197,14 @@ export function useModelFocus(assetId: string | null, bitmap: ImageBitmap | null
       setState({ status: 'failed', message: 'The model worker stopped unexpectedly.' });
     };
 
-    // Send a copy; the open photo keeps its own bitmap.
-    const copy = await createImageBitmap(bitmap);
+    // Send a copy; the open photo keeps its own bitmap. If the photo was closed meanwhile, stop quietly.
+    let copy: ImageBitmap;
+    try {
+      copy = await createImageBitmap(bitmap);
+    } catch {
+      stop();
+      return;
+    }
     if (runId.current !== id) {
       copy.close();
       return;

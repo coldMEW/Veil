@@ -342,3 +342,4 @@
 .replies li[data-verdict='removed'] { border-left-color: var(--ok); }
 .replies li[data-verdict='rejected'], .replies li[data-verdict='needs_info'] { border-left-color: var(--alarm); }
 .replies li p { margin-top: 4px; color: var(--ink-soft); }
+.verdict[data-tone='sky'] { background: var(--sky); color: var(--ink); }
