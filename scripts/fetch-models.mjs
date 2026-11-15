@@ -6,7 +6,10 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const manifest = JSON.parse(await readFile(join(root, 'src/features/inspect/model/models.json'), 'utf8'));
+const manifest = {
+  ...JSON.parse(await readFile(join(root, 'src/features/inspect/model/models.json'), 'utf8')),
+  ...JSON.parse(await readFile(join(root, 'src/engine/face/models.json'), 'utf8')),
+};
 
 async function sha256File(file) {
   return createHash('sha256').update(await readFile(file)).digest('hex');
@@ -23,7 +26,7 @@ for (const [id, m] of Object.entries(manifest)) {
     // missing; download below
   }
 
-  const url = `${m.upstream}/resolve/${m.revision}/${m.path}`;
+  const url = m.url ?? `${m.upstream}/resolve/${m.revision}/${m.path}`;
   console.log(`[models] ${id}: downloading ${(m.bytes / 1e6).toFixed(1)} MB from ${url}`);
   const res = await fetch(url, { redirect: 'follow' });
   if (!res.ok) throw new Error(`[models] ${id}: HTTP ${res.status}`);
