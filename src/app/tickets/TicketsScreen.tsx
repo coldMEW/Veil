@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   ALWAYS,
   deleteTicket,
+  DEMO_SITE,
+  isDemoUrl,
   formatLeft,
   profile,
   tickets,
@@ -95,6 +97,10 @@ function TicketDetail({ t, now }: { t: Ticket; now: number }) {
   useEffect(() => {
     if (t.destinations.some((d) => d.source === 'host' || d.source === 'registrar') || t.log.some((l) => l.text.startsWith('Looked up'))) return;
     let live = true;
+    if (isDemoUrl(t.pageUrl)) {
+      updateTicket(t.id, (cur) => ({ destinations: [...cur.destinations, { name: `${DEMO_SITE} abuse team (demo)`, email: `abuse@${DEMO_SITE}`, source: 'host' }] }), `Looked up the host: abuse@${DEMO_SITE} (demo).`);
+      return;
+    }
     setFinding(true);
     hostInfo(t.pageUrl)
       .then((h) => {

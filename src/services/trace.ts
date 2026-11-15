@@ -70,9 +70,9 @@ async function examine(imageUrl: string, pageUrl: string): Promise<ScanHit | nul
         const e = await face.embedFace(bitmap, f);
         for (const m of mine) {
           const c = face.compareFaces(e, m);
-          if (c.match === 'different') continue;
+          if (c.match !== 'same') continue; // 'possible' is too weak to open a ticket on
           if (!best || (best.kind === 'face' && c.cosine > best.score)) {
-            best = { kind: 'face', score: c.cosine, label: c.match === 'same' ? 'Your face' : 'Possibly your face' };
+            best = { kind: 'face', score: c.cosine, label: 'Your face' };
           }
         }
       }

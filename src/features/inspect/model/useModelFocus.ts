@@ -179,6 +179,7 @@ export function useModelFocus(assetId: string | null, bitmap: ImageBitmap | null
       } else {
         window.clearTimeout(timer.current);
         const { type: _t, id: _i, ...result } = msg;
+        if (import.meta.env.DEV) console.info('[veil] ai-model', result.backend, result.threads, JSON.stringify(result.timings));
         setState({
           status: 'done',
           result,
@@ -202,7 +203,8 @@ export function useModelFocus(assetId: string | null, bitmap: ImageBitmap | null
       copy.close();
       return;
     }
-    worker.postMessage({ id, bitmap: copy, coarse: isCoarse() }, [copy]);
+    // No heatmap is shown any more, so one occlusion pass is enough: only the views' scores are used.
+    worker.postMessage({ id, bitmap: copy, coarse: isCoarse(), grid: 1 }, [copy]);
   }, [assetId, bitmap, stop]);
 
   const cancel = useCallback(() => {

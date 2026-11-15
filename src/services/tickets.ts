@@ -1,7 +1,7 @@
 import { persisted, uid } from './store';
 
 export type MatchKind = 'face' | 'copy' | 'mark' | 'manual';
-export type Law = 'take-it-down' | 'dmca' | 'gdpr';
+export type Law = 'policy' | 'take-it-down' | 'dmca' | 'gdpr';
 export type TicketStatus = 'ready' | 'sent' | 'removed';
 
 export interface Destination {
@@ -67,8 +67,20 @@ export const ALWAYS = {
   ftc: { name: 'Report a platform that ignores you (FTC)', url: 'https://reportfraud.ftc.gov/' },
 };
 
+/** The demo leaks page ships with Veil; it is shown under its made-up name. */
+export const DEMO_SITE = 'hot-leaks.example';
+export function isDemoUrl(url: string): boolean {
+  try {
+    const u = new URL(url, window.location.href);
+    return u.origin === window.location.origin && u.pathname.includes('/demo/');
+  } catch {
+    return false;
+  }
+}
+
 export function siteOf(url: string): string {
   try {
+    if (isDemoUrl(url)) return DEMO_SITE;
     return new URL(url).hostname.replace(/^www\./, '');
   } catch {
     return url;
@@ -81,10 +93,11 @@ export function platformFor(url: string): Destination | null {
   return p ? { name: p.name, reportUrl: p.reportUrl, email: p.email, source: 'platform' } : null;
 }
 
+/** Intimate images get the TAKE IT DOWN Act; the person picks that. Other fakes start from the platform's own rules. */
 export function defaultLaw(hasOriginal: boolean): Law {
   const c = profile.get().country;
   if (c === 'EU' || c === 'UK') return 'gdpr';
-  return hasOriginal ? 'dmca' : 'take-it-down';
+  return hasOriginal ? 'dmca' : 'policy';
 }
 
 export function createTicket(input: {

@@ -3,6 +3,7 @@ import { addFace, removeFace, vaultFaces } from '../../services/vault';
 import { engines, type Face } from '../../services/engines';
 import { scan, SEARCH_ENGINES, watchlist, type ScanProgress } from '../../services/trace';
 import { href } from '../router';
+import { siteOf } from '../../services/tickets';
 import { toast } from '../App';
 import { pendingTrace } from './pending';
 import { useImageSession } from '../../lib/runtime/imageSession';
@@ -266,7 +267,7 @@ function Results({ p }: { p: ScanProgress }) {
                   {h.label}
                   {h.kind === 'face' && <span className="num"> · {Math.round(h.score * 100)}</span>}
                 </p>
-                <p className="small hit-url">{new URL(h.pageUrl).hostname}</p>
+                <p className="small hit-url">{siteOf(h.pageUrl)}</p>
                 <a className="btn btn-alarm btn-sm" href={href('tickets', h.ticketId)}>
                   Open ticket
                 </a>

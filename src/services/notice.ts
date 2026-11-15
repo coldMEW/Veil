@@ -1,12 +1,14 @@
 import { profile, type Law, type Ticket } from './tickets';
 
 export const LAW_LABEL: Record<Law, string> = {
+  policy: 'Platform rules (impersonation)',
   'take-it-down': 'TAKE IT DOWN Act (US)',
   dmca: 'DMCA copyright notice (US)',
   gdpr: 'GDPR right to erasure (EU/UK)',
 };
 
 export const LAW_NOTE: Record<Law, string> = {
+  policy: 'For fakes that are not intimate. Every big platform bans impersonation and deceptive AI-made pictures of real people.',
   'take-it-down':
     'For intimate images made or shared without consent, real or AI-made. Covered platforms must remove them within 48 hours of a valid request.',
   dmca: 'When the fake was made from a photo you took. Your copyright in the original is the lever; Veil mark and the comparison are the proof.',
@@ -19,6 +21,7 @@ function date(ms: number) {
 
 export function noticeSubject(t: Ticket): string {
   if (t.law === 'dmca') return `DMCA takedown notice: ${t.site} (ref ${t.id})`;
+  if (t.law === 'policy') return `Report: AI-made impersonation of me on ${t.site} (ref ${t.id})`;
   if (t.law === 'gdpr') return `Erasure request under GDPR Art. 17: ${t.site} (ref ${t.id})`;
   return `Removal request under the TAKE IT DOWN Act: ${t.site} (ref ${t.id})`;
 }
@@ -56,6 +59,23 @@ Please remove or disable access to this material.
 ${name}
 ${email}
 Signed electronically: /${name}/  ${date(Date.now())}`;
+  }
+
+  if (t.law === 'policy') {
+    return `To the trust and safety team of ${t.site},
+
+The picture below shows my face in a scene that never happened. It was made with AI or an editing tool and is posted without my consent. It impersonates me and misleads anyone who sees it, which breaks your rules on impersonation and on deceptive synthetic or manipulated media.
+
+Where it is:
+${where}
+
+Evidence:
+${evidence}
+
+Please remove it and any copies, and tell me what you did.
+
+${name}
+${email}`;
   }
 
   if (t.law === 'gdpr') {

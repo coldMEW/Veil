@@ -162,7 +162,10 @@
 .tl-main { display: grid; font-size: 14px; color: var(--on-dark-soft); min-width: 0; }
 .tl-main strong { font-size: 17px; color: var(--on-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pill { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 600; white-space: nowrap; }
-.empty-note { background: var(--char-2); border-radius: 6px; padding: 24px; display: grid; gap: 16px; justify-items: start; }
+.empty-note { background: var(--char-2); border-radius: 6px; padding: clamp(28px, 6vw, 96px); display: grid; gap: 22px; justify-items: start; min-height: calc(100svh - var(--bar-h) - 180px); align-content: center; }
+.empty-note p { font-size: 20px; max-width: 46ch; }
+.tool-tickets:has(.empty-note) { grid-template-columns: 1fr; }
+.tool-tickets:has(.empty-note) h1 { font-size: var(--fs-giant); }
 
 .ticket-detail { background: var(--paper); color: var(--ink); border-radius: 6px; padding: clamp(20px, 3vw, 36px); display: grid; gap: 28px; }
 .ticket-placeholder { background: var(--char-2); color: var(--on-dark-soft); min-height: 300px; align-content: center; }
