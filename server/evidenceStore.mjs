@@ -193,19 +193,6 @@ function sanitizeAnalysis(value) {
     sampledFrames: nonNegativeNumber(value.sampledFrames),
     frameIntervalEstimate: nonNegativeNumber(value.frameIntervalEstimate),
     syntheticMedia,
-    ...(value.cloudReview?.sourceSha256 === sourceSha256 && Array.isArray(value.cloudReview.checks) ? {
-      cloudReview: {
-        sourceSha256,
-        checkedAt: text(value.cloudReview.checkedAt, 64),
-        checks: value.cloudReview.checks.slice(0, 8).filter(Boolean).map((check) => ({
-          id: text(check.id, 80),
-          name: text(check.name, 120),
-          status: text(check.status, 50),
-          coverage: nonNegativeNumber(check.coverage),
-          reason: text(check.reason, 500),
-        })),
-      },
-    } : {}),
     temporal:
       value.temporal && typeof value.temporal === 'object'
         ? {

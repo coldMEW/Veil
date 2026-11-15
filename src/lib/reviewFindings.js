@@ -1,7 +1,7 @@
 import { formatTimestamp } from './videoFacts.js';
 
-export function combineFindings(local, cloud = []) {
-  const findings = [...local.filter(({ check }) => check === 'synthetic_media_model'), ...cloud];
+export function combineFindings(local) {
+  const findings = local.filter(({ check }) => check === 'synthetic_media_model');
   const ranked = findings.sort((a, b) => a.timeStart - b.timeStart);
   const groups = [];
   for (const finding of ranked) {

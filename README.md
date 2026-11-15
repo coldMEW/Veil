@@ -30,7 +30,7 @@ It is designed around a simple principle: preserve the original file, make techn
 - The local receipt is signed by a key on this computer. It is not an independent server timestamp, cloud WORM archive, or C2PA signature validation.
 - The scan generates human-review prompts; it does not make a deepfake, fraud, lip-sync, voice-clone, or claim-validity decision.
 - The trained model is a frame-level synthetic-media classifier aggregated across sampled frames. Its score is a review signal, not a calibrated probability that the entire video is AI-generated.
-- On first use, the browser downloads around 91 MB of public model files from Hugging Face. It verifies the pinned hashes and runs both checks locally. The optional Google SynthID link opens Google's verification instructions for users who choose to share a clip with Google.
+- On first use, the browser downloads around 91 MB of public model files from Hugging Face. It verifies the pinned hashes and analyzes the footage locally.
 - To keep a browser-local review stable, audio decoding is skipped for files above 120 MiB; the rest of the evidence record and frame sampling still proceed.
 
 ## Run locally
@@ -43,16 +43,6 @@ npm run dev
 ```
 
 Then open [http://localhost:5173](http://localhost:5173).
-
-### Optional cloud checks
-
-Copy `.env.example` to `.env` in the project folder, fill in the keys you have, and restart Veil. The server also accepts environment variables set before running `npm run dev`. Keep keys out of Git and out of the browser.
-
-- `GEMINI_API_KEY` enables Google's video and sound observations. `VEIL_GEMINI_MODEL` optionally overrides the default `gemini-3.8-flash`.
-- `HIVE_API_KEY` enables Hive timestamped generation and face-manipulation scores. Use the API key for a Hive AI-Generated Image and Video Detection project.
-- `OPENAI_API_KEY` enables a GPT comparison and OpenAI provenance checks on up to four JPEG stills. Veil prioritizes before-and-after samples around flagged passages. The key's organization needs separate access to the Content Provenance API for its watermark checks. `VEIL_OPENAI_MODEL` optionally overrides `gpt-5-mini`.
-
-Select **Run all connected cloud checks on this video** before opening a clip, or click **Send media for cloud checks** after opening it. The prototype accepts MP4 or MOV clips up to 14 MB and 90 seconds for this option. The report groups results by time and shows failed checks in **Check details**. Google's official SynthID video verifier remains an external user-run check. The OpenAI verifier accepts images and audio, so Veil submits sampled stills and reports detections at their timestamps.
 
 `npm run dev` watches the project and restarts after code changes. If an older Veil server is already running, stop it with <kbd>Ctrl</kbd>+<kbd>C</kbd> and run the command again before refreshing the browser.
 

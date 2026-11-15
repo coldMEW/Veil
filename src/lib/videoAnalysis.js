@@ -502,7 +502,6 @@ export async function analyzeVideoFile(file, onProgress) {
       sampledFrames: frames.length,
       frameIntervalEstimate: frames.length > 1 ? frames[1].time - frames[0].time : null,
       syntheticMedia,
-      cloudFrames: cloudFrameSamples(frames, syntheticMedia.signals),
       temporal,
       face,
       audio,
@@ -524,16 +523,4 @@ export async function analyzeVideoFile(file, onProgress) {
     video.load();
     URL.revokeObjectURL(objectUrl);
   }
-}
-
-function cloudFrameSamples(frames, signals) {
-  const selected = frames.filter(({ modelPixels }) => modelPixels);
-  const indexes = selectEvenlyIndexes(selected.length, 4);
-  const pairs = signals.flatMap(({ comparison }) => comparison ? [comparison.before, comparison.after] : []);
-  const even = selected.filter((_, index) => indexes.has(index));
-  const samples = new Map();
-  for (const { time, thumbnail } of [...pairs, ...even]) {
-    if (!samples.has(time)) samples.set(time, { time, thumbnail });
-  }
-  return [...samples.values()].slice(0, 4).sort((a, b) => a.time - b.time);
 }

@@ -42,14 +42,12 @@ function initialState() {
     sourceUrl: '',
     vault: { status: 'idle', receipt: null, verification: null, error: null, syncError: null },
     analysis: { status: 'idle', result: null, error: null, progress: null, persisted: false, syncPromise: null },
-    cloud: { config: null, auto: false, running: false, error: null, result: null },
     error: null,
   };
 }
 
 let state = initialState();
 let scanGeneration = 0;
-let uploadCloudConfig = null;
 
 const escapeHtml = (value) =>
   String(value ?? '')
@@ -166,7 +164,7 @@ function emptyScreen() {
         <span><b>03</b> Uncertainty stays visible</span>
       </div>
       ${uploadPanel()}
-      <p class="privacy-note">Veil saves the original in the local evidence vault. If you opt into cloud checks, Veil also shares the media described above.</p>
+      <p class="privacy-note">Veil saves the original in the evidence vault on this computer and analyzes it in your browser.</p>
     </section>
     ${footer()}`;
 }
@@ -183,10 +181,6 @@ function uploadPanel() {
       </div>
       <label class="button primary" for="video-file">${busy ? 'Processing' : 'Choose video'}</label>
     </section>
-    ${!busy && uploadCloudConfig?.providers.length ? `<label class="source-check cloud-opt-in">
-      <input type="checkbox" data-cloud-auto ${state.cloud.auto ? 'checked' : ''} />
-      <span><strong>Run all connected cloud checks on this video</strong><br />Shares media with ${escapeHtml(cloudRecipients(uploadCloudConfig))}. Clips up to 14 MB and 90 seconds.</span>
-    </label>` : ''}
     ${state.error ? `<div class="notice danger" role="alert"><strong>Could not open this file.</strong> ${escapeHtml(state.error)}</div>` : ''}`;
 }
 
@@ -264,7 +258,7 @@ function analysisStatus() {
     if (groups.length) {
       return { label: `${groups.length} ${groups.length === 1 ? 'moment' : 'moments'} to review`, tone: 'review', detail: 'Choose a timestamp below to jump to that point in the video.' };
     }
-    if (state.analysis.result.syntheticMedia.status !== 'complete' || state.cloud.result?.checks.some(({ status }) => status !== 'complete')) {
+    if (state.analysis.result.syntheticMedia.status !== 'complete') {
       return { label: 'Some checks couldn’t finish', tone: 'unknown', detail: 'The checks that finished found no moments to flag. See check details for coverage.' };
     }
     return { label: 'We couldn’t determine how this video was made', tone: 'unknown', detail: 'The checks that ran found no moments to flag.' };
@@ -274,33 +268,7 @@ function analysisStatus() {
 
 function findingsForReview() {
   const local = state.analysis.result?.syntheticMedia.signals ?? [];
-  const cloud = state.cloud.result?.checks.flatMap(({ findings }) => findings) ?? [];
-  return combineFindings(local, cloud);
-}
-
-function cloudRecipients(config) {
-  return config.providers.map(({ name, input }) => `${name} (${input})`).join(', ');
-}
-
-function cloudSection() {
-  const { config, error, running, result } = state.cloud;
-  if (!config) return '<p class="source-check">Veil couldn’t reach its cloud configuration endpoint. Restart the local server and open the video again.</p>';
-  const missing = config.missing ?? [];
-  const setup = missing.length ? `<details class="unavailable-details"><summary>Cloud checks that need setup</summary>
-    <p>Add the listed keys to the server’s <code>.env</code> file, then restart Veil.</p>
-    <ul>${missing.map(({ name, key }) => `<li>${escapeHtml(name)} <code>${escapeHtml(key)}</code></li>`).join('')}</ul></details>` : '';
-  if (!config.providers.length) return `<div class="source-check"><p>Only local checks ran. No cloud providers are connected.</p>${setup}</div>`;
-  const tooLarge = state.file.size > config.maxBytes || (state.facts?.durationFromContainer ?? state.media.duration) > config.maxSeconds;
-  const ready = state.analysis.status === 'complete' && !tooLarge && !running && !result;
-  const recipients = cloudRecipients(config);
-  const message = tooLarge ? 'Cloud checks support MP4 or MOV clips up to 14 MB and 90 seconds.'
-    : `Starting cloud checks sends media to ${recipients}. Each provider applies its own data policy.`;
-  return `<div class="source-check no-print">
-    <p>${escapeHtml(message)}</p>
-    ${result ? '<p>Cloud review finished. See Check details for which providers completed.</p>' : `<button class="button quiet" data-action="cloud-review" ${ready ? '' : 'disabled'}>${running ? 'Checking with cloud providers…' : 'Send media for cloud checks'}</button>`}
-    ${error ? `<p role="alert">${escapeHtml(error)}</p>` : ''}
-    ${setup}
-  </div>`;
+  return combineFindings(local);
 }
 
 function frameComparison(comparison) {
@@ -333,14 +301,11 @@ function scanSection() {
           </div>
           <button class="button primary no-print" data-action="run-scan" ${scan.status === 'running' ? 'disabled' : ''}>${scan.status === 'complete' ? 'Check again' : scan.status === 'running' ? 'Checking video…' : 'Check video'}</button>
         </div>
-      ${cloudSection()}
       ${findingCards()}
       ${result ? `<details class="unavailable-details"><summary>Check details</summary><ul>
         ${visual.detectors.map(({ engine, metrics, reason }) => `<li><b>${escapeHtml(engine.id)}</b> · ${metrics ? `${metrics.sampledFrames} of ${metrics.requestedFrames} frames checked, ${metrics.flaggedFrames} flagged` : 'Could not check frames'}${reason ? `. ${escapeHtml(reason)}` : ''}</li>`).join('')}
         <li>${result.temporal.metrics.sampledFrames} frames checked for sudden picture changes.</li>
         <li>Sound changes ${result.audio.status === 'complete' ? 'checked' : 'could not be checked'}.</li>
-        ${(state.cloud.result?.checks ?? []).map(({ name, status, coverage, reason }) => `<li>${escapeHtml(name)} · ${status === 'complete' ? 'Finished' : status === 'partial' ? 'Partially finished' : 'Could not finish'}${Number.isFinite(coverage) ? ` · ${coverage} samples checked` : ''}${reason ? ` · ${escapeHtml(reason)}` : ''}</li>`).join('')}
-        <li><a href="https://deepmind.google/models/synthid/" target="_blank" rel="noopener noreferrer">Google’s official SynthID video check</a> is available separately. Veil’s Gemini review examines the content of the clip.</li>
       </ul></details>` : ''}
     </section>`;
 }
@@ -641,7 +606,6 @@ function updateScanProgress(progress) {
 
 function analysisForVault(result) {
   const receipt = receiptPayload();
-  const cloud = state.cloud.result;
   return {
     sourceSha256: receipt?.originalAsset?.serverSha256 ?? state.sha256,
     engine: result.engine,
@@ -683,77 +647,9 @@ function analysisForVault(result) {
         }
       : null,
     unavailableChecks: result.unavailableChecks,
-    cloudReview: cloud ? { ...cloud, checks: cloud.checks.map(({ findings, ...check }) => check) } : null,
-    signals: [...(cloud?.checks.flatMap(({ findings }) => findings) ?? []), ...result.signals]
-      .map(({ thumbnail, ...signalWithoutThumbnail }) => signalWithoutThumbnail),
+    signals: result.signals.map(({ thumbnail, comparison, ...signal }) => signal),
     limitations: result.limitations,
   };
-}
-
-async function loadCloudConfig() {
-  try {
-    const response = await fetch('/api/review/providers');
-    return response.ok ? await response.json() : null;
-  } catch {
-    return null;
-  }
-}
-
-function videoAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result.split(',', 2)[1]);
-    reader.onerror = () => reject(new Error('Veil couldn’t read the video for upload.'));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function runCloudChecks() {
-  const current = state;
-  const { config, running, result } = current.cloud;
-  const local = current.analysis.result;
-  const duration = current.facts?.durationFromContainer ?? current.media.duration;
-  if (!config?.providers.length || running || result || !local || current.file.size > config.maxBytes || duration > config.maxSeconds) return;
-  preservePlaybackPosition();
-  current.cloud.running = true;
-  current.cloud.error = null;
-  render();
-  try {
-    const video = await videoAsBase64(current.file);
-    if (state !== current) return;
-    const response = await fetch('/api/review/cloud', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Veil-Cloud-Consent': 'yes' },
-      body: JSON.stringify({
-        video,
-        sourceSha256: current.sha256,
-        providers: config.providers.map(({ id }) => id),
-        frames: config.providers.some(({ id }) => ['gemini', 'gpt', 'openai'].includes(id)) ? local.cloudFrames : [],
-        windows: local.syntheticMedia.signals.map(({ timeStart, timeEnd, comparison }) => ({
-          start: Math.max(0, Math.min(timeStart, comparison?.before.time ?? timeStart) - 0.5),
-          end: Math.min(duration, Math.max(timeEnd, comparison?.after.time ?? timeEnd) + 0.5),
-        })),
-      }),
-    });
-    const report = await responseJson(response);
-    if (!response.ok) throw new Error(report.error || 'Cloud checks could not finish.');
-    if (report.sourceSha256 !== current.sha256) throw new Error('The returned report could not be matched to this video.');
-    if (state !== current) return;
-    await syncAnalysisWithVault();
-    if (state !== current) return;
-    current.cloud.result = report;
-    addCustodyEvent('cloud_review_completed', `Received cloud review statuses for ${report.checks.length} checks.`);
-    current.analysis.persisted = false;
-    void syncAnalysisWithVault();
-  } catch (error) {
-    current.cloud.error = error.message || 'Cloud checks could not finish.';
-  } finally {
-    current.cloud.running = false;
-    if (state === current) {
-      preservePlaybackPosition();
-      render();
-    }
-  }
 }
 
 async function syncAnalysisWithVault() {
@@ -807,7 +703,6 @@ async function runEvidenceScan() {
     addCustodyEvent('automated_evidence_scan_completed', `Completed ${ANALYSIS_ENGINE.id} with ${result.signals.length} timestamped review signal${result.signals.length === 1 ? '' : 's'}.`);
     render();
     void syncAnalysisWithVault();
-    if (state.cloud.auto) void runCloudChecks();
   } catch (error) {
     if (run !== scanGeneration) return;
     state.analysis = { status: 'failed', result: null, error: error instanceof Error ? error.message : 'The browser could not complete the evidence scan.', progress: null, persisted: false, syncPromise: null };
@@ -825,7 +720,6 @@ async function openVideo(file) {
     return;
   }
 
-  const consentedProviders = state.cloud.auto ? uploadCloudConfig?.providers.map(({ id }) => id) : null;
   if (state.assetUrl) URL.revokeObjectURL(state.assetUrl);
   scanGeneration += 1;
   state = initialState();
@@ -840,17 +734,13 @@ async function openVideo(file) {
     const facts = inspectVideoContainer(bytes);
     if (!facts.supported) throw new Error(facts.reason);
     const assetUrl = URL.createObjectURL(new Blob([bytes], { type: file.type || 'video/mp4' }));
-    const [sha256, media, cloudConfig] = await Promise.all([sha256Hex(bytes), loadVideoMetadata(assetUrl), loadCloudConfig()]);
+    const [sha256, media] = await Promise.all([sha256Hex(bytes), loadVideoMetadata(assetUrl)]);
 
     state.bytes = bytes;
     state.facts = facts;
     state.sha256 = sha256;
     state.assetUrl = assetUrl;
     state.media = media;
-    state.cloud.config = cloudConfig;
-    // A newly connected provider needs its own consent on this file.
-    state.cloud.auto = Boolean(consentedProviders?.length && cloudConfig?.providers.length &&
-      cloudConfig.providers.every(({ id }) => consentedProviders.includes(id)));
     addCustodyEvent('sha256_computed_locally', `Computed SHA-256 for ${bytes.length.toLocaleString()} original bytes.`);
     addCustodyEvent('container_inspected_locally', `Read ${facts.container}; top-level boxes: ${facts.topLevelBoxes.join(', ') || 'none'}.`);
     if (facts.c2paManifestCandidate) addCustodyEvent('c2pa_container_candidate', 'Found a C2PA UUID container marker. Full signature validation is not included in this MVP.');
@@ -879,7 +769,6 @@ async function openVideo(file) {
 function buildEvidencePackage() {
   const provenance = provenanceStatus();
   const receipt = receiptPayload();
-  const { cloudFrames, ...localAnalysis } = state.analysis.result ?? {};
   return {
     schema: 'veil-evidence-package/v0.5',
     generatedAt: new Date().toISOString(),
@@ -909,8 +798,7 @@ function buildEvidencePackage() {
       validationPerformed: false,
       limitation: 'This MVP only scans an ISO BMFF container for a C2PA UUID marker. It does not validate a C2PA manifest, signature, signer trust, or timestamp trust.',
     },
-    automatedAnalysis: state.analysis.result ? localAnalysis : null,
-    cloudReview: state.cloud.result,
+    automatedAnalysis: state.analysis.result,
     reviewPassages: findingsForReview(),
     custodyEvents: receipt?.custodyEvents ?? state.custody,
     observations: state.observations,
@@ -947,7 +835,6 @@ function resetCase() {
 
 app.addEventListener('change', (event) => {
   const target = event.target;
-  if (target.matches('[data-cloud-auto]')) state.cloud.auto = target.checked;
   if (target.matches('[data-video-input]')) void openVideo(target.files?.[0]);
   if (target.matches('[data-workflow]')) {
     state.workflow = target.value;
@@ -989,7 +876,6 @@ app.addEventListener('click', (event) => {
   if (action === 'export-report') void downloadJson();
   if (action === 'print-report') window.print();
   if (action === 'run-scan') void runEvidenceScan();
-  if (action === 'cloud-review') void runCloudChecks();
   if (action === 'reset') resetCase();
   if (action === 'seek') {
     const time = Number(button.dataset.time);
@@ -1031,10 +917,6 @@ app.addEventListener('drop', (event) => {
 
 try {
   render();
-  void loadCloudConfig().then((config) => {
-    uploadCloudConfig = config;
-    if (!state.file) render();
-  });
 } catch (error) {
   showStartupError(error);
 }
