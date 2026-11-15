@@ -1,0 +1,7 @@
+{
+  "recorded": "2026-11-14",
+  "request": "POST https://yandex.com/images/search?rpt=imageview&cbir_page=sites",
+  "image": "Wikimedia Eiffel Tower resized768px",
+  "rawResponseSha256": "71296581e932737b28ffc58b8a46cfd1f53f1eb24d04116f109c4943b355b305",
+  "trim": "only5 actual site records from initialState.cbirSites; no fabricated results"
+}
