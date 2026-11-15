@@ -309,3 +309,31 @@
 .hits img { border-radius: var(--r-card); }
 .vault-list img { border-radius: 50%; }
 @media (max-width: 860px) { .hunt-go { width: 100%; justify-self: stretch; } .vault-art { width: 110px; height: 110px; } }
+
+/* ---------- App bar v2: calm and dark; the chapter colour is only an accent ---------- */
+.bar { background: var(--night) !important; color: var(--on-dark) !important; height: 68px; border-bottom: 0; }
+.bar .wordmark, .bar .brand { color: var(--on-dark) !important; }
+.bar-nav { gap: 2px; align-items: center; }
+.bar-nav a {
+  background: transparent !important; color: var(--on-dark-soft) !important; margin: 0 !important; padding: 10px 14px !important;
+  border-radius: 999px !important; font-family: var(--text) !important; font-weight: 600 !important; font-size: 15px !important;
+  text-transform: none !important; outline: none !important; transition: color var(--t-fast), background-color var(--t-fast);
+}
+.bar-nav a:hover { color: var(--on-dark) !important; background: rgba(255, 255, 255, 0.07) !important; }
+.bar-nav a[aria-current='page'] { color: var(--on-dark) !important; }
+.bar-nav a::after {
+  display: block !important; content: ''; position: absolute; left: 14px; right: 14px; bottom: 3px; height: 3px; border-radius: 2px;
+  background: var(--tab-accent); transform: scaleX(0) !important; transition: transform 320ms var(--ease);
+}
+.bar-nav a[aria-current='page']::after { transform: scaleX(1) !important; }
+.bar-nav a[data-colour='lime'] { --tab-accent: var(--lime); }
+.bar-nav a[data-colour='sky'] { --tab-accent: var(--sky); }
+.bar-nav a[data-colour='alarm'] { --tab-accent: var(--alarm); }
+.bar-nav a[data-colour='paper'] { --tab-accent: var(--paper); }
+.bar-nav .count { background: var(--alarm); color: var(--ink); }
+.bar-local { color: var(--on-dark-soft); font-size: 14px; display: inline-flex; align-items: center; gap: 8px; }
+.bar-local::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--lime); }
+.empty-note { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 48px; }
+.empty-note > :not(.empty-art) { grid-column: 1; }
+.empty-note .empty-art { grid-column: 2; grid-row: 1 / span 3; width: min(420px, 100%); justify-self: center; }
+@media (max-width: 860px) { .empty-note { grid-template-columns: 1fr; } .empty-note .empty-art { grid-column: 1; grid-row: auto; width: 70%; } }
